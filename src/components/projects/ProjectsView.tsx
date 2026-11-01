@@ -1,0 +1,1426 @@
+'use client';
+
+import React, { useState, useMemo } from 'react';
+import {
+  Project,
+  AuthUser,
+  isPmOrAbove,
+  isExecutiveOrAbove,
+  Approval,
+  Employee,
+  BusinessDeal,
+  formatCurrencyManwon,
+  calculateMultiYearRevenues,
+  getMultiYearRevenueForYear,
+  getProjectShareRate,
+  getProjectOurBudget,
+  CommonCode,
+} from '@/types/groupware';
+import ContractWorkstationModal from '@/components/contract/ContractWorkstationModal';
+import ManpowerWorkloadView from '@/components/projects/ManpowerWorkloadView';
+import WeeklyMonthlyReportView from '@/components/projects/WeeklyMonthlyReportView';
+import { buildDefaultFullContractDoc } from '@/components/contract/ContractDashboard';
+import { normalizeProjectStatus } from '@/components/dashboard/DashboardView';
+import {
+  Briefcase,
+  Search,
+  Plus,
+  Edit3,
+  Trash2,
+  Calendar,
+  User,
+  Users,
+  LayoutGrid,
+  Kanban,
+  FileSpreadsheet,
+  FileText,
+  Calculator,
+  ArrowRight,
+  TrendingUp,
+  Sparkles,
+  ExternalLink,
+  Clock,
+  Layers,
+  Building2,
+} from 'lucide-react';
+
+interface Props {
+  projects: Project[];
+  currentUser: AuthUser;
+  approvals?: Approval[];
+  employees?: Employee[];
+  deals?: BusinessDeal[];
+  commonCodes?: CommonCode[];
+  onRefresh: () => Promise<void>;
+  onNavigateToReports?: (projectId?: number) => void;
+}
+
+export const PROJECT_STAGES = ['발주예상', '제안준비중', '프로젝트 수행', '완료'] as const;
+export type ProjectStage = typeof PROJECT_STAGES[number];
+
+export default function ProjectsView({
+  projects,
+  currentUser,
+  approvals = [],
+  employees = [],
+  deals = [],
+  commonCodes = [],
+  onRefresh,
+  onNavigateToReports,
+}: Props) {
+  // 서브탭: 'list' (프로젝트 수행 관리) | 'reports' (주간/월간 보고) | 'manpower' (직원별 연간 투입공수)
+  const [subTab, setSubTab] = useState<'list' | 'reports' | 'manpower'>('list');
+  const [reportTargetProjectId, setReportTargetProjectId] = useState<number | null>(null);
+
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string>('전체');
+  const [viewMode, setViewMode] = useState<'grid' | 'kanban'>('grid');
+
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editingPrj, setEditingPrj] = useState<Project | null>(null);
+  const [formData, setFormData] = useState<Partial<Project>>({});
+  const [multiYearBreakdown, setMultiYearBreakdown] = useState<Record<number, number>>({});
+
+  // 프로젝트 카드/모달에서 직접 계약품의서 모달 열기용 상태 (DB Approval 레코드와 1:1 매핑)
+  const [workstationDoc, setWorkstationDoc] = useState<any | null>(null);
+  const [workstationApproval, setWorkstationApproval] = useState<Approval | null>(null);
+
+  // PM 권한 이상(시스템 관리자, 임원 권한, PM 권한) 프로젝트 등록/수정 가능
+  const canEdit = isPmOrAbove(currentUser.role, currentUser.position);
+  const canDelete = isExecutiveOrAbove(currentUser.role, currentUser.position);
+
+  // 정규화된 상태로 프로젝트 필터링
+  const filteredProjects = useMemo(() => {
+    return projects.filter((prj) => {
+      const normStatus = normalizeProjectStatus(prj.status);
+      const matchStatus = statusFilter === '전체' || normStatus === statusFilter;
+      const q = searchQuery.toLowerCase().trim();
+      const matchSearch =
+        !q ||
+        prj.name.toLowerCase().includes(q) ||
+        prj.code.toLowerCase().includes(q) ||
+        prj.pm_name.toLowerCase().includes(q) ||
+        prj.department.toLowerCase().includes(q);
+      return matchStatus && matchSearch;
+    });
+  }, [projects, statusFilter, searchQuery]);
+
+  // 각 단계별 건수 집계
+  const stageCounts = useMemo(() => {
+    const map: Record<ProjectStage, number> = {
+      발주예상: 0,
+      제안준비중: 0,
+      '프로젝트 수행': 0,
+      완료: 0,
+    };
+    projects.forEach((p) => {
+      const stage = normalizeProjectStatus(p.status);
+      map[stage] = (map[stage] || 0) + 1;
+    });
+    return map;
+  }, [projects]);
+
+  const openCreateModal = () => {
+    setEditingPrj(null);
+    const startStr = '2026-04-01';
+    const endStr = '2026-11-30';
+    const initialBudget = 45000;
+    const breakdown = calculateMultiYearRevenues(startStr, endStr, initialBudget);
+    setMultiYearBreakdown(breakdown);
+
+    setFormData({
+      code: `PRJ-2026-${String(projects.length + 1).padStart(2, '0')}`,
+      name: '',
+      department: '사업본부',
+      pm_name: currentUser.name,
+      start_date: startStr,
+      end_date: endStr,
+      status: '프로젝트 수행',
+      progress: 10,
+      budget: initialBudget,
+      share_rate: 100,
+      our_budget: initialBudget,
+      is_consortium: false,
+      consortium_partners: '',
+      members: '',
+      priority: '높음',
+      description: '',
+      yearly_revenue_json: JSON.stringify(breakdown),
+    });
+    setModalOpen(true);
+  };
+
+  const openEditModal = (prj: Project) => {
+    setEditingPrj(prj);
+    let breakdown: Record<number, number> = {};
+    if (prj.yearly_revenue_json) {
+      try {
+        breakdown = JSON.parse(prj.yearly_revenue_json);
+      } catch (e) {
+        breakdown = calculateMultiYearRevenues(prj.start_date, prj.end_date, prj.budget);
+      }
+    } else {
+      breakdown = calculateMultiYearRevenues(prj.start_date, prj.end_date, prj.budget);
+    }
+    setMultiYearBreakdown(breakdown);
+    setFormData({
+      ...prj,
+      status: normalizeProjectStatus(prj.status),
+      share_rate: getProjectShareRate(prj),
+      our_budget: getProjectOurBudget(prj),
+      is_consortium: prj.is_consortium ?? (getProjectShareRate(prj) < 100),
+      consortium_partners: prj.consortium_partners || '',
+    });
+    setModalOpen(true);
+  };
+
+  const recalculateBreakdown = (sDate?: string, eDate?: string, bgt?: number) => {
+    const s = sDate || formData.start_date || '';
+    const e = eDate || formData.end_date || '';
+    const b = bgt !== undefined ? bgt : formData.budget || 0;
+    const res = calculateMultiYearRevenues(s, e, b);
+    setMultiYearBreakdown(res);
+    setFormData((prev) => ({
+      ...prev,
+      yearly_revenue_json: JSON.stringify(res),
+    }));
+  };
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const shareRate =
+      typeof formData.share_rate === 'number' && !isNaN(formData.share_rate)
+        ? formData.share_rate
+        : 100;
+    const totalBudget = Number(formData.budget) || 0;
+    const ourBudget = Math.round(totalBudget * (shareRate / 100));
+
+    const finalData = {
+      ...formData,
+      department: '사업본부', // 프로젝트는 항상 사업본부 전담
+      budget: totalBudget,
+      share_rate: shareRate,
+      our_budget: ourBudget,
+      is_consortium: shareRate < 100,
+      consortium_partners: formData.consortium_partners || '',
+      yearly_revenue_json: JSON.stringify(multiYearBreakdown),
+    };
+
+    await fetch('http://localhost:8080/api/groupware', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        module: 'projects',
+        action: editingPrj ? 'update' : 'create',
+        id: editingPrj?.id,
+        data: finalData,
+      }),
+    });
+
+    // 프로젝트 수정 시 연결된 계약품의서(Approval)가 있다면 계약품의서의 투입인력(manpowerPlans) 및 기본정보도 양방향 동기화
+    if (editingPrj) {
+      const matchedAp = findLinkedApproval(editingPrj);
+      if (matchedAp && matchedAp.items_json && matchedAp.items_json.startsWith('{')) {
+        try {
+          const parsedDoc = JSON.parse(matchedAp.items_json);
+          parsedDoc.title = finalData.name || editingPrj.name;
+          parsedDoc.startDate = finalData.start_date || editingPrj.start_date;
+          parsedDoc.endDate = finalData.end_date || editingPrj.end_date;
+          parsedDoc.ourShareRate = shareRate;
+          parsedDoc.supplyAmount = ourBudget * 10; // 당사 수주 배정액 (천원)
+          parsedDoc.vatAmount = Math.round(parsedDoc.supplyAmount * 0.1);
+
+          // 프로젝트 members 목록과 계약품의서 manpowerPlans 동기화
+          const updatedMemberNames = Array.from(
+            new Set(
+              [
+                finalData.pm_name,
+                ...((finalData.members || '') as string).split(',').map((n) => n.trim()),
+              ].filter(Boolean)
+            )
+          );
+
+          const sDate = new Date(parsedDoc.startDate || '2026-04-01');
+          const eDate = new Date(parsedDoc.endDate || '2026-11-30');
+          const prjMonths = Math.max(
+            1,
+            (eDate.getFullYear() - sDate.getFullYear()) * 12 +
+              (eDate.getMonth() - sDate.getMonth()) +
+              1
+          );
+
+          const existingPlans: any[] = parsedDoc.manpowerPlans || [];
+          const syncedPlans = updatedMemberNames.map((empName, idx) => {
+            const existing = existingPlans.find((p) => p.name === empName);
+            if (existing) return existing;
+
+            const empObj = employees.find((emp) => emp.name === empName);
+            const pos = empObj ? empObj.position : '대리';
+            const isPm = empName === finalData.pm_name || idx === 0;
+            const { grade, unitPrice, role } = getGradeAndPriceByPosition(pos, isPm);
+            const monthsArr = Array(prjMonths).fill(1);
+            return {
+              id: `m_sync_${idx}_${Date.now()}`,
+              type: '당사',
+              grade,
+              role,
+              name: empName,
+              position: pos,
+              months: monthsArr,
+              totalMM: prjMonths,
+              unitPrice,
+              laborCost: prjMonths * unitPrice,
+            };
+          });
+
+          parsedDoc.manpowerPlans = syncedPlans;
+
+          await fetch('http://localhost:8080/api/groupware', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              module: 'approvals',
+              action: 'update',
+              id: matchedAp.id,
+              data: {
+                ...matchedAp,
+                title: parsedDoc.title,
+                project_name: parsedDoc.title,
+                amount: parsedDoc.supplyAmount,
+                items_json: JSON.stringify(parsedDoc),
+              },
+            }),
+          });
+        } catch (err) {
+          console.error('Failed to sync approval with project:', err);
+        }
+      }
+    }
+
+    setModalOpen(false);
+    await onRefresh();
+  };
+
+  const handleDelete = async (id: number) => {
+    if (!canDelete) {
+      alert('프로젝트 삭제는 시스템 관리자 또는 임원 권한(이사급 이상)만 가능합니다.');
+      return;
+    }
+    if (!confirm('정말 삭제하시겠습니까? 연결된 결재 품의서 및 직원 투입 현황에서도 즉시 제외됩니다.')) return;
+
+    const prjToDelete = projects.find((p) => p.id === id);
+    const linkedAp = prjToDelete ? findLinkedApproval(prjToDelete) : undefined;
+
+    // 1. 프로젝트 삭제
+    await fetch('http://localhost:8080/api/groupware', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ module: 'projects', action: 'delete', id }),
+    });
+
+    // 2. 연계된 계약품의서(Approval)가 있다면 함께 삭제하여 유령 프로젝트 데이터 정합성 보장
+    if (linkedAp) {
+      await fetch('http://localhost:8080/api/groupware', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ module: 'approvals', action: 'delete', id: linkedAp.id }),
+      });
+    }
+
+    await onRefresh();
+  };
+
+  // 프로젝트와 연결된 DB 계약품의서(Approval) 찾기
+  const findLinkedApproval = (prj: Project): Approval | undefined => {
+    return approvals.find((a) => {
+      if (a.category !== '계약품의' && a.category !== '계약품의서') return false;
+      if (a.project_name === prj.name || a.title === prj.name) return true;
+      if (a.items_json && a.items_json.startsWith('{')) {
+        try {
+          const parsed = JSON.parse(a.items_json);
+          if (
+            parsed.linkedProjectId === prj.id ||
+            (prj.code && parsed.linkedProjectCode === prj.code) ||
+            parsed.title === prj.name
+          ) {
+            return true;
+          }
+        } catch (e) {}
+      }
+      return false;
+    });
+  };
+
+  // 직급별 기본 기술등급 및 표준 단가 매핑 헬퍼
+  const getGradeAndPriceByPosition = (pos: string, isPm: boolean) => {
+    if (pos === '사장' || pos === '이사' || pos === '부장' || pos === '차장') {
+      return {
+        grade: '특급' as const,
+        unitPrice: 13100,
+        role: isPm ? '총괄 PM' : '수석 아키텍트',
+      };
+    }
+    if (pos === '과장') {
+      return {
+        grade: '고급' as const,
+        unitPrice: 9600,
+        role: isPm ? '수행 PM' : '응용/공간DB PL',
+      };
+    }
+    if (pos === '대리') {
+      return {
+        grade: '중급' as const,
+        unitPrice: 7800,
+        role: '공간정보 시스템 개발/운영',
+      };
+    }
+    return {
+      grade: '초급' as const,
+      unitPrice: 6600,
+      role: '모듈 개발 및 운영지원',
+    };
+  };
+
+  // 특정 프로젝트의 계약품의서 열기 (더미데이터가 아닌 실제 DB 저장 데이터 또는 해당 프로젝트 실제 소속 인력으로 생성)
+  const handleOpenContractForProject = (prj: Project) => {
+    const matchedAp = findLinkedApproval(prj);
+    const hasSavedJson = !!(
+      matchedAp &&
+      matchedAp.items_json &&
+      matchedAp.items_json.trim().startsWith('{')
+    );
+
+    const doc = buildDefaultFullContractDoc(matchedAp, currentUser, approvals.length);
+    doc.linkedProjectId = prj.id;
+    doc.linkedProjectCode = prj.code;
+    doc.title = prj.name;
+    doc.startDate = prj.start_date;
+    doc.endDate = prj.end_date;
+
+    // DB에 저장된 계약품의서 JSON이 아직 없는 경우: 프로젝트의 실제 소속 직원(pm_name, members)으로 투입인력 시트 구성
+    if (!hasSavedJson) {
+      const startD = prj.start_date ? new Date(prj.start_date) : new Date('2026-01-01');
+      const endD = prj.end_date ? new Date(prj.end_date) : new Date('2026-12-31');
+      const diffMonths = Math.max(
+        1,
+        Math.min(
+          12,
+          (endD.getFullYear() - startD.getFullYear()) * 12 +
+            (endD.getMonth() - startD.getMonth()) +
+            1
+        )
+      );
+
+      doc.contractPeriod = `${prj.start_date.replaceAll('-', '.')} ~ ${prj.end_date.replaceAll('-', '.')} (${diffMonths}개월)`;
+      const shareRate = getProjectShareRate(prj);
+      const ourBudget = getProjectOurBudget(prj);
+      doc.ourShareRate = shareRate;
+      doc.supplyAmount = ourBudget * 10; // 당사 지분율(%) 반영 공급가액 (천원)
+      doc.vatAmount = Math.round(doc.supplyAmount * 0.1);
+
+      const rawNames = Array.from(
+        new Set(
+          [
+            prj.pm_name,
+            ...(prj.members || '').split(',').map((n) => n.trim()),
+          ].filter(Boolean)
+        )
+      );
+
+      const realPlans = rawNames.map((empName, idx) => {
+        const empObj = employees.find((e) => e.name === empName);
+        const pos = empObj ? empObj.position : idx === 0 ? '부장' : '대리';
+        const isPm = empName === prj.pm_name || idx === 0;
+        const { grade, unitPrice, role } = getGradeAndPriceByPosition(pos, isPm);
+        const monthsArr: number[] = Array(Math.max(1, diffMonths)).fill(1);
+        const totalMM = monthsArr.length;
+
+        return {
+          id: `m_${idx + 1}`,
+          type: '당사' as const,
+          grade,
+          role,
+          name: empName,
+          position: pos,
+          months: monthsArr,
+          totalMM,
+          unitPrice,
+          laborCost: totalMM * unitPrice,
+        };
+      });
+
+      if (realPlans.length > 0) {
+        doc.manpowerPlans = realPlans;
+        doc.laborCostTotal = realPlans.reduce((s, p) => s + p.laborCost, 0);
+        doc.totalBudget =
+          doc.productCostTotal +
+          doc.laborCostTotal +
+          doc.outsourcingTotal +
+          doc.directExpenseTotal;
+        doc.salesProfit = doc.supplyAmount - doc.totalBudget;
+        doc.contingencyCost =
+          Math.round(doc.totalBudget * (doc.contingencyRate / 100) * 10) / 10;
+        doc.projectNetProfit = doc.salesProfit - doc.contingencyCost;
+        doc.profitRate =
+          doc.supplyAmount > 0
+            ? Math.round((doc.projectNetProfit / doc.supplyAmount) * 10000) / 100
+            : 0;
+      }
+    }
+
+    setWorkstationApproval(matchedAp || null);
+    setWorkstationDoc(doc);
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* 1. 상단 서브탭 네비게이션: 프로젝트 수행 관리 / 직원별 연간 투입공수 / 주간·월간 보고 바로가기 */}
+      <div className="bg-white p-2 rounded-2xl border border-slate-200 shadow-2xs flex items-center justify-between flex-wrap gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            onClick={() => setSubTab('list')}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition ${
+              subTab === 'list'
+                ? 'bg-indigo-600 text-white shadow-xs'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+            }`}
+          >
+            <Briefcase className="w-4 h-4" />
+            <span>프로젝트 수행 관리</span>
+            <span
+              className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
+                subTab === 'list' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
+              }`}
+            >
+              {projects.length}
+            </span>
+          </button>
+
+          <button
+            onClick={() => setSubTab('manpower')}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition ${
+              subTab === 'manpower'
+                ? 'bg-indigo-600 text-white shadow-xs'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+            }`}
+          >
+            <Users className="w-4 h-4" />
+            <span>직원별 연간 투입공수 (M/M)</span>
+            <span
+              className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
+                subTab === 'manpower' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
+              }`}
+            >
+              {employees.length}명
+            </span>
+          </button>
+
+          {onNavigateToReports ? (
+            <button
+              onClick={() => onNavigateToReports()}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 transition border border-indigo-200 shadow-2xs"
+              title="독립된 주간/월간 보고 메뉴로 이동"
+            >
+              <FileText className="w-4 h-4 text-indigo-600" />
+              <span>주간/월간 보고 메뉴 바로가기 →</span>
+            </button>
+          ) : (
+            <button
+              onClick={() => {
+                setReportTargetProjectId(null);
+                setSubTab('reports');
+              }}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition ${
+                subTab === 'reports'
+                  ? 'bg-indigo-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+              }`}
+            >
+              <FileText className="w-4 h-4" />
+              <span>주간/월간 보고</span>
+            </button>
+          )}
+        </div>
+
+        <div className="text-[11px] text-slate-500 pr-3 hidden lg:flex items-center gap-1 font-medium">
+          <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
+          <span>사업본부 전담 프로젝트 파이프라인 (발주예상 → 제안준비중 → 프로젝트 수행)</span>
+        </div>
+      </div>
+
+      {/* 2-A. 서브탭: 주간/월간 보고 (PM 금주/차주 작성 → 이사 취합/보완 → 사장님 보고) */}
+      {subTab === 'reports' && (
+        <WeeklyMonthlyReportView
+          projects={projects}
+          approvals={approvals}
+          currentUser={currentUser}
+          initialSelectedProjectId={reportTargetProjectId}
+          onRefresh={onRefresh}
+        />
+      )}
+
+      {/* 2-B. 서브탭: 직원별 연간 투입공수 (M/M) */}
+      {subTab === 'manpower' && (
+        <ManpowerWorkloadView
+          employees={employees}
+          approvals={approvals}
+          projects={projects}
+          currentUser={currentUser}
+        />
+      )}
+
+      {/* 3. 서브탭: 사업·프로젝트 통합 관리 (목록 및 칸반) */}
+      {subTab === 'list' && (
+        <div className="space-y-6">
+          {/* 사업관리 4단계 상태 필터 배너 */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {PROJECT_STAGES.map((st) => {
+              const count = stageCounts[st];
+              const isSelected = statusFilter === st;
+              const borderBg =
+                st === '발주예상'
+                  ? isSelected
+                    ? 'border-amber-500 bg-amber-50 text-amber-950 font-bold ring-2 ring-amber-300'
+                    : 'border-amber-200 bg-amber-50/40 hover:bg-amber-50 text-amber-900'
+                  : st === '제안준비중'
+                  ? isSelected
+                    ? 'border-blue-500 bg-blue-50 text-blue-950 font-bold ring-2 ring-blue-300'
+                    : 'border-blue-200 bg-blue-50/40 hover:bg-blue-50 text-blue-900'
+                  : st === '프로젝트 수행'
+                  ? isSelected
+                    ? 'border-indigo-500 bg-indigo-50 text-indigo-950 font-bold ring-2 ring-indigo-300'
+                    : 'border-indigo-200 bg-indigo-50/40 hover:bg-indigo-50 text-indigo-900'
+                  : isSelected
+                  ? 'border-emerald-500 bg-emerald-50 text-emerald-950 font-bold ring-2 ring-emerald-300'
+                  : 'border-emerald-200 bg-emerald-50/40 hover:bg-emerald-50 text-emerald-900';
+
+              return (
+                <div
+                  key={st}
+                  onClick={() => setStatusFilter(statusFilter === st ? '전체' : st)}
+                  className={`p-3.5 rounded-2xl border transition cursor-pointer shadow-2xs ${borderBg}`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold">{st}</span>
+                    <span className="text-xs font-black font-mono px-2 py-0.5 rounded-full bg-white shadow-2xs">
+                      {count}건
+                    </span>
+                  </div>
+                  <div className="text-[11px] opacity-75 mt-1 truncate">
+                    {st === '발주예상' && '예산 반영 / 공고 대기'}
+                    {st === '제안준비중' && '제안서 작성 / 입찰 진행'}
+                    {st === '프로젝트 수행' && '계약 체결 / 과제 수행'}
+                    {st === '완료' && '최종 검수완료 / 종결'}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* 검색 및 뷰모드 툴바 */}
+          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="relative">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                <input
+                  type="text"
+                  placeholder="프로젝트명, 과제코드, PM 검색..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-9 pr-3 py-1.5 text-xs rounded-lg border border-slate-300 w-64 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                />
+              </div>
+
+              {/* 상태 필터 버튼 그룹 */}
+              <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg text-xs">
+                {(['전체', '발주예상', '제안준비중', '프로젝트 수행', '완료'] as const).map((st) => (
+                  <button
+                    key={st}
+                    onClick={() => setStatusFilter(st)}
+                    className={`px-2.5 py-1 rounded-md font-semibold transition ${
+                      statusFilter === st
+                        ? 'bg-white text-indigo-700 shadow-2xs font-bold'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    {st}
+                  </button>
+                ))}
+              </div>
+
+              {/* 뷰 모드 토글 (그리드 / 칸반) */}
+              <div className="flex items-center rounded-lg border border-slate-200 p-0.5 bg-slate-50 ml-1">
+                <button
+                  onClick={() => setViewMode('grid')}
+                  className={`p-1 rounded ${
+                    viewMode === 'grid' ? 'bg-white shadow-2xs text-indigo-600' : 'text-slate-400'
+                  }`}
+                  title="그리드 카드 뷰"
+                >
+                  <LayoutGrid className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => setViewMode('kanban')}
+                  className={`p-1 rounded ${
+                    viewMode === 'kanban' ? 'bg-white shadow-2xs text-indigo-600' : 'text-slate-400'
+                  }`}
+                  title="칸반 보드 뷰"
+                >
+                  <Kanban className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            {canEdit && (
+              <button
+                onClick={openCreateModal}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs transition"
+              >
+                <Plus className="w-3.5 h-3.5" /> 신규 프로젝트 등록
+              </button>
+            )}
+          </div>
+
+          {/* 1) 그리드 카드 뷰 */}
+          {viewMode === 'grid' && (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {filteredProjects.map((prj) => {
+                const normStatus = normalizeProjectStatus(prj.status);
+                let breakdownObj: Record<string, number> = {};
+                if (prj.yearly_revenue_json) {
+                  try {
+                    breakdownObj = JSON.parse(prj.yearly_revenue_json);
+                  } catch (e) {}
+                }
+                const isMultiYear = Object.keys(breakdownObj).length > 1;
+
+                const statusBadgeStyle =
+                  normStatus === '발주예상'
+                    ? 'bg-amber-50 text-amber-800 border-amber-200'
+                    : normStatus === '제안준비중'
+                    ? 'bg-blue-50 text-blue-800 border-blue-200'
+                    : normStatus === '프로젝트 수행'
+                    ? 'bg-indigo-50 text-indigo-800 border-indigo-200'
+                    : 'bg-emerald-50 text-emerald-800 border-emerald-200';
+
+                return (
+                  <div
+                    key={prj.id}
+                    className="bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs hover:shadow-md transition flex flex-col justify-between group"
+                  >
+                    <div>
+                      {/* 카드 상단: 코드 + 다년도 배지 + 상태 배지 */}
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="font-mono text-xs font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded">
+                          {prj.code}
+                        </span>
+                        <div className="flex items-center gap-1.5">
+                          {getProjectShareRate(prj) < 100 && (
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
+                              컨소시엄 {getProjectShareRate(prj)}%
+                            </span>
+                          )}
+                          {isMultiYear && (
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
+                              다년도
+                            </span>
+                          )}
+                          <span
+                            className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full border ${statusBadgeStyle}`}
+                          >
+                            {normStatus}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* 과제명 */}
+                      <h4 className="font-bold text-sm text-slate-900 mb-1.5 line-clamp-1 group-hover:text-indigo-600 transition">
+                        {prj.name}
+                      </h4>
+                      <p className="text-xs text-slate-500 line-clamp-2 mb-3">
+                        {prj.description || '공간정보 GIS 구축 및 고도화 사업'}
+                      </p>
+
+                      {/* 주요 속성 */}
+                      <div className="space-y-2 pt-2 border-t border-slate-100 text-xs">
+                        <div className="flex items-center justify-between text-slate-500">
+                          <span>주관부서 / PM</span>
+                          <span className="font-semibold text-slate-800">
+                            사업본부 ({prj.pm_name})
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between text-slate-500">
+                          <span>사업 예산</span>
+                          <div className="text-right">
+                            <span className="font-bold text-slate-900">
+                              {formatCurrencyManwon(prj.budget)}
+                            </span>
+                            {getProjectShareRate(prj) < 100 && (
+                              <div className="text-[11px] font-semibold text-indigo-700">
+                                당사 지분({getProjectShareRate(prj)}%): <strong>{formatCurrencyManwon(getProjectOurBudget(prj))}</strong>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* 다년도 사업 연차별 안분 매출 */}
+                        {isMultiYear && (
+                          <div className="p-2 rounded-lg bg-indigo-50/50 border border-indigo-100 text-[11px] space-y-0.5">
+                            <div className="font-bold text-indigo-900 flex items-center gap-1">
+                              <Calculator className="w-3 h-3 text-indigo-600" /> 연차별 안분 매출:
+                            </div>
+                            <div className="grid grid-cols-2 gap-1 text-slate-700">
+                              {Object.entries(breakdownObj).map(([yr, val]) => (
+                                <div key={yr}>
+                                  {yr}년: <strong>{formatCurrencyManwon(val)}</strong>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="flex items-center justify-between text-slate-500">
+                          <span>수행 기간</span>
+                          <span>
+                            {prj.start_date} ~ {prj.end_date}
+                          </span>
+                        </div>
+
+                        {/* 진척률 */}
+                        <div className="pt-1.5">
+                          <div className="flex justify-between text-xs mb-1">
+                            <span className="text-slate-500">진척률</span>
+                            <span className="font-bold text-indigo-600">{prj.progress}%</span>
+                          </div>
+                          <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                            <div
+                              className={`h-full rounded-full transition-all duration-500 ${
+                                normStatus === '완료'
+                                  ? 'bg-emerald-500'
+                                  : normStatus === '프로젝트 수행'
+                                  ? 'bg-indigo-600'
+                                  : 'bg-blue-500'
+                              }`}
+                              style={{ width: `${prj.progress}%` }}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* 카드 하단 액션 버튼 */}
+                    <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between gap-1.5 flex-wrap">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        {/* 제안준비중 단계부터 계약품의서(제안 견적 및 원가계산) 작성 가능 */}
+                        <button
+                          onClick={() => handleOpenContractForProject(prj)}
+                          className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-bold transition shadow-2xs ${
+                            normStatus === '제안준비중'
+                              ? 'bg-blue-100/80 text-blue-800 hover:bg-blue-600 hover:text-white border border-blue-200'
+                              : normStatus === '발주예상'
+                              ? 'bg-amber-100/70 text-amber-900 hover:bg-amber-600 hover:text-white border border-amber-200'
+                              : 'bg-indigo-50 text-indigo-700 hover:bg-indigo-600 hover:text-white border border-indigo-200'
+                          }`}
+                          title={
+                            normStatus === '제안준비중'
+                              ? '제안서 원가 및 견적 산출을 위한 계약품의서 작성'
+                              : '계약품의서 확인 및 기안'
+                          }
+                        >
+                          <FileSpreadsheet className="w-3.5 h-3.5" />
+                          <span>
+                            {normStatus === '제안준비중'
+                              ? '계약품의 작성'
+                              : normStatus === '발주예상'
+                              ? '사전품의'
+                              : '계약품의서'}
+                          </span>
+                        </button>
+
+                        {/* 주간/월간 보고 작성/조회 바로가기 버튼 (별도 메뉴 연동) */}
+                        <button
+                          onClick={() => {
+                            if (onNavigateToReports) {
+                              onNavigateToReports(prj.id);
+                            } else {
+                              setReportTargetProjectId(prj.id);
+                              setSubTab('reports');
+                            }
+                          }}
+                          className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-bold bg-slate-100 text-slate-700 hover:bg-slate-800 hover:text-white border border-slate-200 transition shadow-2xs"
+                          title="해당 프로젝트의 PM 금주/차주 주간·월간보고 메뉴로 이동"
+                        >
+                          <FileText className="w-3.5 h-3.5" />
+                          <span>주간/월간보고</span>
+                        </button>
+                      </div>
+
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => openEditModal(prj)}
+                          className="p-1.5 text-slate-400 hover:text-indigo-600 rounded-lg hover:bg-slate-50"
+                          title="프로젝트 상세 및 수정"
+                        >
+                          <Edit3 className="w-3.5 h-3.5" />
+                        </button>
+                        {canEdit && (
+                          <button
+                            onClick={() => handleDelete(prj.id)}
+                            className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-slate-50"
+                            title="삭제"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* 2) 4단계 칸반 보드 뷰 (발주예상 | 제안준비중 | 프로젝트 수행 | 완료) */}
+          {viewMode === 'kanban' && (
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              {PROJECT_STAGES.map((stage) => {
+                const list = filteredProjects.filter(
+                  (p) => normalizeProjectStatus(p.status) === stage
+                );
+
+                const headerColor =
+                  stage === '발주예상'
+                    ? 'border-t-4 border-amber-400 bg-amber-50/30'
+                    : stage === '제안준비중'
+                    ? 'border-t-4 border-blue-400 bg-blue-50/30'
+                    : stage === '프로젝트 수행'
+                    ? 'border-t-4 border-indigo-500 bg-indigo-50/30'
+                    : 'border-t-4 border-emerald-400 bg-emerald-50/30';
+
+                return (
+                  <div
+                    key={stage}
+                    className={`p-4 rounded-2xl border border-slate-200 bg-slate-50/60 flex flex-col justify-between ${headerColor}`}
+                  >
+                    <div>
+                      <div className="flex items-center justify-between mb-3 pb-2 border-b border-slate-200/80">
+                        <div className="flex items-center gap-1.5">
+                          <h4 className="font-bold text-xs text-slate-900">{stage}</h4>
+                        </div>
+                        <span className="text-xs font-bold font-mono px-2 py-0.5 rounded-full bg-white text-slate-700 border border-slate-200">
+                          {list.length}건
+                        </span>
+                      </div>
+
+                      <div className="space-y-3">
+                        {list.map((prj) => (
+                          <div
+                            key={prj.id}
+                            className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-2xs hover:shadow-xs transition"
+                          >
+                            <div className="flex items-center justify-between mb-1.5">
+                              <span className="font-mono text-[10px] font-bold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded">
+                                {prj.code}
+                              </span>
+                              <span className="text-[10px] text-slate-500">PM: {prj.pm_name}</span>
+                            </div>
+                            <h5
+                              onClick={() => openEditModal(prj)}
+                              className="font-bold text-xs text-slate-900 mb-2 line-clamp-2 hover:text-indigo-600 cursor-pointer"
+                            >
+                              {prj.name}
+                            </h5>
+                            <div className="flex items-center justify-between text-[11px] text-slate-500 mb-2.5">
+                              <span>예산:</span>
+                              <div className="text-right">
+                                <span className="font-bold text-slate-900">
+                                  {formatCurrencyManwon(prj.budget)}
+                                </span>
+                                {getProjectShareRate(prj) < 100 && (
+                                  <div className="text-[10px] text-indigo-700 font-bold">
+                                    당사({getProjectShareRate(prj)}%): {formatCurrencyManwon(getProjectOurBudget(prj))}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* 계약품의서 확인 버튼 (제안준비중 단계부터 작성 가능) */}
+                            <button
+                              onClick={() => handleOpenContractForProject(prj)}
+                              className={`w-full py-1.5 rounded-lg text-[11px] font-bold transition flex items-center justify-center gap-1 ${
+                                stage === '제안준비중'
+                                  ? 'bg-blue-100/90 hover:bg-blue-600 hover:text-white text-blue-800 border border-blue-200'
+                                  : stage === '발주예상'
+                                  ? 'bg-amber-100/80 hover:bg-amber-600 hover:text-white text-amber-900 border border-amber-200'
+                                  : 'bg-indigo-50 hover:bg-indigo-600 hover:text-white text-indigo-700'
+                              }`}
+                            >
+                              <FileSpreadsheet className="w-3 h-3" />
+                              <span>
+                                {stage === '제안준비중'
+                                  ? '제안 견적·품의서 작성'
+                                  : stage === '발주예상'
+                                  ? '사전 견적품의 작성'
+                                  : '계약품의서 확인 / 기안'}
+                              </span>
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 프로젝트 생성/수정 상세 모달 */}
+      {modalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 max-h-[92vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
+              <h3 className="text-base font-bold text-slate-900">
+                {editingPrj ? '프로젝트 상세 정보 및 수정' : '신규 사업·프로젝트 등록'}
+              </h3>
+
+              {/* 편집 중인 프로젝트인 경우 바로 계약품의서를 열 수 있는 상단 링크 버튼 */}
+              {editingPrj && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleOpenContractForProject(editingPrj);
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold bg-indigo-600 text-white hover:bg-indigo-700 transition shadow-2xs"
+                >
+                  <FileSpreadsheet className="w-3.5 h-3.5" />
+                  <span>연계 계약품의서 열기</span>
+                </button>
+              )}
+            </div>
+
+            <form onSubmit={handleSave} className="space-y-4 text-xs">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">프로젝트 코드</label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.code || ''}
+                    onChange={(e) => setFormData({ ...formData, code: e.target.value })}
+                    className="w-full p-2.5 rounded-xl border border-slate-300 font-mono font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">주관 부서 (사업본부 전담)</label>
+                  <input
+                    type="text"
+                    disabled
+                    value="사업본부"
+                    className="w-full p-2.5 rounded-xl border border-slate-200 font-bold bg-slate-100 text-slate-600 cursor-not-allowed"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">프로젝트 과제명</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="예: LX 공간정보 플랫폼 유지관리 및 기능고도화 사업"
+                  value={formData.name || ''}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  className="w-full p-2.5 rounded-xl border border-slate-300 font-bold text-slate-900"
+                />
+              </div>
+
+              {/* 사업관리 라이프사이클 4단계 선택 */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">사업관리 진행 단계</label>
+                  <select
+                    value={formData.status || '프로젝트 수행'}
+                    onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+                    className="w-full p-2.5 rounded-xl border border-indigo-300 bg-indigo-50/20 font-bold text-indigo-900"
+                  >
+                    <option value="발주예상">1. 발주예상 (예산반영/공고 대기)</option>
+                    <option value="제안준비중">2. 제안준비중 (제안서 작성/입찰)</option>
+                    <option value="프로젝트 수행">3. 프로젝트 수행 (계약체결/과제수행)</option>
+                    <option value="완료">4. 완료 (검수완료/종결)</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">총 사업 예산 (만원)</label>
+                  <input
+                    type="number"
+                    step="100"
+                    required
+                    value={formData.budget || 0}
+                    onChange={(e) => {
+                      const b = Number(e.target.value) || 0;
+                      setFormData({ ...formData, budget: b });
+                      recalculateBreakdown(undefined, undefined, b);
+                    }}
+                    className="w-full p-2.5 rounded-xl border border-slate-300 font-extrabold text-indigo-600 text-right"
+                  />
+                </div>
+              </div>
+
+              {/* 사업 수행 방식 및 당사 지분율 (%) */}
+              <div className="p-3.5 rounded-xl border border-indigo-200 bg-indigo-50/40 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-xs text-indigo-950 flex items-center gap-1.5">
+                    <Building2 className="w-3.5 h-3.5 text-indigo-600" /> 사업 수행 방식 및 당사 지분율
+                  </span>
+                  <div className="flex items-center gap-1 text-xs">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFormData({
+                          ...formData,
+                          share_rate: 100,
+                          is_consortium: false,
+                          consortium_partners: '',
+                        });
+                      }}
+                      className={`px-2.5 py-1 rounded-lg font-bold transition ${
+                        (formData.share_rate ?? 100) === 100
+                          ? 'bg-indigo-600 text-white shadow-2xs'
+                          : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
+                      }`}
+                    >
+                      단독수행 (100%)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFormData({
+                          ...formData,
+                          share_rate:
+                            formData.share_rate && formData.share_rate < 100
+                              ? formData.share_rate
+                              : 60,
+                          is_consortium: true,
+                        });
+                      }}
+                      className={`px-2.5 py-1 rounded-lg font-bold transition ${
+                        (formData.share_rate ?? 100) < 100
+                          ? 'bg-indigo-600 text-white shadow-2xs'
+                          : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
+                      }`}
+                    >
+                      공동수급 (컨소시엄)
+                    </button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 items-center">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      당사 지분율 (%)
+                    </label>
+                    <div className="flex items-center">
+                      <input
+                        type="number"
+                        min="1"
+                        max="100"
+                        step="0.5"
+                        required
+                        value={formData.share_rate ?? 100}
+                        onChange={(e) => {
+                          const rate = Number(e.target.value) || 0;
+                          setFormData({
+                            ...formData,
+                            share_rate: rate,
+                            is_consortium: rate < 100,
+                          });
+                        }}
+                        className="w-full p-2 rounded-lg border border-slate-300 font-bold text-right text-indigo-900 bg-white"
+                      />
+                      <span className="ml-2 font-bold text-slate-600 text-sm">%</span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      당사 배정 매출액 (목표/품의 연동)
+                    </label>
+                    <div className="p-2 rounded-lg bg-white border border-indigo-200 text-right">
+                      <span className="font-extrabold text-sm text-indigo-700">
+                        {formatCurrencyManwon(
+                          Math.round(
+                            (Number(formData.budget) || 0) *
+                              ((formData.share_rate ?? 100) / 100)
+                          )
+                        )}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {(formData.share_rate ?? 100) < 100 && (
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      컨소시엄 참여 파트너사 정보
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="예: 주관:(주)당사(60%), 참여:(주)한국공간정밀(40%)"
+                      value={formData.consortium_partners || ''}
+                      onChange={(e) =>
+                        setFormData({ ...formData, consortium_partners: e.target.value })
+                      }
+                      className="w-full p-2 rounded-lg border border-slate-300 text-xs font-semibold bg-white"
+                    />
+                  </div>
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    총괄 PM <span className="text-[11px] text-indigo-600 font-normal">(DB 직원 선택)</span>
+                  </label>
+                  <select
+                    value={formData.pm_name || ''}
+                    onChange={(e) => setFormData({ ...formData, pm_name: e.target.value })}
+                    className="w-full p-2.5 rounded-xl border border-slate-300 font-bold text-slate-800 bg-white"
+                  >
+                    <option value="">PM 선택</option>
+                    {employees.map((emp) => (
+                      <option key={emp.id} value={emp.name}>
+                        {emp.name} {emp.position} ({emp.department})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">과제 진척률 (%)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={formData.progress || 0}
+                    onChange={(e) => setFormData({ ...formData, progress: Number(e.target.value) })}
+                    className="w-full p-2.5 rounded-xl border border-slate-300 text-right font-bold"
+                  />
+                </div>
+              </div>
+
+              {/* 수행 기간 */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">착수일</label>
+                  <input
+                    type="date"
+                    value={formData.start_date || ''}
+                    onChange={(e) => {
+                      const s = e.target.value;
+                      setFormData({ ...formData, start_date: s });
+                      recalculateBreakdown(s, undefined, undefined);
+                    }}
+                    className="w-full p-2 rounded-xl border border-slate-300 font-semibold"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">완료일</label>
+                  <input
+                    type="date"
+                    value={formData.end_date || ''}
+                    onChange={(e) => {
+                      const end = e.target.value;
+                      setFormData({ ...formData, end_date: end });
+                      recalculateBreakdown(undefined, end, undefined);
+                    }}
+                    className="w-full p-2 rounded-xl border border-slate-300 font-semibold"
+                  />
+                </div>
+              </div>
+
+              {/* 다년도 사업 연차별 안분 계산기 */}
+              <div className="p-3.5 rounded-xl bg-indigo-50/70 border border-indigo-200 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-indigo-950 flex items-center gap-1.5">
+                    <Calculator className="w-4 h-4 text-indigo-600" />
+                    다년도 사업 연차별 매출 자동 안분
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => recalculateBreakdown()}
+                    className="text-[11px] font-semibold text-indigo-600 hover:underline"
+                  >
+                    기간 비례 재계산
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  {Object.entries(multiYearBreakdown).map(([yr, val]) => (
+                    <div key={yr} className="bg-white p-2 rounded-lg border border-indigo-100">
+                      <div className="text-[10px] text-slate-500 font-bold mb-0.5">{yr}년 매출 (만원)</div>
+                      <input
+                        type="number"
+                        step="100"
+                        value={val}
+                        onChange={(e) => {
+                          const updated = {
+                            ...multiYearBreakdown,
+                            [Number(yr)]: Number(e.target.value) || 0,
+                          };
+                          setMultiYearBreakdown(updated);
+                        }}
+                        className="w-full text-right font-extrabold text-indigo-700 text-xs border border-slate-200 rounded px-1.5 py-0.5"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block font-bold text-slate-700">
+                    참여 인력 명단 <span className="text-[11px] text-indigo-600 font-normal">(DB 직원 풀에서 선택)</span>
+                  </label>
+                  <span className="text-[11px] text-slate-500 font-bold">
+                    선택된 인원: {((formData.members || '').split(',').map((n) => n.trim()).filter(Boolean)).length}명
+                  </span>
+                </div>
+
+                {/* 현재 선택된 참여 인력 태그들 */}
+                <div className="p-2.5 rounded-xl border border-slate-300 bg-slate-50 min-h-[46px] flex flex-wrap gap-1.5 items-center mb-2">
+                  {((formData.members || '') as string)
+                    .split(',')
+                    .map((n) => n.trim())
+                    .filter(Boolean)
+                    .map((name) => {
+                      const empObj = employees.find((e) => e.name === name);
+                      return (
+                        <span
+                          key={name}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white border border-indigo-200 text-xs font-bold text-indigo-900 shadow-2xs"
+                        >
+                          <User className="w-3 h-3 text-indigo-500" />
+                          <span>{name}</span>
+                          {empObj && (
+                            <span className="text-[10px] text-slate-400 font-normal">
+                              ({empObj.position})
+                            </span>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const curList = (formData.members || '')
+                                .split(',')
+                                .map((n) => n.trim())
+                                .filter((n) => n && n !== name);
+                              setFormData({ ...formData, members: curList.join(', ') });
+                            }}
+                            className="ml-0.5 text-slate-400 hover:text-rose-600 font-bold px-1"
+                            title="제외"
+                          >
+                            ×
+                          </button>
+                        </span>
+                      );
+                    })}
+                  {!(formData.members || '').trim() && (
+                    <span className="text-xs text-slate-400">
+                      아래 직원 풀에서 클릭하여 참여 인력을 편성하세요.
+                    </span>
+                  )}
+                </div>
+
+                {/* DB 실제 직원 목록 빠른 추가 풀 */}
+                <div className="p-3 rounded-xl border border-slate-200 bg-white space-y-1.5 max-h-36 overflow-y-auto">
+                  <div className="text-[11px] font-bold text-slate-500 mb-1">
+                    사내 임직원 풀 ({employees.length}명) — 클릭하여 추가/제외:
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {employees.map((emp) => {
+                      const curList = (formData.members || '')
+                        .split(',')
+                        .map((n) => n.trim())
+                        .filter(Boolean);
+                      const isSelected = curList.includes(emp.name);
+
+                      return (
+                        <button
+                          key={emp.id}
+                          type="button"
+                          onClick={() => {
+                            let nextList: string[];
+                            if (isSelected) {
+                              nextList = curList.filter((n) => n !== emp.name);
+                            } else {
+                              nextList = [...curList, emp.name];
+                            }
+                            setFormData({ ...formData, members: nextList.join(', ') });
+                          }}
+                          className={`px-2 py-0.5 rounded text-[11px] font-semibold transition border ${
+                            isSelected
+                              ? 'bg-indigo-600 text-white border-indigo-600 shadow-2xs'
+                              : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-indigo-50 hover:text-indigo-700'
+                          }`}
+                        >
+                          {isSelected ? '✓ ' : '+ '}
+                          {emp.name} {emp.position}
+                          <span className="opacity-70 text-[9px] ml-1">
+                            ({emp.department.slice(0, 4)})
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">과제 세부 설명</label>
+                <textarea
+                  rows={2}
+                  value={formData.description || ''}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  className="w-full p-2.5 rounded-xl border border-slate-300"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3 border-t">
+                <button
+                  type="button"
+                  onClick={() => setModalOpen(false)}
+                  className="px-4 py-2 rounded-xl text-slate-600 font-semibold hover:bg-slate-100"
+                >
+                  취소
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold"
+                >
+                  저장
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 프로젝트 카드/모달에서 연 계약품의서 워크스테이션 모달 */}
+      {workstationDoc && (
+        <ContractWorkstationModal
+          initialDoc={workstationDoc}
+          approvalRecord={workstationApproval || undefined}
+          isNew={!workstationApproval}
+          currentUser={currentUser}
+          employees={employees}
+          projects={projects}
+          deals={deals}
+          onClose={() => {
+            setWorkstationDoc(null);
+            setWorkstationApproval(null);
+          }}
+          onSaved={onRefresh}
+        />
+      )}
+    </div>
+  );
+}
