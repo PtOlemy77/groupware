@@ -1,6 +1,7 @@
 'use client';
 
 import { apiFetch } from '@/lib/api';
+import { useModal } from '@/contexts/ModalContext';
 
 import React, { useState, useMemo } from 'react';
 import { Equipment, Employee, AuthUser, isPmOrAbove, formatCurrencyManwon } from '@/types/groupware';
@@ -40,6 +41,7 @@ export default function EquipmentsView({
   const [editingEq, setEditingEq] = useState<Equipment | null>(null);
   const [formData, setFormData] = useState<Partial<Equipment>>({});
 
+  const { showAlert, showConfirm } = useModal();
   const canEdit = isPmOrAbove(currentUser);
 
   // 직원 맵 생성 (id 기반 & emp_no 기반 & name 기반 빠른 조회)
@@ -169,10 +171,16 @@ export default function EquipmentsView({
 
   const handleDelete = async (id: number) => {
     if (!canEdit) {
-      alert('자산 관리는 시스템 관리자, 임원 또는 PM 권한만 가능합니다.');
+      await showAlert('자산 관리는 시스템 관리자, 임원 또는 PM 권한만 가능합니다.', {
+        type: 'warning',
+      });
       return;
     }
-    if (!confirm('정말 해당 자산을 삭제하시겠습니까?')) return;
+    const confirmed = await showConfirm('정말 해당 자산을 삭제하시겠습니까?', {
+      isDanger: true,
+      confirmText: '삭제',
+    });
+    if (!confirmed) return;
 
     await apiFetch('/api/groupware', {
       method: 'POST',
@@ -180,6 +188,7 @@ export default function EquipmentsView({
       body: JSON.stringify({ module: 'equipments', action: 'delete', id }),
     });
     await onRefresh();
+    await showAlert('자산이 성공적으로 삭제되었습니다.', { type: 'success' });
   };
 
   return (

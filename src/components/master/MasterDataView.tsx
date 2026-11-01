@@ -1,5 +1,6 @@
 'use client';
 import { readMaster, saveMaster, apiFetch } from '@/lib/api';
+import { useModal } from '@/contexts/ModalContext';
 
 import React, { useState, useMemo } from 'react';
 import {
@@ -68,6 +69,7 @@ export default function MasterDataView({
   commonCodes = [],
   onRefresh,
 }: Props) {
+  const { showAlert, showConfirm } = useModal();
   // 서브탭: 'target_revenue' (연도별 사업 목표매출) | 'unit_prices' (노임단가 관리) | 'common_codes' (공통코드 관리)
   const [subTab, setSubTab] = useState<'target_revenue' | 'unit_prices' | 'common_codes'>('target_revenue');
 
@@ -136,7 +138,7 @@ export default function MasterDataView({
       setTimeout(() => setSaveMessage(''), 4000);
     } catch (e) {
       console.error(e);
-      alert('저장에 실패했습니다.');
+      await showAlert('노임단가 저장에 실패했습니다.', { type: 'error' });
     } finally {
       setSavingPrices(false);
     }
@@ -168,7 +170,7 @@ export default function MasterDataView({
       setTimeout(() => setSaveMessage(''), 4000);
     } catch (e) {
       console.error(e);
-      alert('목표매출 저장에 실패했습니다.');
+      await showAlert('목표매출 저장에 실패했습니다.', { type: 'error' });
     } finally {
       setSavingRevenues(false);
     }
@@ -180,7 +182,7 @@ export default function MasterDataView({
     const yr = Number(newYearInput);
     const amt = Number(newAmountInput) || 0;
     if (!yr || yr < 2020 || yr > 2040) {
-      alert('유효한 연도를 입력해주세요 (예: 2029)');
+      showAlert('유효한 연도를 입력해주세요 (예: 2029)', { type: 'warning' });
       return;
     }
     setTargetRevenues((prev) => ({
@@ -198,8 +200,12 @@ export default function MasterDataView({
   };
 
   // 연도 목표매출 삭제
-  const handleDeleteYearRevenue = (year: number) => {
-    if (!confirm(`${year}년도 사업 목표매출 데이터를 삭제하시겠습니까?`)) return;
+  const handleDeleteYearRevenue = async (year: number) => {
+    const ok = await showConfirm(`${year}년도 사업 목표매출 데이터를 삭제하시겠습니까?`, {
+      isDanger: true,
+      confirmText: '삭제',
+    });
+    if (!ok) return;
     setTargetRevenues((prev) => {
       const next = { ...prev };
       delete next[year];
@@ -296,7 +302,11 @@ export default function MasterDataView({
   };
 
   const handleDeleteCode = async (id: number) => {
-    if (!confirm('정말 이 코드를 삭제하시겠습니까?')) return;
+    const ok = await showConfirm('정말 이 공통코드를 삭제하시겠습니까?', {
+      isDanger: true,
+      confirmText: '삭제',
+    });
+    if (!ok) return;
     await apiFetch('/api/groupware', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -307,6 +317,7 @@ export default function MasterDataView({
       }),
     });
     await onRefresh();
+    await showAlert('공통코드가 삭제되었습니다.', { type: 'success' });
   };
 
   return (

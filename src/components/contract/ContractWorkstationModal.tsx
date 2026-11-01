@@ -1,6 +1,7 @@
 'use client';
 
 import { apiFetch } from '@/lib/api';
+import { useModal } from '@/contexts/ModalContext';
 
 import React, { useState } from 'react';
 import {
@@ -123,11 +124,15 @@ export default function ContractWorkstationModal({
     });
   };
 
+  const { showAlert } = useModal();
   const readOnly = !isPmOrAbove(currentUser.role) || (!isExecutiveOrAbove(currentUser.role) && !!doc.linkedProjectId && projects.find(p => p.id === doc.linkedProjectId)?.pm_id !== currentUser.id) || !!(approvalRecord && !['작성중', '반려'].includes(approvalRecord.status));
   const [approverId, setApproverId] = useState<number | undefined>(approvalRecord?.approver_id);
   const handleSaveDocument = async () => {
     if (readOnly) return;
-    if (!doc.title.trim() || !doc.clientName.trim()) { alert('계약명과 고객사를 입력하세요.'); return; }
+    if (!doc.title.trim() || !doc.clientName.trim()) {
+      await showAlert('계약명과 고객사를 입력하세요.', { type: 'warning' });
+      return;
+    }
     try {
       setSaving(true);
       await apiFetch('/api/groupware', {
@@ -140,8 +145,11 @@ export default function ContractWorkstationModal({
             project_name: doc.title, items_json: JSON.stringify(doc) } }),
       });
       await onSaved(); onClose();
-    } catch (error) { alert(error instanceof Error ? error.message : '저장하지 못했습니다.'); }
-    finally { setSaving(false); }
+    } catch (error) {
+      await showAlert(error instanceof Error ? error.message : '저장하지 못했습니다.', {
+        type: 'error',
+      });
+    } finally { setSaving(false); }
   };
 
   const totalMM = doc.manpowerPlans.reduce((s, m) => s + m.totalMM, 0);

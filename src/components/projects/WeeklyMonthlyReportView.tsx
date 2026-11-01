@@ -12,6 +12,7 @@ import {
   normalizeUserRole,
 } from '@/types/groupware';
 import { normalizeProjectStatus } from '@/components/dashboard/DashboardView';
+import { useModal } from '@/contexts/ModalContext';
 import {
   FileText,
   Calendar,
@@ -204,6 +205,7 @@ export default function WeeklyMonthlyReportView({
   initialSelectedProjectId,
   onRefresh,
 }: Props) {
+  const { showAlert } = useModal();
   const [reportType, setReportType] = useState<ReportType>('주간보고');
   const [selectedPeriodKey, setSelectedPeriodKey] = useState<string>('2026-10-W5');
 
@@ -410,7 +412,7 @@ export default function WeeklyMonthlyReportView({
       showToast(successMessage);
     } catch (e) {
       console.error('Failed to save report:', e);
-      alert('보고서 저장 중 오류가 발생했습니다.');
+      await showAlert('보고서 저장 중 오류가 발생했습니다.', { type: 'error' });
     } finally {
       setSaving(false);
     }

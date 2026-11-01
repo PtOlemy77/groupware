@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import './globals.css';
+import { ModalProvider } from '@/contexts/ModalContext';
 
 export const metadata: Metadata = {
   title: '(주)스패셜티 SPATIAL T | 통합 그룹웨어 시스템',
@@ -14,7 +15,7 @@ export default function RootLayout({
   return (
     <html lang="ko">
       <body className="antialiased selection:bg-indigo-600 selection:text-white">
-        {children}
+        <ModalProvider>{children}</ModalProvider>
       </body>
     </html>
   );

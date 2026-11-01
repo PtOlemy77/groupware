@@ -1,6 +1,7 @@
 'use client';
 
 import { apiFetch } from '@/lib/api';
+import { useModal } from '@/contexts/ModalContext';
 
 import React, { useState, useMemo, useEffect } from 'react';
 import {
@@ -167,6 +168,8 @@ export default function EmployeesView({
     }
     setExpandedProjects(nextPrjs);
   }, [currentUser?.emp_no, myDeptCode, projects.length, approvals.length]);
+
+  const { showAlert, showConfirm } = useModal();
 
   // 페이지네이션 상태
   const [pageSize, setPageSize] = useState<number>(25);
@@ -508,25 +511,37 @@ export default function EmployeesView({
 
       const resData = await res.json().catch(() => ({}));
       if (!res.ok) {
-        alert(resData.message || '직원 정보 저장 중 서버 응답 오류가 발생했습니다.');
+        await showAlert(resData.message || '직원 정보 저장 중 서버 응답 오류가 발생했습니다.', {
+          type: 'error',
+        });
         return;
       }
 
       setModalOpen(false);
       await onRefresh();
-      alert(`[${payload.name}] 직원 정보가 성공적으로 저장되었습니다.`);
+      await showAlert(`[${payload.name}] 직원 정보가 성공적으로 저장되었습니다.`, {
+        type: 'success',
+      });
     } catch (err) {
       console.error('Failed to save employee:', err);
-      alert('직원 정보 저장에 실패했습니다. 네트워크 또는 서버 상태를 확인해주세요.');
+      await showAlert('직원 정보 저장에 실패했습니다. 네트워크 또는 서버 상태를 확인해주세요.', {
+        type: 'error',
+      });
     }
   };
 
   const handleDelete = async (id: number) => {
     if (!isExecutiveOrAbove(currentUser)) {
-      alert('직원 삭제는 시스템 관리자 또는 임원 권한(이사급 이상)만 가능합니다.');
+      await showAlert('직원 삭제는 시스템 관리자 또는 임원 권한(이사급 이상)만 가능합니다.', {
+        type: 'warning',
+      });
       return;
     }
-    if (!confirm('정말 삭제하시겠습니까?')) return;
+    const confirmed = await showConfirm('정말 해당 직원을 삭제하시겠습니까?', {
+      isDanger: true,
+      confirmText: '삭제',
+    });
+    if (!confirmed) return;
 
     await apiFetch('/api/groupware', {
       method: 'POST',
@@ -534,6 +549,7 @@ export default function EmployeesView({
       body: JSON.stringify({ module: 'employees', action: 'delete', id }),
     });
     await onRefresh();
+    await showAlert('직원 정보가 삭제되었습니다.', { type: 'success' });
   };
 
   return (

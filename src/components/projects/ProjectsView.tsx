@@ -2,6 +2,7 @@
 import { unitPrice } from '@/lib/api';
 
 import { apiFetch } from '@/lib/api';
+import { useModal } from '@/contexts/ModalContext';
 
 import React, { useState, useMemo } from 'react';
 import {
@@ -87,6 +88,8 @@ export default function ProjectsView({
   // 프로젝트 카드/모달에서 직접 계약품의서 모달 열기용 상태 (DB Approval 레코드와 1:1 매핑)
   const [workstationDoc, setWorkstationDoc] = useState<any | null>(null);
   const [workstationApproval, setWorkstationApproval] = useState<Approval | null>(null);
+
+  const { showAlert, showConfirm } = useModal();
 
   // PM 권한 이상(시스템 관리자, 임원 권한, PM 권한) 프로젝트 등록/수정 가능
   const canEdit = isPmOrAbove(currentUser);
@@ -228,17 +231,25 @@ export default function ProjectsView({
 
   const handleDelete = async (id: number) => {
     if (!canDelete) {
-      alert('프로젝트 삭제는 시스템 관리자 또는 임원 권한(이사급 이상)만 가능합니다.');
+      await showAlert('프로젝트 삭제는 시스템 관리자 또는 임원 권한(이사급 이상)만 가능합니다.', {
+        type: 'warning',
+      });
       return;
     }
-    if (!confirm('프로젝트를 삭제하시겠습니까? 연결된 결재·보고 이력이 있으면 삭제할 수 없습니다.')) return;
+    const confirmed = await showConfirm(
+      '프로젝트를 삭제하시겠습니까? 연결된 결재·보고 이력이 있으면 삭제할 수 없습니다.',
+      { isDanger: true, confirmText: '삭제' }
+    );
+    if (!confirmed) return;
 
     await apiFetch('/api/groupware', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ module: 'projects', action: 'delete', id }),
     });
 
     await onRefresh();
+    await showAlert('프로젝트가 삭제되었습니다.', { type: 'success' });
   };
 
   // 프로젝트와 연결된 DB 계약품의서(Approval) 찾기

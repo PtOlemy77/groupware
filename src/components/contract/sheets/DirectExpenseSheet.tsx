@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useMemo } from 'react';
+import { useModal } from '@/contexts/ModalContext';
 import { DirectExpenseItem } from '@/types/groupware';
 import { DollarSign, Sparkles, RotateCcw } from 'lucide-react';
 
@@ -71,6 +72,7 @@ export default function DirectExpenseSheet({
   headcount = 5,
   readOnly,
 }: Props) {
+  const { showConfirm } = useModal();
   // 8대 표준 항목 전체 행을 항상 고정으로 구성하고, 기존 items와 매핑
   const rows = useMemo(() => {
     return STANDARD_EXPENSE_ACCOUNTS.map((std, index) => {
@@ -233,8 +235,12 @@ export default function DirectExpenseSheet({
   };
 
   // 전체 금액 초기화 (0으로 리셋)
-  const handleResetToZero = () => {
-    if (!confirm('직접경비 전체 수량을 0으로 초기화하시겠습니까?')) return;
+  const handleResetToZero = async () => {
+    const ok = await showConfirm('직접경비 전체 수량을 0으로 초기화하시겠습니까?', {
+      isDanger: true,
+      confirmText: '초기화',
+    });
+    if (!ok) return;
     const updated = rows.map((r) => ({
       ...r,
       qty: 0,

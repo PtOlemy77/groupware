@@ -1,6 +1,7 @@
 'use client';
 
 import { apiFetch } from '@/lib/api';
+import { useModal } from '@/contexts/ModalContext';
 
 import React, { useState, useMemo } from 'react';
 import { Evaluation, AuthUser, isExecutiveOrAbove, Employee, DEPARTMENT_CODES, POSITION_CODES } from '@/types/groupware';
@@ -20,6 +21,8 @@ export default function EvaluationsView({ evaluations, currentUser, employees = 
   const [modalOpen, setModalOpen] = useState(false);
   const [editingEv, setEditingEv] = useState<Evaluation | null>(null);
   const [formData, setFormData] = useState<Partial<Evaluation>>({});
+
+  const { showAlert, showConfirm } = useModal();
 
   // 이사급 이상 임원 권한 및 시스템 관리자만 인사평가 작성/수정 가능
   const canEdit = isExecutiveOrAbove(currentUser);
@@ -97,10 +100,16 @@ export default function EvaluationsView({ evaluations, currentUser, employees = 
 
   const handleDelete = async (id: number) => {
     if (!canEdit) {
-      alert('인사평가 관리는 시스템 관리자 또는 임원 권한(이사급 이상)만 가능합니다.');
+      await showAlert('인사평가 관리는 시스템 관리자 또는 임원 권한(이사급 이상)만 가능합니다.', {
+        type: 'warning',
+      });
       return;
     }
-    if (!confirm('정말 삭제하시겠습니까?')) return;
+    const confirmed = await showConfirm('정말 인사평가 데이터를 삭제하시겠습니까?', {
+      isDanger: true,
+      confirmText: '삭제',
+    });
+    if (!confirmed) return;
 
     await apiFetch('/api/groupware', {
       method: 'POST',
@@ -108,6 +117,7 @@ export default function EvaluationsView({ evaluations, currentUser, employees = 
       body: JSON.stringify({ module: 'evaluations', action: 'delete', id }),
     });
     await onRefresh();
+    await showAlert('인사평가가 삭제되었습니다.', { type: 'success' });
   };
 
   return (

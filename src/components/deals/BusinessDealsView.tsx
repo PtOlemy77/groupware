@@ -2,6 +2,7 @@
 import { readMaster, saveMaster } from '@/lib/api';
 
 import { apiFetch } from '@/lib/api';
+import { useModal } from '@/contexts/ModalContext';
 
 import React, { useState, useMemo, useEffect } from 'react';
 import {
@@ -91,6 +92,8 @@ export default function BusinessDealsView({
     }
     setTargetModalOpen(false);
   };
+
+  const { showAlert, showConfirm } = useModal();
 
   // 모달 상태
   const [modalOpen, setModalOpen] = useState(false);
@@ -261,10 +264,16 @@ export default function BusinessDealsView({
 
   const handleDelete = async (id: number) => {
     if (!canEdit) {
-      alert('시스템 관리자, 임원 권한 또는 PM 권한만 삭제 가능합니다.');
+      await showAlert('시스템 관리자, 임원 권한 또는 PM 권한만 삭제 가능합니다.', {
+        type: 'warning',
+      });
       return;
     }
-    if (!confirm('정말 삭제하시겠습니까?')) return;
+    const confirmed = await showConfirm('정말 영업 수주 항목을 삭제하시겠습니까?', {
+      isDanger: true,
+      confirmText: '삭제',
+    });
+    if (!confirmed) return;
 
     await apiFetch('/api/groupware', {
       method: 'POST',
@@ -272,20 +281,31 @@ export default function BusinessDealsView({
       body: JSON.stringify({ module: 'business_deals', action: 'delete', id }),
     });
     await onRefresh();
+    await showAlert('영업 수주 항목이 삭제되었습니다.', { type: 'success' });
   };
 
   // 수주 확정 시 바로 프로젝트 및 품의서로 연동 생성
   const handleConvertToProject = async (deal: BusinessDeal) => {
-    if (!confirm(`[${deal.title}] 사업을 수주 프로젝트로 등록하고 계약품의서를 작성하시겠습니까?`)) {
-      return;
-    }
+    const confirmed = await showConfirm(
+      `[${deal.title}] 사업을 수주 프로젝트로 등록하고 계약품의서를 작성하시겠습니까?`,
+      { confirmText: '프로젝트 등록' }
+    );
+    if (!confirmed) return;
 
     await apiFetch('/api/groupware', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ module: 'business_deals', action: 'convert_deal', id: deal.id, version: deal.version }),
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        module: 'business_deals',
+        action: 'convert_deal',
+        id: deal.id,
+        version: deal.version,
+      }),
     });
     await onRefresh();
-    alert('프로젝트가 생성되었습니다. 프로젝트 관리에서 계약 초안을 작성하세요.');
+    await showAlert('프로젝트가 생성되었습니다. 프로젝트 관리에서 계약 초안을 작성하세요.', {
+      type: 'success',
+    });
   };
 
   return (
