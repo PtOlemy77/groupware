@@ -16,7 +16,7 @@ spring:
   datasource:
     url: ${DB_URL:jdbc:postgresql://localhost:5433/groupware_db}
     username: ${DB_USER:nexus}
-    password: ${DB_PASSWORD}
+    password: ${DB_PASSWORD:nexus_password}
   jpa:
     hibernate:
       ddl-auto: validate
