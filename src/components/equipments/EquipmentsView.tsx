@@ -40,7 +40,7 @@ export default function EquipmentsView({
   const [editingEq, setEditingEq] = useState<Equipment | null>(null);
   const [formData, setFormData] = useState<Partial<Equipment>>({});
 
-  const canEdit = isPmOrAbove(currentUser.role, currentUser.position);
+  const canEdit = isPmOrAbove(currentUser);
 
   // 직원 맵 생성 (id 기반 & emp_no 기반 & name 기반 빠른 조회)
   const empIdMap = useMemo(() => {

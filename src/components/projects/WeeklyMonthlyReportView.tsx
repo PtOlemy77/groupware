@@ -8,6 +8,7 @@ import {
   Employee,
   isPmOrAbove,
   isExecutiveOrAbove,
+  isSystemAdmin,
   normalizeUserRole,
 } from '@/types/groupware';
 import { normalizeProjectStatus } from '@/components/dashboard/DashboardView';
@@ -206,9 +207,9 @@ export default function WeeklyMonthlyReportView({
   const [reportType, setReportType] = useState<ReportType>('주간보고');
   const [selectedPeriodKey, setSelectedPeriodKey] = useState<string>('2026-10-W5');
 
-  const userRole = normalizeUserRole(currentUser.role, currentUser.position);
-  const canWritePmReport = isPmOrAbove(currentUser.role, currentUser.position);
-  const canConsolidateAsDirector = isExecutiveOrAbove(currentUser.role, currentUser.position);
+  const userRole = normalizeUserRole(currentUser);
+  const canWritePmReport = isPmOrAbove(currentUser);
+  const canConsolidateAsDirector = isExecutiveOrAbove(currentUser);
   const isCeo =
     currentUser.position === '사장' ||
     currentUser.position === '대표이사' ||
@@ -714,7 +715,7 @@ export default function WeeklyMonthlyReportView({
               {draftReport.items.map((item) => {
                 const isThisItemPm =
                   currentUser.name?.trim() === item.pmName?.trim() ||
-                  currentUser.role === '시스템 관리자';
+                  isSystemAdmin(currentUser);
 
                 return (
                   <div
@@ -947,7 +948,7 @@ export default function WeeklyMonthlyReportView({
               const isSelectedPm =
                 currentUser.name?.trim() === selectedItem.pmName?.trim() ||
                 canConsolidateAsDirector ||
-                currentUser.role === '시스템 관리자';
+                isSystemAdmin(currentUser);
 
               return (
                 <>

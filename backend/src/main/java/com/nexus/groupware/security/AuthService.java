@@ -1,5 +1,6 @@
 package com.nexus.groupware.security;
 
+import com.nexus.groupware.code.RoleCode;
 import com.nexus.groupware.entity.Employee;
 import com.nexus.groupware.repository.EmployeeRepository;
 import jakarta.servlet.http.*;
@@ -135,11 +136,21 @@ public class AuthService {
     return emp;
   }
 
+  public static boolean admin(Employee e) {
+    if (e == null) return false;
+    RoleCode rc = RoleCode.fromCodeOrLabel(e.getRoleCode() != null ? e.getRoleCode() : e.getRole());
+    return rc.isAdmin();
+  }
+
   public static boolean executive(Employee e) {
-    return Set.of("시스템 관리자", "임원 권한").contains(e.getRole());
+    if (e == null) return false;
+    RoleCode rc = RoleCode.fromCodeOrLabel(e.getRoleCode() != null ? e.getRoleCode() : e.getRole());
+    return rc.isExecutiveOrAbove();
   }
 
   public static boolean pm(Employee e) {
-    return executive(e) || "PM 권한".equals(e.getRole());
+    if (e == null) return false;
+    RoleCode rc = RoleCode.fromCodeOrLabel(e.getRoleCode() != null ? e.getRoleCode() : e.getRole());
+    return rc.isPmOrAbove();
   }
 }

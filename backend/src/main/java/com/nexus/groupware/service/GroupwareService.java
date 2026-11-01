@@ -36,7 +36,7 @@ public class GroupwareService {
           "employees",
               fields(
                   "emp_no name department_code department position_code position email phone"
-                      + " hire_date status leave_remaining leave_total skills avatar_color role"
+                      + " hire_date status leave_remaining leave_total skills avatar_color role role_code"
                       + " account_enabled"),
           "projects",
               fields(
@@ -412,7 +412,7 @@ public class GroupwareService {
       String module, VersionedEntity entity, Employee actor, boolean creating, boolean deleting) {
     boolean exec = AuthService.executive(actor);
     switch (module) {
-      case "employees" -> permit("시스템 관리자".equals(actor.getRole()));
+      case "employees" -> permit(AuthService.admin(actor));
       case "common_codes", "equipments", "evaluations" -> permit(exec);
       case "projects" ->
           permit(
@@ -665,7 +665,13 @@ public class GroupwareService {
                     : input.containsKey("position") ? e.getPosition() : e.getPositionCode());
         e.setPositionCode(pos.getCode());
         e.setPosition(pos.getLabel());
-        require(ROLES.contains(Objects.toString(e.getRole(), "")), "유효하지 않은 권한입니다.");
+        var role =
+            RoleCode.fromCodeOrLabel(
+                input.containsKey("role_code")
+                    ? Objects.toString(input.get("role_code"), e.getRoleCode())
+                    : input.containsKey("role") ? Objects.toString(input.get("role"), e.getRole()) : e.getRoleCode());
+        e.setRoleCode(role.getCode());
+        e.setRole(role.getLabel());
         require(
             Set.of("재직", "휴직", "퇴사", "대기").contains(Objects.toString(e.getStatus(), "")),
             "직원 상태를 확인하세요.");
@@ -682,12 +688,13 @@ public class GroupwareService {
         if (!creating
             && (input.containsKey("password")
                 || input.containsKey("role")
+                || input.containsKey("role_code")
                 || input.containsKey("status")
                 || input.containsKey("account_enabled")))
           e.setSessionVersion(e.getSessionVersion() + 1);
         if (!creating && e.getId().equals(actor.getId()))
           require(
-              "시스템 관리자".equals(e.getRole())
+              RoleCode.ROLE_ADMIN.getCode().equals(e.getRoleCode())
                   && "재직".equals(e.getStatus())
                   && Boolean.TRUE.equals(e.getAccountEnabled()),
               "본인의 관리자 권한·활성 상태는 제거할 수 없습니다.");

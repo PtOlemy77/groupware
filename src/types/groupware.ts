@@ -23,6 +23,8 @@ export interface PositionCodeInfo {
   level: number;
 }
 
+export type RoleCode = 'ROLE_ADMIN' | 'ROLE_EXEC' | 'ROLE_PM' | 'ROLE_STAFF';
+
 export type UserRole =
   | '시스템 관리자'
   | '임원 권한'
@@ -32,7 +34,7 @@ export type UserRole =
   | '경영팀 권한';
 
 export interface RoleCodeInfo {
-  code: string;
+  code: RoleCode;
   label: '시스템 관리자' | '임원 권한' | 'PM 권한' | '일반직원';
   rank: number; // 4: 시스템 관리자, 3: 임원 권한, 2: PM 권한, 1: 일반직원
   desc: string;
@@ -40,7 +42,7 @@ export interface RoleCodeInfo {
 
 export const USER_ROLE_CODES: RoleCodeInfo[] = [
   {
-    code: 'ROLE_SYS_ADMIN',
+    code: 'ROLE_ADMIN',
     label: '시스템 관리자',
     rank: 4,
     desc: '시스템 설정, 기준정보(노임단가·공통코드), 임직원 계정·권한 총괄 관리',
@@ -65,40 +67,93 @@ export const USER_ROLE_CODES: RoleCodeInfo[] = [
   },
 ];
 
-// 권한 정규화 헬퍼 (직급과 권한은 별개: 직급에 의존하지 않고 부여된 role만으로 판정)
+// 코드 기반 권한 판정 헬퍼
+export function getRoleCode(userOrRole?: AuthUser | Employee | string | null): RoleCode {
+  if (!userOrRole) return 'ROLE_STAFF';
+  let raw: string;
+  if (typeof userOrRole === 'object') {
+    if (userOrRole.role_code) return normalizeRoleCode(userOrRole.role_code);
+    raw = userOrRole.role || '';
+  } else {
+    raw = userOrRole;
+  }
+  return normalizeRoleCode(raw);
+}
+
+function normalizeRoleCode(raw: string): RoleCode {
+  const val = (raw || '').trim();
+  if (
+    val === 'ROLE_ADMIN' ||
+    val === 'ROLE_SYS_ADMIN' ||
+    val === '시스템 관리자' ||
+    val === '관리자 권한' ||
+    val === '경영팀 권한'
+  ) {
+    return 'ROLE_ADMIN';
+  }
+  if (val === 'ROLE_EXEC' || val === '임원 권한') {
+    return 'ROLE_EXEC';
+  }
+  if (val === 'ROLE_PM' || val === 'PM 권한') {
+    return 'ROLE_PM';
+  }
+  return 'ROLE_STAFF';
+}
+
+// 권한 정규화 헬퍼 (라벨 표기용)
 export function normalizeUserRole(
-  role?: string,
+  userOrRole?: AuthUser | Employee | string | null,
   _position?: string
 ): '시스템 관리자' | '임원 권한' | 'PM 권한' | '일반직원' {
-  if (role === '시스템 관리자') return '시스템 관리자';
-  if (role === '임원 권한') return '임원 권한';
-  if (role === 'PM 권한') return 'PM 권한';
-  if (role === '일반직원') return '일반직원';
-
-  // 구버전 호환 명칭 변환
-  if (role === '관리자 권한' || role === '경영팀 권한') {
-    return '시스템 관리자';
+  const code = getRoleCode(userOrRole);
+  switch (code) {
+    case 'ROLE_ADMIN':
+      return '시스템 관리자';
+    case 'ROLE_EXEC':
+      return '임원 권한';
+    case 'ROLE_PM':
+      return 'PM 권한';
+    default:
+      return '일반직원';
   }
-
-  // 기본 권한은 일반직원 (직급과 무관하게 권한이 별도로 부여되지 않은 경우)
-  return '일반직원';
 }
 
-// 1단계(최상위): 시스템 관리자 여부
-export function isSystemAdmin(role?: string): boolean {
-  return normalizeUserRole(role) === '시스템 관리자';
+// 1단계(최상위): 시스템 관리자 여부 (코드 비교)
+export function isSystemAdmin(userOrRole?: AuthUser | Employee | string | null): boolean {
+  return getRoleCode(userOrRole) === 'ROLE_ADMIN';
 }
 
-// 2단계: 임원 권한 이상 (시스템 관리자 + 임원 권한) - 직급과 무관하게 부여된 시스템 권한 기준
-export function isExecutiveOrAbove(role?: string, _position?: string): boolean {
-  const norm = normalizeUserRole(role);
-  return norm === '시스템 관리자' || norm === '임원 권한';
+// 2단계: 임원 권한 이상 (시스템 관리자 + 임원 권한)
+export function isExecutiveOrAbove(userOrRole?: AuthUser | Employee | string | null, _position?: string): boolean {
+  const code = getRoleCode(userOrRole);
+  return code === 'ROLE_ADMIN' || code === 'ROLE_EXEC';
 }
 
-// 3단계: PM 권한 이상 (시스템 관리자 + 임원 권한 + PM 권한) - 직급과 무관하게 부여된 시스템 권한 기준
-export function isPmOrAbove(role?: string, _position?: string): boolean {
-  const norm = normalizeUserRole(role);
-  return norm === '시스템 관리자' || norm === '임원 권한' || norm === 'PM 권한';
+// 3단계: PM 권한 이상 (시스템 관리자 + 임원 권한 + PM 권한)
+export function isPmOrAbove(userOrRole?: AuthUser | Employee | string | null, _position?: string): boolean {
+  const code = getRoleCode(userOrRole);
+  return code === 'ROLE_ADMIN' || code === 'ROLE_EXEC' || code === 'ROLE_PM';
+}
+
+// 직급 서열 및 입사일 기준 정렬 비교 함수
+export function compareEmployeesByPositionAndHireDate(a: Employee, b: Employee): number {
+  const getLevel = (emp: Employee) => {
+    if (emp.position_code) {
+      const p = POSITION_CODES.find((x) => x.code === emp.position_code);
+      if (p) return p.level;
+    }
+    const byLabel = POSITION_CODES.find((x) => x.label === emp.position);
+    return byLabel ? byLabel.level : 0;
+  };
+  const levelA = getLevel(a);
+  const levelB = getLevel(b);
+  if (levelB !== levelA) {
+    return levelB - levelA; // 높은 직급 우선 (사장 -> 이사 -> 부장 -> 차장 -> 과장 -> 대리 -> 담당)
+  }
+  // 직급이 같으면 입사일 오름차순 (오래된 빠른 입사일 먼저)
+  const dateA = a.hire_date || '';
+  const dateB = b.hire_date || '';
+  return dateA.localeCompare(dateB);
 }
 
 export interface AuthUser {
@@ -113,6 +168,7 @@ export interface AuthUser {
   email: string;
   phone: string;
   role: UserRole;
+  role_code?: RoleCode;
 }
 
 export interface Employee {
@@ -133,6 +189,7 @@ export interface Employee {
   skills?: string;
   avatar_color: string;
   role?: string;
+  role_code?: RoleCode;
 }
 
 export interface Project {

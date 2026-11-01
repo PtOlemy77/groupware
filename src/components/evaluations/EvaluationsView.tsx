@@ -22,7 +22,7 @@ export default function EvaluationsView({ evaluations, currentUser, employees = 
   const [formData, setFormData] = useState<Partial<Evaluation>>({});
 
   // 이사급 이상 임원 권한 및 시스템 관리자만 인사평가 작성/수정 가능
-  const canEdit = isExecutiveOrAbove(currentUser.role, currentUser.position);
+  const canEdit = isExecutiveOrAbove(currentUser);
 
   const filteredEvaluations = useMemo(() => {
     return evaluations.filter((ev) => {

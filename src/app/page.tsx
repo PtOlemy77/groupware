@@ -203,12 +203,9 @@ export default function GroupwareApp() {
     );
 
   // 기준정보 관리 권한 가드 (일반직원/PM은 접근 불가 -> 대시보드로 전환)
-  const isSysOrExec =
-    currentUser.role === '시스템 관리자' || currentUser.role === '임원 권한';
+  const isSysOrExec = isExecutiveOrAbove(currentUser);
   // 주간/월간보고 권한 가드 (PM 권한 이상만 접근 가능)
-  const canAccessReports =
-    isPmOrAbove(currentUser.role, currentUser.position) ||
-    currentUser.role === '시스템 관리자';
+  const canAccessReports = isPmOrAbove(currentUser);
 
   let effectiveTab = activeTab;
   if (effectiveTab === 'approvals' || effectiveTab === 'business_deals') {

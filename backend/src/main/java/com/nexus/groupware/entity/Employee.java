@@ -56,6 +56,9 @@ public class Employee extends VersionedEntity {
   @Column(name = "role", columnDefinition = "varchar(50) default '일반직원'")
   private String role = "일반직원";
 
+  @Column(name = "role_code", columnDefinition = "varchar(50) default 'ROLE_STAFF'")
+  private String roleCode = "ROLE_STAFF";
+
   @Column(name = "password", length = 100)
   private String password;
 
@@ -255,6 +258,14 @@ public class Employee extends VersionedEntity {
 
   public void setRole(String role) {
     this.role = role;
+  }
+
+  public String getRoleCode() {
+    return roleCode;
+  }
+
+  public void setRoleCode(String roleCode) {
+    this.roleCode = roleCode;
   }
 
   @com.fasterxml.jackson.annotation.JsonIgnore

@@ -12,7 +12,14 @@ import {
   Globe,
   Sliders,
 } from 'lucide-react';
-import { TabKey, AuthUser, COMPANY_WEBSITE, normalizeUserRole, isPmOrAbove } from '@/types/groupware';
+import {
+  TabKey,
+  AuthUser,
+  COMPANY_WEBSITE,
+  normalizeUserRole,
+  isExecutiveOrAbove,
+  isPmOrAbove,
+} from '@/types/groupware';
 
 interface Props {
   activeTab: TabKey;
@@ -36,11 +43,9 @@ export default function Sidebar({
 }: Props) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const userRole = normalizeUserRole(currentUser?.role, currentUser?.position);
-  const canAccessMasterData = userRole === '시스템 관리자' || userRole === '임원 권한';
+  const canAccessMasterData = isExecutiveOrAbove(currentUser);
   // 주간/월간보고는 PM 권한 이상(PM, 임원, 시스템 관리자)만 메뉴 노출
-  const canAccessReports =
-    isPmOrAbove(currentUser?.role, currentUser?.position) ||
-    userRole === '시스템 관리자';
+  const canAccessReports = isPmOrAbove(currentUser);
 
   const navItems = [
     {

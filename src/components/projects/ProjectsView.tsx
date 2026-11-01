@@ -89,8 +89,8 @@ export default function ProjectsView({
   const [workstationApproval, setWorkstationApproval] = useState<Approval | null>(null);
 
   // PM 권한 이상(시스템 관리자, 임원 권한, PM 권한) 프로젝트 등록/수정 가능
-  const canEdit = isPmOrAbove(currentUser.role, currentUser.position);
-  const canDelete = isExecutiveOrAbove(currentUser.role, currentUser.position);
+  const canEdit = isPmOrAbove(currentUser);
+  const canDelete = isExecutiveOrAbove(currentUser);
 
   // 정규화된 상태로 프로젝트 필터링
   const filteredProjects = useMemo(() => {

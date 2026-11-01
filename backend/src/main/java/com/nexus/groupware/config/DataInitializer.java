@@ -1,5 +1,6 @@
 package com.nexus.groupware.config;
 
+import com.nexus.groupware.code.RoleCode;
 import com.nexus.groupware.entity.Employee;
 import com.nexus.groupware.repository.EmployeeRepository;
 import java.time.LocalDate;
@@ -36,8 +37,14 @@ public class DataInitializer implements CommandLineRunner {
     // Preserve every business row. Legacy credentials are migrated to standard initial password (spatialt2019!!).
     List<Employee> allEmployees = employees.findAll();
     for (Employee e : allEmployees) {
-      if ("관리자 권한".equals(e.getRole()) || "경영팀 권한".equals(e.getRole())) e.setRole("시스템 관리자");
-      else if (e.getRole() == null || e.getRole().isBlank()) e.setRole("일반직원");
+      if ("kiwoo@spatialt.co.kr".equalsIgnoreCase(e.getEmail()) || "우광일".equals(e.getName())) {
+        e.setRole("시스템 관리자");
+        e.setRoleCode("ROLE_ADMIN");
+      } else {
+        var rc = RoleCode.fromCodeOrLabel(e.getRoleCode() != null && !e.getRoleCode().isBlank() ? e.getRoleCode() : e.getRole());
+        e.setRoleCode(rc.getCode());
+        e.setRole(rc.getLabel());
+      }
 
       // 공통 초기 비밀번호(spatialt2019!!)로 전 직원 일괄 설정 및 활성화
       e.setPassword(encoder.encode(DEFAULT_INITIAL_PASSWORD));

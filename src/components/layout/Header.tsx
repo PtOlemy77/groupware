@@ -1,7 +1,14 @@
 'use client';
 
 import React from 'react';
-import { AuthUser, normalizeUserRole, TabKey } from '@/types/groupware';
+import {
+  AuthUser,
+  normalizeUserRole,
+  isSystemAdmin,
+  isPmOrAbove,
+  getRoleCode,
+  TabKey,
+} from '@/types/groupware';
 import { RefreshCw, Plus, LogOut } from 'lucide-react';
 
 interface Props {
@@ -32,20 +39,19 @@ export default function Header({
   onOpenCreateModal,
 }: Props) {
   const currentTabInfo = TAB_TITLES[activeTab] || { label: '그룹웨어', sub: '' };
-  const currentRole = normalizeUserRole(currentUser.role, currentUser.position);
+  const roleCode = getRoleCode(currentUser);
+  const currentRole = normalizeUserRole(currentUser);
 
   const getAddButtonLabel = () => {
     switch (activeTab) {
       case 'employees':
-        return currentRole === '시스템 관리자' ? '신규 직원 등록' : null;
+        return isSystemAdmin(currentUser) ? '신규 직원 등록' : null;
       case 'projects':
-        return currentRole !== '일반직원' ? '신규 프로젝트 생성' : null;
+        return isPmOrAbove(currentUser) ? '신규 프로젝트 생성' : null;
       case 'equipments':
-        return currentRole === '시스템 관리자' ? '신규 자산 등록' : null;
+        return isSystemAdmin(currentUser) ? '신규 자산 등록' : null;
       case 'evaluations':
-        return currentRole === '시스템 관리자' || currentRole === '임원 권한' || currentRole === 'PM 권한'
-          ? '인사평가 작성'
-          : null;
+        return isPmOrAbove(currentUser) ? '인사평가 작성' : null;
       default:
         return null;
     }
@@ -73,11 +79,11 @@ export default function Header({
             </span>
             <span
               className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-                currentRole === '시스템 관리자'
+                roleCode === 'ROLE_ADMIN'
                   ? 'bg-rose-50 text-rose-700 border-rose-200'
-                  : currentRole === '임원 권한'
+                  : roleCode === 'ROLE_EXEC'
                   ? 'bg-purple-50 text-purple-700 border-purple-200'
-                  : currentRole === 'PM 권한'
+                  : roleCode === 'ROLE_PM'
                   ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
                   : 'bg-emerald-50 text-emerald-700 border-emerald-200'
               }`}
