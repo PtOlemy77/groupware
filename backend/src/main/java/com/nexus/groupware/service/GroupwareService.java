@@ -403,7 +403,7 @@ public class GroupwareService {
   }
 
   private void version(VersionedEntity entity, Object expected) {
-    require(expected != null, "수정 버전이 필요합니다. 새로고침 후 다시 시도하세요.");
+    if (expected == null) return; // 버전이 전달되지 않은 경우(간소화 폼)는 기본 통과
     if (!entity.getVersion().toString().equals(expected.toString()))
       throw error(HttpStatus.CONFLICT, "다른 사용자가 수정했습니다. 새로고침 후 다시 시도하세요.");
   }

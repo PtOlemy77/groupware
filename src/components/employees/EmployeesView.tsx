@@ -490,6 +490,7 @@ export default function EmployeesView({
       };
 
       const targetId = editingEmp ? editingEmp.id : formData.id;
+      const targetVersion = editingEmp?.version ?? formData.version;
       const res = await apiFetch('/api/groupware', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -497,12 +498,17 @@ export default function EmployeesView({
           module: 'employees',
           action: editingEmp ? 'update' : 'create',
           id: targetId,
-          data: payload,
+          version: targetVersion,
+          data: {
+            ...payload,
+            version: targetVersion,
+          },
         }),
       });
 
+      const resData = await res.json().catch(() => ({}));
       if (!res.ok) {
-        alert('직원 정보 저장 중 서버 응답 오류가 발생했습니다.');
+        alert(resData.message || '직원 정보 저장 중 서버 응답 오류가 발생했습니다.');
         return;
       }
 
