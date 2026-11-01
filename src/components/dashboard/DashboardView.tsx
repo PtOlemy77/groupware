@@ -1,4 +1,5 @@
 'use client';
+import { readMaster, saveMaster } from '@/lib/api';
 
 import React, { useState, useEffect, useMemo } from 'react';
 import {
@@ -12,6 +13,7 @@ import {
   TabKey,
   formatCurrencyManwon,
   getMultiYearRevenueForYear,
+  calculateMultiYearRevenues,
   getProjectShareRate,
 } from '@/types/groupware';
 import {
@@ -51,13 +53,13 @@ export default function DashboardView({
   approvals,
   onNavigateTab,
 }: Props) {
-  const currentYear = 2026;
+  const currentYear = new Date().getFullYear();
 
   // 1. 기준정보 관리에서 연동되는 연도별 전사 사업 목표매출 (기본값: 2026년 25억원 = 250,000만원)
   const [targetRevenue, setTargetRevenue] = useState<number>(() => {
     try {
       if (typeof window !== 'undefined') {
-        const saved = localStorage.getItem('spatialt_master_target_revenues');
+        const saved = readMaster('spatialt_master_target_revenues');
         if (saved) {
           const parsed = JSON.parse(saved);
           if (parsed[currentYear]?.targetAmount) return Number(parsed[currentYear].targetAmount);
@@ -65,13 +67,13 @@ export default function DashboardView({
         }
       }
     } catch (e) {}
-    return 250000;
+    return 0;
   });
 
   useEffect(() => {
     const loadTargetRevenue = () => {
       try {
-        const saved = localStorage.getItem('spatialt_master_target_revenues');
+        const saved = readMaster('spatialt_master_target_revenues');
         if (saved) {
           const parsed = JSON.parse(saved);
           if (parsed[currentYear]?.targetAmount) {
@@ -129,10 +131,14 @@ export default function DashboardView({
     });
 
     deals.forEach((d) => {
-      if (d.stage === '계약완료') {
-        confirmed += d.amount;
+      if (d.converted_project_id) return;
+      const start = d.start_date || d.close_date, end = d.end_date || d.close_date;
+      if (currentYear < new Date(start).getFullYear() || currentYear > new Date(end).getFullYear()) return;
+      const revenue = calculateMultiYearRevenues(start, end, d.amount)[currentYear] ?? 0;
+      if (d.stage === '계약완료' || d.stage === '수주확정') {
+        confirmed += revenue;
       } else {
-        pipelineWeighted += Math.round(d.amount * (d.probability / 100));
+        pipelineWeighted += Math.round(revenue * (d.probability / 100));
       }
     });
 
@@ -154,16 +160,13 @@ export default function DashboardView({
     const bizEmps = employees.filter(
       (e) => e.department === '사업본부' || e.department_code === 'DEPT_BIZ'
     );
-    const assignedNames = new Set<string>();
+    const assignedNames = new Set<number>();
 
     projects
       .filter((p) => normalizeProjectStatus(p.status) === '프로젝트 수행' || normalizeProjectStatus(p.status) === '제안준비중')
       .forEach((p) => {
-        if (!p.members) return;
-        p.members.split(',').forEach((raw) => {
-          const clean = raw.trim().split(/\s+/)[0];
-          if (clean) assignedNames.add(clean);
-        });
+        if (p.pm_id) assignedNames.add(p.pm_id);
+        (p.member_ids || []).forEach(id => assignedNames.add(id));
       });
 
     approvals
@@ -172,8 +175,8 @@ export default function DashboardView({
         try {
           const parsed = JSON.parse(a.items_json || '{}');
           if (Array.isArray(parsed.manpowerPlans)) {
-            parsed.manpowerPlans.forEach((mp: { name?: string }) => {
-              const clean = (mp.name || '').trim().split(/\s+/)[0];
+            parsed.manpowerPlans.forEach((mp: { employeeId?: number }) => {
+              const clean = mp.employeeId;
               if (clean) assignedNames.add(clean);
             });
           }
@@ -182,7 +185,7 @@ export default function DashboardView({
         }
       });
 
-    const availableBiz = bizEmps.filter((e) => !assignedNames.has(e.name.trim()) && e.status !== '휴직' && e.status !== '퇴사');
+    const availableBiz = bizEmps.filter((e) => !assignedNames.has(e.id) && e.status !== '휴직' && e.status !== '퇴사');
     return {
       totalBiz: bizEmps.length,
       availableBizCount: availableBiz.length,
@@ -200,7 +203,7 @@ export default function DashboardView({
             className="p-3.5 rounded-xl border border-slate-200/90 bg-slate-50/40 hover:bg-white hover:border-indigo-300 transition cursor-pointer group"
           >
             <div className="flex items-center justify-between mb-1.5">
-              <span className="text-xs font-bold text-slate-500">2026 사업목표 (매출)</span>
+              <span className="text-xs font-bold text-slate-500">{currentYear} 사업목표 (매출)</span>
               <div className="w-7 h-7 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center group-hover:bg-indigo-600 group-hover:text-white transition">
                 <Target className="w-4 h-4" />
               </div>

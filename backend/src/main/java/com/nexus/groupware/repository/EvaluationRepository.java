@@ -1,11 +1,13 @@
 package com.nexus.groupware.repository;
 
 import com.nexus.groupware.entity.Evaluation;
+import java.util.List;
 import org.springframework.data.jpa.repository.JpaRepository;
 
-import java.util.List;
+public interface EvaluationRepository
+    extends JpaRepository<Evaluation, Long>,
+        org.springframework.data.jpa.repository.JpaSpecificationExecutor<Evaluation> {
+  Long countByEmployeeId(Long employeeId);
 
-public interface EvaluationRepository extends JpaRepository<Evaluation, Long> {
-    List<Evaluation> findAllByOrderByTotalScoreDescIdDesc();
+  List<Evaluation> findAllByOrderByTotalScoreDescIdDesc();
 }
-

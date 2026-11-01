@@ -4,132 +4,275 @@ import jakarta.persistence.*;
 
 @Entity
 @Table(name = "approvals")
-public class Approval {
+public class Approval extends VersionedEntity {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+  @Id
+  @GeneratedValue(strategy = GenerationType.IDENTITY)
+  private Long id;
 
-    @Column(name = "doc_no", nullable = false, unique = true)
-    private String docNo;
+  @Column(name = "doc_no", nullable = false, unique = true)
+  private String docNo;
 
-    @Column(nullable = false)
-    private String category;
+  @Column(nullable = false)
+  private String category;
 
-    @Column(nullable = false)
-    private String title;
+  @Column(nullable = false)
+  private String title;
 
-    @Column(nullable = false)
-    private String requester;
+  @Column(nullable = false)
+  private String requester;
 
-    @Column(name = "requester_position", columnDefinition = "varchar(50) default '과장'")
-    private String requesterPosition = "과장";
+  @Column(name = "requester_position", columnDefinition = "varchar(50) default '과장'")
+  private String requesterPosition = "과장";
 
-    @Column(nullable = false)
-    private String department;
+  @Column(nullable = false)
+  private String department;
 
-    @Column(name = "created_at", nullable = false)
-    private String createdAt;
+  @Column(name = "created_at", nullable = false)
+  @Convert(converter = IsoDateConverter.class)
+  private String createdAt;
 
-    @Column(nullable = false)
-    private String status = "결재대기";
+  @Column(nullable = false)
+  private String status = "결재대기";
 
-    @Column(nullable = false)
-    private Integer amount = 0;
+  @Column(nullable = false)
+  private Integer amount = 0;
 
-    @Column(name = "project_name", columnDefinition = "varchar(255) default ''")
-    private String projectName = "";
+  @Column(name = "project_name", columnDefinition = "varchar(255) default ''")
+  private String projectName = "";
 
-    @Column(name = "vendor", columnDefinition = "varchar(255) default ''")
-    private String vendor = "";
+  @Column(name = "vendor", columnDefinition = "varchar(255) default ''")
+  private String vendor = "";
 
-    @Column(name = "payment_method", columnDefinition = "varchar(100) default '세금계산서(계좌이체)'")
-    private String paymentMethod = "세금계산서(계좌이체)";
+  @Column(name = "payment_method", columnDefinition = "varchar(100) default '세금계산서(계좌이체)'")
+  private String paymentMethod = "세금계산서(계좌이체)";
 
-    @Column(name = "purpose", columnDefinition = "text default ''")
-    private String purpose = "";
+  @Column(name = "purpose", columnDefinition = "text default ''")
+  private String purpose = "";
 
-    @Column(name = "items_json", columnDefinition = "text default '[]'")
-    private String itemsJson = "[]";
+  @Column(name = "items_json", columnDefinition = "text default '[]'")
+  private String itemsJson = "[]";
 
-    @Column(name = "reviewer_comment", columnDefinition = "varchar(500) default ''")
-    private String reviewerComment = "";
+  @Column(name = "reviewer_comment", columnDefinition = "varchar(500) default ''")
+  private String reviewerComment = "";
 
-    @Column(name = "approved_by", columnDefinition = "varchar(100) default ''")
-    private String approvedBy = "";
+  @Column(name = "approved_by", columnDefinition = "varchar(100) default ''")
+  private String approvedBy = "";
 
-    public Approval() {}
+  @Column(name = "project_id")
+  private Long projectId = null;
 
-    public Approval(String docNo, String category, String title, String requester, String requesterPosition,
-                    String department, String createdAt, String status, Integer amount,
-                    String projectName, String vendor, String paymentMethod, String purpose,
-                    String itemsJson, String reviewerComment, String approvedBy) {
-        this.docNo = docNo;
-        this.category = category;
-        this.title = title;
-        this.requester = requester;
-        this.requesterPosition = requesterPosition;
-        this.department = department;
-        this.createdAt = createdAt;
-        this.status = status;
-        this.amount = amount;
-        this.projectName = projectName;
-        this.vendor = vendor;
-        this.paymentMethod = paymentMethod;
-        this.purpose = purpose;
-        this.itemsJson = itemsJson;
-        this.reviewerComment = reviewerComment;
-        this.approvedBy = approvedBy;
-    }
+  public Long getProjectId() {
+    return projectId;
+  }
 
-    public Long getId() { return id; }
-    public void setId(Long id) { this.id = id; }
+  public void setProjectId(Long value) {
+    projectId = value;
+  }
 
-    public String getDocNo() { return docNo; }
-    public void setDocNo(String docNo) { this.docNo = docNo; }
+  @Column(name = "requester_id")
+  private Long requesterId = null;
 
-    public String getCategory() { return category; }
-    public void setCategory(String category) { this.category = category; }
+  public Long getRequesterId() {
+    return requesterId;
+  }
 
-    public String getTitle() { return title; }
-    public void setTitle(String title) { this.title = title; }
+  public void setRequesterId(Long value) {
+    requesterId = value;
+  }
 
-    public String getRequester() { return requester; }
-    public void setRequester(String requester) { this.requester = requester; }
+  @Column(name = "approver_id")
+  private Long approverId = null;
 
-    public String getRequesterPosition() { return requesterPosition; }
-    public void setRequesterPosition(String requesterPosition) { this.requesterPosition = requesterPosition; }
+  public Long getApproverId() {
+    return approverId;
+  }
 
-    public String getDepartment() { return department; }
-    public void setDepartment(String department) { this.department = department; }
+  public void setApproverId(Long value) {
+    approverId = value;
+  }
 
-    public String getCreatedAt() { return createdAt; }
-    public void setCreatedAt(String createdAt) { this.createdAt = createdAt; }
+  @Column(name = "approved_at")
+  private String approvedAt = null;
 
-    public String getStatus() { return status; }
-    public void setStatus(String status) { this.status = status; }
+  public String getApprovedAt() {
+    return approvedAt;
+  }
 
-    public Integer getAmount() { return amount; }
-    public void setAmount(Integer amount) { this.amount = amount; }
+  public void setApprovedAt(String value) {
+    approvedAt = value;
+  }
 
-    public String getProjectName() { return projectName; }
-    public void setProjectName(String projectName) { this.projectName = projectName; }
+  public Approval() {}
 
-    public String getVendor() { return vendor; }
-    public void setVendor(String vendor) { this.vendor = vendor; }
+  public Approval(
+      String docNo,
+      String category,
+      String title,
+      String requester,
+      String requesterPosition,
+      String department,
+      String createdAt,
+      String status,
+      Integer amount,
+      String projectName,
+      String vendor,
+      String paymentMethod,
+      String purpose,
+      String itemsJson,
+      String reviewerComment,
+      String approvedBy) {
+    this.docNo = docNo;
+    this.category = category;
+    this.title = title;
+    this.requester = requester;
+    this.requesterPosition = requesterPosition;
+    this.department = department;
+    this.createdAt = createdAt;
+    this.status = status;
+    this.amount = amount;
+    this.projectName = projectName;
+    this.vendor = vendor;
+    this.paymentMethod = paymentMethod;
+    this.purpose = purpose;
+    this.itemsJson = itemsJson;
+    this.reviewerComment = reviewerComment;
+    this.approvedBy = approvedBy;
+  }
 
-    public String getPaymentMethod() { return paymentMethod; }
-    public void setPaymentMethod(String paymentMethod) { this.paymentMethod = paymentMethod; }
+  public Long getId() {
+    return id;
+  }
 
-    public String getPurpose() { return purpose; }
-    public void setPurpose(String purpose) { this.purpose = purpose; }
+  public void setId(Long id) {
+    this.id = id;
+  }
 
-    public String getItemsJson() { return itemsJson; }
-    public void setItemsJson(String itemsJson) { this.itemsJson = itemsJson; }
+  public String getDocNo() {
+    return docNo;
+  }
 
-    public String getReviewerComment() { return reviewerComment; }
-    public void setReviewerComment(String reviewerComment) { this.reviewerComment = reviewerComment; }
+  public void setDocNo(String docNo) {
+    this.docNo = docNo;
+  }
 
-    public String getApprovedBy() { return approvedBy; }
-    public void setApprovedBy(String approvedBy) { this.approvedBy = approvedBy; }
+  public String getCategory() {
+    return category;
+  }
+
+  public void setCategory(String category) {
+    this.category = category;
+  }
+
+  public String getTitle() {
+    return title;
+  }
+
+  public void setTitle(String title) {
+    this.title = title;
+  }
+
+  public String getRequester() {
+    return requester;
+  }
+
+  public void setRequester(String requester) {
+    this.requester = requester;
+  }
+
+  public String getRequesterPosition() {
+    return requesterPosition;
+  }
+
+  public void setRequesterPosition(String requesterPosition) {
+    this.requesterPosition = requesterPosition;
+  }
+
+  public String getDepartment() {
+    return department;
+  }
+
+  public void setDepartment(String department) {
+    this.department = department;
+  }
+
+  public String getCreatedAt() {
+    return createdAt;
+  }
+
+  public void setCreatedAt(String createdAt) {
+    this.createdAt = createdAt;
+  }
+
+  public String getStatus() {
+    return status;
+  }
+
+  public void setStatus(String status) {
+    this.status = status;
+  }
+
+  public Integer getAmount() {
+    return amount;
+  }
+
+  public void setAmount(Integer amount) {
+    this.amount = amount;
+  }
+
+  public String getProjectName() {
+    return projectName;
+  }
+
+  public void setProjectName(String projectName) {
+    this.projectName = projectName;
+  }
+
+  public String getVendor() {
+    return vendor;
+  }
+
+  public void setVendor(String vendor) {
+    this.vendor = vendor;
+  }
+
+  public String getPaymentMethod() {
+    return paymentMethod;
+  }
+
+  public void setPaymentMethod(String paymentMethod) {
+    this.paymentMethod = paymentMethod;
+  }
+
+  public String getPurpose() {
+    return purpose;
+  }
+
+  public void setPurpose(String purpose) {
+    this.purpose = purpose;
+  }
+
+  public String getItemsJson() {
+    return itemsJson;
+  }
+
+  public void setItemsJson(String itemsJson) {
+    this.itemsJson = itemsJson;
+  }
+
+  public String getReviewerComment() {
+    return reviewerComment;
+  }
+
+  public void setReviewerComment(String reviewerComment) {
+    this.reviewerComment = reviewerComment;
+  }
+
+  public String getApprovedBy() {
+    return approvedBy;
+  }
+
+  public void setApprovedBy(String approvedBy) {
+    this.approvedBy = approvedBy;
+  }
 }

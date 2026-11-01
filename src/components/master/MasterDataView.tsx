@@ -1,4 +1,7 @@
 'use client';
+import { readMaster, saveMaster } from '@/lib/api';
+
+import { apiFetch } from '@/lib/api';
 
 import React, { useState, useMemo } from 'react';
 import {
@@ -51,50 +54,13 @@ export interface YearlyTargetRevenueItem {
 }
 
 // 연도별 기본 사업 목표매출
-export const DEFAULT_TARGET_REVENUES: Record<number, YearlyTargetRevenueItem> = {
-  2024: { year: 2024, targetAmount: 180000, note: '공간정보 포털 구축 및 지자체 GIS 납품 사업' },
-  2025: { year: 2025, targetAmount: 220000, note: '3D 디지털트윈 플랫폼 및 공공 클라우드 전환 사업' },
-  2026: { year: 2026, targetAmount: 250000, note: '지하매설물 3D 가시화 및 스마트시티 DX 선도 사업' },
-  2027: { year: 2027, targetAmount: 300000, note: '국가 공간정보 AI 분석 엔진 및 민간 SaaS 플랫폼 확장' },
-  2028: { year: 2028, targetAmount: 350000, note: '글로벌 공간정보 솔루션 수출 및 데이터 마켓플레이스' },
-};
+export const DEFAULT_TARGET_REVENUES: Record<number, YearlyTargetRevenueItem> = {};
 
 export const STORAGE_KEY_TARGET_REVENUES = 'spatialt_master_target_revenues';
 
 // 연도별 기본 노임단가 데이터셋 (2025, 2026, 2027, 2028)
 const DEFAULT_YEARLY_PRICES: Record<number, YearlyUnitPriceItem[]> = {
-  2025: [
-    { id: '2025-1', position: '이사', grade: '특급', dailyPrice: 722480, monthlyPrice: 15100 },
-    { id: '2025-2', position: '부장', grade: '특급', dailyPrice: 598080, monthlyPrice: 12500 },
-    { id: '2025-3', position: '차장', grade: '고급', dailyPrice: 502390, monthlyPrice: 10500 },
-    { id: '2025-4', position: '과장', grade: '고급', dailyPrice: 438270, monthlyPrice: 9160 },
-    { id: '2025-5', position: '대리', grade: '중급', dailyPrice: 356450, monthlyPrice: 7450 },
-    { id: '2025-6', position: '담당', grade: '초급', dailyPrice: 301430, monthlyPrice: 6300 },
-  ],
-  2026: [
-    { id: '2026-1', position: '이사', grade: '특급', dailyPrice: 755980, monthlyPrice: 15800 },
-    { id: '2026-2', position: '부장', grade: '특급', dailyPrice: 626790, monthlyPrice: 13100 },
-    { id: '2026-3', position: '차장', grade: '고급', dailyPrice: 526260, monthlyPrice: 11000 },
-    { id: '2026-4', position: '과장', grade: '고급', dailyPrice: 459330, monthlyPrice: 9600 },
-    { id: '2026-5', position: '대리', grade: '중급', dailyPrice: 373200, monthlyPrice: 7800 },
-    { id: '2026-6', position: '담당', grade: '초급', dailyPrice: 315780, monthlyPrice: 6600 },
-  ],
-  2027: [
-    { id: '2027-1', position: '이사', grade: '특급', dailyPrice: 789480, monthlyPrice: 16500 },
-    { id: '2027-2', position: '부장', grade: '특급', dailyPrice: 655500, monthlyPrice: 13700 },
-    { id: '2027-3', position: '차장', grade: '고급', dailyPrice: 550200, monthlyPrice: 11500 },
-    { id: '2027-4', position: '과장', grade: '고급', dailyPrice: 483250, monthlyPrice: 10100 },
-    { id: '2027-5', position: '대리', grade: '중급', dailyPrice: 392340, monthlyPrice: 8200 },
-    { id: '2027-6', position: '담당', grade: '초급', dailyPrice: 330140, monthlyPrice: 6900 },
-  ],
-  2028: [
-    { id: '2028-1', position: '이사', grade: '특급', dailyPrice: 823000, monthlyPrice: 17200 },
-    { id: '2028-2', position: '부장', grade: '특급', dailyPrice: 684200, monthlyPrice: 14300 },
-    { id: '2028-3', position: '차장', grade: '고급', dailyPrice: 574100, monthlyPrice: 12000 },
-    { id: '2028-4', position: '과장', grade: '고급', dailyPrice: 504000, monthlyPrice: 10550 },
-    { id: '2028-5', position: '대리', grade: '중급', dailyPrice: 409000, monthlyPrice: 8550 },
-    { id: '2028-6', position: '담당', grade: '초급', dailyPrice: 344500, monthlyPrice: 7200 },
-  ],
+  [new Date().getFullYear()]: ['이사','부장','차장','과장','대리','담당'].map((position, i) => ({ id: `price-${i}`, position, grade: (i < 2 ? '특급' : i < 4 ? '고급' : i === 4 ? '중급' : '초급') as YearlyUnitPriceItem['grade'], dailyPrice: 0, monthlyPrice: 0 }))
 };
 
 const STORAGE_KEY_UNIT_PRICES = 'spatialt_master_unit_prices';
@@ -110,7 +76,7 @@ export default function MasterDataView({
   // 1. 목표매출 상태
   const [targetRevenues, setTargetRevenues] = useState<Record<number, YearlyTargetRevenueItem>>(() => {
     try {
-      const saved = localStorage.getItem(STORAGE_KEY_TARGET_REVENUES);
+      const saved = readMaster(STORAGE_KEY_TARGET_REVENUES);
       if (saved) return JSON.parse(saved);
     } catch (e) {}
     return DEFAULT_TARGET_REVENUES;
@@ -122,10 +88,10 @@ export default function MasterDataView({
   const [newNoteInput, setNewNoteInput] = useState('');
 
   // 2. 노임단가 상태
-  const [selectedYear, setSelectedYear] = useState<number>(2026);
+  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
   const [yearlyPrices, setYearlyPrices] = useState<Record<number, YearlyUnitPriceItem[]>>(() => {
     try {
-      const saved = localStorage.getItem(STORAGE_KEY_UNIT_PRICES);
+      const saved = readMaster(STORAGE_KEY_UNIT_PRICES);
       if (saved) return JSON.parse(saved);
     } catch (e) {}
     return DEFAULT_YEARLY_PRICES;
@@ -136,13 +102,13 @@ export default function MasterDataView({
 
   // 현재 연도의 단가 목록
   const currentPrices = useMemo(() => {
-    return yearlyPrices[selectedYear] || DEFAULT_YEARLY_PRICES[2026] || [];
+    return yearlyPrices[selectedYear] || DEFAULT_YEARLY_PRICES[new Date().getFullYear()] || [];
   }, [yearlyPrices, selectedYear]);
 
   // 특정 연도의 단가 변경 (월단가 또는 일단가)
   const handlePriceChange = (id: string, field: 'monthlyPrice' | 'dailyPrice', val: any) => {
     setYearlyPrices((prev) => {
-      const list = prev[selectedYear] ? [...prev[selectedYear]] : [...DEFAULT_YEARLY_PRICES[2026]];
+      const list = prev[selectedYear] ? [...prev[selectedYear]] : [...DEFAULT_YEARLY_PRICES[new Date().getFullYear()]];
       const updated = list.map((it) => {
         if (it.id === id) {
           if (field === 'monthlyPrice') {
@@ -164,10 +130,10 @@ export default function MasterDataView({
   };
 
   // 단가 저장
-  const handleSavePrices = () => {
+  const handleSavePrices = async () => {
     try {
       setSavingPrices(true);
-      localStorage.setItem(STORAGE_KEY_UNIT_PRICES, JSON.stringify(yearlyPrices));
+      await saveMaster(STORAGE_KEY_UNIT_PRICES, yearlyPrices);
       setSaveMessage(`${selectedYear}년도 SW 기술자 노임단가 기준정보가 저장되었습니다.`);
       setTimeout(() => setSaveMessage(''), 4000);
     } catch (e) {
@@ -193,10 +159,10 @@ export default function MasterDataView({
   };
 
   // 목표매출 저장
-  const handleSaveTargetRevenues = () => {
+  const handleSaveTargetRevenues = async () => {
     try {
       setSavingRevenues(true);
-      localStorage.setItem(STORAGE_KEY_TARGET_REVENUES, JSON.stringify(targetRevenues));
+      await saveMaster(STORAGE_KEY_TARGET_REVENUES, targetRevenues);
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new Event('target-revenues-updated'));
       }
@@ -246,8 +212,8 @@ export default function MasterDataView({
   // 신규 연도 추가
   const handleAddYear = () => {
     const years = Object.keys(yearlyPrices).map(Number).sort((a, b) => b - a);
-    const nextYear = (years[0] || 2026) + 1;
-    const baseList = yearlyPrices[years[0]] || DEFAULT_YEARLY_PRICES[2026];
+    const nextYear = (years[0] || new Date().getFullYear()) + 1;
+    const baseList = yearlyPrices[years[0]] || DEFAULT_YEARLY_PRICES[new Date().getFullYear()];
     // 전년도 대비 약 4.5% 인상된 기본값 생성
     const newList: YearlyUnitPriceItem[] = baseList.map((it) => {
       const newM = Math.round(it.monthlyPrice * 1.045);
@@ -317,7 +283,7 @@ export default function MasterDataView({
 
   const handleSaveCode = async (e: React.FormEvent) => {
     e.preventDefault();
-    await fetch('http://localhost:8080/api/groupware', {
+    await apiFetch('/api/groupware', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -333,7 +299,7 @@ export default function MasterDataView({
 
   const handleDeleteCode = async (id: number) => {
     if (!confirm('정말 이 코드를 삭제하시겠습니까?')) return;
-    await fetch('http://localhost:8080/api/groupware', {
+    await apiFetch('/api/groupware', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -346,7 +312,7 @@ export default function MasterDataView({
   };
 
   return (
-    <div className="space-y-6">
+    <div data-editor className="space-y-6">
       {/* 1. 상단 타이틀 배너 */}
       <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-2xs flex items-center justify-between flex-wrap gap-4">
         <div>
@@ -469,7 +435,7 @@ export default function MasterDataView({
                           ? Number((((item.targetAmount - prevAmount) / prevAmount) * 100).toFixed(1))
                           : null;
 
-                      const isCurrentYear = yr === 2026;
+                      const isCurrentYear = yr === new Date().getFullYear();
 
                       return (
                         <tr

@@ -1,5 +1,7 @@
 'use client';
 
+import { apiFetch } from '@/lib/api';
+
 import React, { useState, useMemo } from 'react';
 import { Equipment, Employee, AuthUser, isPmOrAbove, formatCurrencyManwon } from '@/types/groupware';
 import {
@@ -151,7 +153,7 @@ export default function EquipmentsView({
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    await fetch('http://localhost:8080/api/groupware', {
+    await apiFetch('/api/groupware', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -172,7 +174,7 @@ export default function EquipmentsView({
     }
     if (!confirm('정말 해당 자산을 삭제하시겠습니까?')) return;
 
-    await fetch('http://localhost:8080/api/groupware', {
+    await apiFetch('/api/groupware', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ module: 'equipments', action: 'delete', id }),

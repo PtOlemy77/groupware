@@ -1,4 +1,7 @@
 'use client';
+import { unitPrice } from '@/lib/api';
+
+import { apiFetch } from '@/lib/api';
 
 import React, { useState, useMemo } from 'react';
 import {
@@ -122,16 +125,18 @@ export default function ProjectsView({
 
   const openCreateModal = () => {
     setEditingPrj(null);
-    const startStr = '2026-04-01';
-    const endStr = '2026-11-30';
-    const initialBudget = 45000;
+    const startStr = new Date().toLocaleDateString('en-CA');
+    const endStr = `${new Date().getFullYear()}-12-31`;
+    const initialBudget = 0;
     const breakdown = calculateMultiYearRevenues(startStr, endStr, initialBudget);
     setMultiYearBreakdown(breakdown);
 
     setFormData({
-      code: `PRJ-2026-${String(projects.length + 1).padStart(2, '0')}`,
+      code: '',
       name: '',
       department: '사업본부',
+      pm_id: currentUser.id,
+      member_ids: [],
       pm_name: currentUser.name,
       start_date: startStr,
       end_date: endStr,
@@ -206,7 +211,7 @@ export default function ProjectsView({
       yearly_revenue_json: JSON.stringify(multiYearBreakdown),
     };
 
-    await fetch('http://localhost:8080/api/groupware', {
+    await apiFetch('/api/groupware', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -217,86 +222,6 @@ export default function ProjectsView({
       }),
     });
 
-    // 프로젝트 수정 시 연결된 계약품의서(Approval)가 있다면 계약품의서의 투입인력(manpowerPlans) 및 기본정보도 양방향 동기화
-    if (editingPrj) {
-      const matchedAp = findLinkedApproval(editingPrj);
-      if (matchedAp && matchedAp.items_json && matchedAp.items_json.startsWith('{')) {
-        try {
-          const parsedDoc = JSON.parse(matchedAp.items_json);
-          parsedDoc.title = finalData.name || editingPrj.name;
-          parsedDoc.startDate = finalData.start_date || editingPrj.start_date;
-          parsedDoc.endDate = finalData.end_date || editingPrj.end_date;
-          parsedDoc.ourShareRate = shareRate;
-          parsedDoc.supplyAmount = ourBudget * 10; // 당사 수주 배정액 (천원)
-          parsedDoc.vatAmount = Math.round(parsedDoc.supplyAmount * 0.1);
-
-          // 프로젝트 members 목록과 계약품의서 manpowerPlans 동기화
-          const updatedMemberNames = Array.from(
-            new Set(
-              [
-                finalData.pm_name,
-                ...((finalData.members || '') as string).split(',').map((n) => n.trim()),
-              ].filter(Boolean)
-            )
-          );
-
-          const sDate = new Date(parsedDoc.startDate || '2026-04-01');
-          const eDate = new Date(parsedDoc.endDate || '2026-11-30');
-          const prjMonths = Math.max(
-            1,
-            (eDate.getFullYear() - sDate.getFullYear()) * 12 +
-              (eDate.getMonth() - sDate.getMonth()) +
-              1
-          );
-
-          const existingPlans: any[] = parsedDoc.manpowerPlans || [];
-          const syncedPlans = updatedMemberNames.map((empName, idx) => {
-            const existing = existingPlans.find((p) => p.name === empName);
-            if (existing) return existing;
-
-            const empObj = employees.find((emp) => emp.name === empName);
-            const pos = empObj ? empObj.position : '대리';
-            const isPm = empName === finalData.pm_name || idx === 0;
-            const { grade, unitPrice, role } = getGradeAndPriceByPosition(pos, isPm);
-            const monthsArr = Array(prjMonths).fill(1);
-            return {
-              id: `m_sync_${idx}_${Date.now()}`,
-              type: '당사',
-              grade,
-              role,
-              name: empName,
-              position: pos,
-              months: monthsArr,
-              totalMM: prjMonths,
-              unitPrice,
-              laborCost: prjMonths * unitPrice,
-            };
-          });
-
-          parsedDoc.manpowerPlans = syncedPlans;
-
-          await fetch('http://localhost:8080/api/groupware', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              module: 'approvals',
-              action: 'update',
-              id: matchedAp.id,
-              data: {
-                ...matchedAp,
-                title: parsedDoc.title,
-                project_name: parsedDoc.title,
-                amount: parsedDoc.supplyAmount,
-                items_json: JSON.stringify(parsedDoc),
-              },
-            }),
-          });
-        } catch (err) {
-          console.error('Failed to sync approval with project:', err);
-        }
-      }
-    }
-
     setModalOpen(false);
     await onRefresh();
   };
@@ -306,26 +231,12 @@ export default function ProjectsView({
       alert('프로젝트 삭제는 시스템 관리자 또는 임원 권한(이사급 이상)만 가능합니다.');
       return;
     }
-    if (!confirm('정말 삭제하시겠습니까? 연결된 결재 품의서 및 직원 투입 현황에서도 즉시 제외됩니다.')) return;
+    if (!confirm('프로젝트를 삭제하시겠습니까? 연결된 결재·보고 이력이 있으면 삭제할 수 없습니다.')) return;
 
-    const prjToDelete = projects.find((p) => p.id === id);
-    const linkedAp = prjToDelete ? findLinkedApproval(prjToDelete) : undefined;
-
-    // 1. 프로젝트 삭제
-    await fetch('http://localhost:8080/api/groupware', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+    await apiFetch('/api/groupware', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ module: 'projects', action: 'delete', id }),
     });
-
-    // 2. 연계된 계약품의서(Approval)가 있다면 함께 삭제하여 유령 프로젝트 데이터 정합성 보장
-    if (linkedAp) {
-      await fetch('http://localhost:8080/api/groupware', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ module: 'approvals', action: 'delete', id: linkedAp.id }),
-      });
-    }
 
     await onRefresh();
   };
@@ -352,38 +263,15 @@ export default function ProjectsView({
   };
 
   // 직급별 기본 기술등급 및 표준 단가 매핑 헬퍼
-  const getGradeAndPriceByPosition = (pos: string, isPm: boolean) => {
-    if (pos === '사장' || pos === '이사' || pos === '부장' || pos === '차장') {
-      return {
-        grade: '특급' as const,
-        unitPrice: 13100,
-        role: isPm ? '총괄 PM' : '수석 아키텍트',
-      };
-    }
-    if (pos === '과장') {
-      return {
-        grade: '고급' as const,
-        unitPrice: 9600,
-        role: isPm ? '수행 PM' : '응용/공간DB PL',
-      };
-    }
-    if (pos === '대리') {
-      return {
-        grade: '중급' as const,
-        unitPrice: 7800,
-        role: '공간정보 시스템 개발/운영',
-      };
-    }
-    return {
-      grade: '초급' as const,
-      unitPrice: 6600,
-      role: '모듈 개발 및 운영지원',
-    };
-  };
+  const getGradeAndPriceByPosition = (pos: string, isPm: boolean, year = new Date().getFullYear()) => ({
+    grade: (['사장','이사','부장'].includes(pos) ? '특급' : ['차장','과장'].includes(pos) ? '고급' : pos === '대리' ? '중급' : '초급') as '특급' | '고급' | '중급' | '초급',
+    unitPrice: unitPrice(pos, year), role: isPm ? '총괄 PM' : '개발',
+  });
 
   // 특정 프로젝트의 계약품의서 열기 (더미데이터가 아닌 실제 DB 저장 데이터 또는 해당 프로젝트 실제 소속 인력으로 생성)
-  const handleOpenContractForProject = (prj: Project) => {
-    const matchedAp = findLinkedApproval(prj);
+  const handleOpenContractForProject = async (prj: Project) => {
+    let matchedAp = findLinkedApproval(prj);
+    if (matchedAp?.id) matchedAp = await (await apiFetch(`/api/groupware/approvals/${matchedAp.id}`)).json();
     const hasSavedJson = !!(
       matchedAp &&
       matchedAp.items_json &&
@@ -393,18 +281,16 @@ export default function ProjectsView({
     const doc = buildDefaultFullContractDoc(matchedAp, currentUser, approvals.length);
     doc.linkedProjectId = prj.id;
     doc.linkedProjectCode = prj.code;
-    doc.title = prj.name;
-    doc.startDate = prj.start_date;
-    doc.endDate = prj.end_date;
+    if (!hasSavedJson) { doc.title = prj.name; doc.startDate = prj.start_date; doc.endDate = prj.end_date; }
 
     // DB에 저장된 계약품의서 JSON이 아직 없는 경우: 프로젝트의 실제 소속 직원(pm_name, members)으로 투입인력 시트 구성
     if (!hasSavedJson) {
-      const startD = prj.start_date ? new Date(prj.start_date) : new Date('2026-01-01');
-      const endD = prj.end_date ? new Date(prj.end_date) : new Date('2026-12-31');
+      const startD = prj.start_date ? new Date(prj.start_date) : new Date(`${new Date().getFullYear()}-01-01`);
+      const endD = prj.end_date ? new Date(prj.end_date) : new Date(`${new Date().getFullYear()}-12-31`);
       const diffMonths = Math.max(
         1,
         Math.min(
-          12,
+          120,
           (endD.getFullYear() - startD.getFullYear()) * 12 +
             (endD.getMonth() - startD.getMonth()) +
             1
@@ -418,25 +304,19 @@ export default function ProjectsView({
       doc.supplyAmount = ourBudget * 10; // 당사 지분율(%) 반영 공급가액 (천원)
       doc.vatAmount = Math.round(doc.supplyAmount * 0.1);
 
-      const rawNames = Array.from(
-        new Set(
-          [
-            prj.pm_name,
-            ...(prj.members || '').split(',').map((n) => n.trim()),
-          ].filter(Boolean)
-        )
-      );
+      const rawNames = [...new Set([prj.pm_id, ...(prj.member_ids || [])].filter(Boolean))].map(id => employees.find(e => e.id === id)).filter((e): e is Employee => !!e);
 
-      const realPlans = rawNames.map((empName, idx) => {
-        const empObj = employees.find((e) => e.name === empName);
+      const realPlans = rawNames.map((empObj, idx) => {
+        const empName = empObj.name;
         const pos = empObj ? empObj.position : idx === 0 ? '부장' : '대리';
         const isPm = empName === prj.pm_name || idx === 0;
-        const { grade, unitPrice, role } = getGradeAndPriceByPosition(pos, isPm);
+        const { grade, unitPrice, role } = getGradeAndPriceByPosition(pos, isPm, new Date(prj.start_date).getFullYear());
         const monthsArr: number[] = Array(Math.max(1, diffMonths)).fill(1);
         const totalMM = monthsArr.length;
 
         return {
           id: `m_${idx + 1}`,
+          employeeId: empObj.id,
           type: '당사' as const,
           grade,
           role,
@@ -551,6 +431,7 @@ export default function ProjectsView({
       {/* 2-A. 서브탭: 주간/월간 보고 (PM 금주/차주 작성 → 이사 취합/보완 → 사장님 보고) */}
       {subTab === 'reports' && (
         <WeeklyMonthlyReportView
+          employees={employees}
           projects={projects}
           approvals={approvals}
           currentUser={currentUser}
@@ -1183,13 +1064,13 @@ export default function ProjectsView({
                     총괄 PM <span className="text-[11px] text-indigo-600 font-normal">(DB 직원 선택)</span>
                   </label>
                   <select
-                    value={formData.pm_name || ''}
-                    onChange={(e) => setFormData({ ...formData, pm_name: e.target.value })}
+                    value={formData.pm_id || ''}
+                    onChange={(e) => { const emp = employees.find(x => x.id === Number(e.target.value)); setFormData({ ...formData, pm_id: emp?.id, pm_name: emp?.name || '' }); }}
                     className="w-full p-2.5 rounded-xl border border-slate-300 font-bold text-slate-800 bg-white"
                   >
                     <option value="">PM 선택</option>
                     {employees.map((emp) => (
-                      <option key={emp.id} value={emp.name}>
+                      <option key={emp.id} value={emp.id}>
                         {emp.name} {emp.position} ({emp.department})
                       </option>
                     ))}
@@ -1282,21 +1163,18 @@ export default function ProjectsView({
                     참여 인력 명단 <span className="text-[11px] text-indigo-600 font-normal">(DB 직원 풀에서 선택)</span>
                   </label>
                   <span className="text-[11px] text-slate-500 font-bold">
-                    선택된 인원: {((formData.members || '').split(',').map((n) => n.trim()).filter(Boolean)).length}명
+                    선택된 인원: {(formData.member_ids || []).length}명
                   </span>
                 </div>
 
                 {/* 현재 선택된 참여 인력 태그들 */}
                 <div className="p-2.5 rounded-xl border border-slate-300 bg-slate-50 min-h-[46px] flex flex-wrap gap-1.5 items-center mb-2">
-                  {((formData.members || '') as string)
-                    .split(',')
-                    .map((n) => n.trim())
-                    .filter(Boolean)
-                    .map((name) => {
-                      const empObj = employees.find((e) => e.name === name);
+                  {(formData.member_ids || []).map((employeeId) => {
+                      const empObj = employees.find((e) => e.id === employeeId);
+                      const name = empObj?.name || '알 수 없는 직원';
                       return (
                         <span
-                          key={name}
+                          key={employeeId}
                           className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white border border-indigo-200 text-xs font-bold text-indigo-900 shadow-2xs"
                         >
                           <User className="w-3 h-3 text-indigo-500" />
@@ -1309,11 +1187,8 @@ export default function ProjectsView({
                           <button
                             type="button"
                             onClick={() => {
-                              const curList = (formData.members || '')
-                                .split(',')
-                                .map((n) => n.trim())
-                                .filter((n) => n && n !== name);
-                              setFormData({ ...formData, members: curList.join(', ') });
+                              const ids = (formData.member_ids || []).filter(id => id !== employeeId);
+                              setFormData({ ...formData, member_ids: ids, members: ids.map(id => employees.find(e => e.id === id)?.name || '').join(', ') });
                             }}
                             className="ml-0.5 text-slate-400 hover:text-rose-600 font-bold px-1"
                             title="제외"
@@ -1323,7 +1198,7 @@ export default function ProjectsView({
                         </span>
                       );
                     })}
-                  {!(formData.members || '').trim() && (
+                  {!(formData.member_ids || []).length && (
                     <span className="text-xs text-slate-400">
                       아래 직원 풀에서 클릭하여 참여 인력을 편성하세요.
                     </span>
@@ -1337,24 +1212,16 @@ export default function ProjectsView({
                   </div>
                   <div className="flex flex-wrap gap-1.5">
                     {employees.map((emp) => {
-                      const curList = (formData.members || '')
-                        .split(',')
-                        .map((n) => n.trim())
-                        .filter(Boolean);
-                      const isSelected = curList.includes(emp.name);
+                      const currentIds = formData.member_ids || [];
+                      const isSelected = currentIds.includes(emp.id);
 
                       return (
                         <button
                           key={emp.id}
                           type="button"
                           onClick={() => {
-                            let nextList: string[];
-                            if (isSelected) {
-                              nextList = curList.filter((n) => n !== emp.name);
-                            } else {
-                              nextList = [...curList, emp.name];
-                            }
-                            setFormData({ ...formData, members: nextList.join(', ') });
+                            const ids = isSelected ? currentIds.filter(id => id !== emp.id) : [...currentIds, emp.id];
+                            setFormData({ ...formData, member_ids: ids, members: ids.map(id => employees.find(e => e.id === id)?.name || '').join(', ') });
                           }}
                           className={`px-2 py-0.5 rounded text-[11px] font-semibold transition border ${
                             isSelected

@@ -1,11 +1,13 @@
 package com.nexus.groupware.repository;
 
 import com.nexus.groupware.entity.Equipment;
+import java.util.List;
 import org.springframework.data.jpa.repository.JpaRepository;
 
-import java.util.List;
+public interface EquipmentRepository
+    extends JpaRepository<Equipment, Long>,
+        org.springframework.data.jpa.repository.JpaSpecificationExecutor<Equipment> {
+  Long countByEmpId(Long empId);
 
-public interface EquipmentRepository extends JpaRepository<Equipment, Long> {
-    List<Equipment> findAllByOrderByIdDesc();
+  List<Equipment> findAllByOrderByIdDesc();
 }
-

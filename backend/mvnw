@@ -1,4 +1,20 @@
 #!/bin/sh
-export JAVA_HOME="/Library/Java/JavaVirtualMachines/temurin-25.jdk/Contents/Home"
-exec "/Applications/IntelliJ IDEA.app/Contents/plugins/maven/lib/maven3/bin/mvn" "$@"
-
+# Portable, pinned Maven launcher. JAVA_HOME is supplied by the caller or the OS.
+set -eu
+if command -v mvn >/dev/null 2>&1; then exec mvn "$@"; fi
+version=3.9.11
+cache="${MAVEN_USER_HOME:-$HOME/.m2}/wrapper/apache-maven-$version"
+if [ ! -x "$cache/bin/mvn" ]; then
+  stage=$(mktemp -d)
+  trap 'rm -rf "$stage"' EXIT HUP INT TERM
+  url="https://repo.maven.apache.org/maven2/org/apache/maven/apache-maven/$version/apache-maven-$version-bin.tar.gz"
+  curl --fail --location --retry 3 "$url" -o "$stage/maven.tar.gz"
+  curl --fail --location --retry 3 "$url.sha512" -o "$stage/checksum"
+  expected=$(tr -d '[:space:]' < "$stage/checksum")
+  actual=$(shasum -a 512 "$stage/maven.tar.gz" | cut -d ' ' -f 1)
+  [ "$actual" = "$expected" ] || { echo 'Maven checksum verification failed.' >&2; exit 1; }
+  mkdir -p "$(dirname "$cache")"
+  tar -xzf "$stage/maven.tar.gz" -C "$stage"
+  mv "$stage/apache-maven-$version" "$cache"
+fi
+exec "$cache/bin/mvn" "$@"

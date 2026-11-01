@@ -1,4 +1,7 @@
 'use client';
+import { readMaster, saveMaster } from '@/lib/api';
+
+import { apiFetch } from '@/lib/api';
 
 import React, { useState, useMemo, useEffect } from 'react';
 import {
@@ -8,6 +11,7 @@ import {
   Project,
   formatCurrencyManwon,
   calculateMultiYearRevenues,
+  getMultiYearRevenueForYear,
 } from '@/types/groupware';
 import {
   TrendingUp,
@@ -37,7 +41,7 @@ interface Props {
   onNavigateToProjectWithDeal?: (deal: BusinessDeal) => void;
 }
 
-const TARGET_YEARS = [2026, 2027, 2028];
+const TARGET_YEARS = Array.from({ length: 7 }, (_, i) => new Date().getFullYear() - 2 + i);
 
 const STAGES = [
   { key: '예상사업', label: '1. 예상사업 (사전발굴)', color: 'border-amber-400 bg-amber-50/60 text-amber-800' },
@@ -56,35 +60,32 @@ export default function BusinessDealsView({
   onRefresh,
   onNavigateToProjectWithDeal,
 }: Props) {
-  const [selectedYear, setSelectedYear] = useState<number>(2026);
+  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
   const [searchQuery, setSearchQuery] = useState('');
   const [stageFilter, setStageFilter] = useState('전체');
 
   // 연도별 목표 매출 (기본: 2026년 30억, 2027년 45억, 2028년 60억 - 로컬스토리지 연동)
-  const [yearlyTargets, setYearlyTargets] = useState<Record<number, number>>({
-    2026: 300000, // 30억원 (만원 단위)
-    2027: 450000, // 45억원
-    2028: 600000, // 60억원
-  });
+  const [yearlyTargets, setYearlyTargets] = useState<Record<number, number>>({});
   const [targetModalOpen, setTargetModalOpen] = useState(false);
-  const [tempTargetInput, setTempTargetInput] = useState<number>(300000);
+  const [tempTargetInput, setTempTargetInput] = useState<number>(0);
 
   useEffect(() => {
     try {
-      const saved = localStorage.getItem('spatialt_sales_targets');
+      const saved = readMaster('spatialt_sales_targets');
       if (saved) {
-        setYearlyTargets(JSON.parse(saved));
+        setYearlyTargets(Object.fromEntries(Object.entries(JSON.parse(saved)).map(([year, value]: [string, any]) => [year, value.targetAmount])));
       }
     } catch (e) {
       console.error(e);
     }
   }, []);
 
-  const saveYearlyTarget = (year: number, targetManwon: number) => {
+  const saveYearlyTarget = async (year: number, targetManwon: number) => {
     const updated = { ...yearlyTargets, [year]: targetManwon };
     setYearlyTargets(updated);
     try {
-      localStorage.setItem('spatialt_sales_targets', JSON.stringify(updated));
+      const targets = JSON.parse(readMaster('target_revenues') || '{}');
+      await saveMaster('target_revenues', { ...targets, [year]: { year, targetAmount: targetManwon } });
     } catch (e) {
       console.error(e);
     }
@@ -105,6 +106,7 @@ export default function BusinessDealsView({
       try {
         const parsed = JSON.parse(deal.yearly_revenue_json);
         if (parsed[year] !== undefined) return parsed[year];
+        if (Object.keys(parsed).length) return 0;
       } catch (e) {
         // fallback
       }
@@ -115,29 +117,23 @@ export default function BusinessDealsView({
       if (breakdown[year] !== undefined) return breakdown[year];
     }
     // 기본: target_year 매칭 시 총액 반영
-    const dealYear = deal.target_year || (deal.close_date ? new Date(deal.close_date).getFullYear() : 2026);
+    const dealYear = deal.target_year || (deal.close_date ? new Date(deal.close_date).getFullYear() : new Date().getFullYear());
     return dealYear === year ? deal.amount : 0;
   };
 
   // 통계 계산 (선택된 연도 기준)
   const stats = useMemo(() => {
-    const target = yearlyTargets[selectedYear] || 300000;
+    const target = yearlyTargets[selectedYear] || 0;
 
     // 해당 연도에 귀속되는 수주 확정 매출액 집계
     let confirmedYearlyRevenue = 0;
     deals
-      .filter((d) => d.stage === '수주확정' || d.stage === '계약완료')
+      .filter((d) => !d.converted_project_id && (d.stage === '수주확정' || d.stage === '계약완료'))
       .forEach((d) => {
         confirmedYearlyRevenue += getDealYearlyRevenue(d, selectedYear);
       });
 
-    // 프로젝트 목록에서도 해당 연도 안분 매출 반영
-    projects.forEach((prj) => {
-      const breakdown = calculateMultiYearRevenues(prj.start_date, prj.end_date, prj.budget);
-      if (breakdown[selectedYear] !== undefined) {
-        // 중복 방지 (만약 동일 이름의 deal이 수주확정 처리되어 이미 합산된 경우 차감 고려 가능하나 기본 가산)
-      }
-    });
+    projects.filter(p => ['프로젝트 수행','진행중','완료'].includes(p.status)).forEach(p => { confirmedYearlyRevenue += getMultiYearRevenueForYear(p, selectedYear); });
 
     // 제안 진행 중 (가중 예상 매출)
     let pipelineWeighted = 0;
@@ -145,7 +141,7 @@ export default function BusinessDealsView({
       .filter((d) => d.stage === '제안준비' || d.stage === '제안심사' || d.stage === '제안' || d.stage === '협상')
       .forEach((d) => {
         const rev = getDealYearlyRevenue(d, selectedYear);
-        pipelineWeighted += Math.round(rev * ((d.probability || 50) / 100));
+        pipelineWeighted += Math.round(rev * ((d.probability ?? 50) / 100));
       });
 
     const achieveRate = target > 0 ? Math.round((confirmedYearlyRevenue / target) * 1000) / 10 : 0;
@@ -163,7 +159,7 @@ export default function BusinessDealsView({
   // 필터링된 사업 목록
   const filteredDeals = useMemo(() => {
     return deals.filter((d) => {
-      const dealYear = d.target_year || (d.close_date ? new Date(d.close_date).getFullYear() : 2026);
+      const dealYear = d.target_year || (d.close_date ? new Date(d.close_date).getFullYear() : new Date().getFullYear());
       const matchYear = selectedYear === 0 || dealYear === selectedYear;
 
       // 단계 표준화 매핑
@@ -249,7 +245,7 @@ export default function BusinessDealsView({
       yearly_revenue_json: JSON.stringify(multiYearBreakdown),
     };
 
-    await fetch('http://localhost:8080/api/groupware', {
+    await apiFetch('/api/groupware', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -270,7 +266,7 @@ export default function BusinessDealsView({
     }
     if (!confirm('정말 삭제하시겠습니까?')) return;
 
-    await fetch('http://localhost:8080/api/groupware', {
+    await apiFetch('/api/groupware', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ module: 'business_deals', action: 'delete', id }),
@@ -284,47 +280,12 @@ export default function BusinessDealsView({
       return;
     }
 
-    const prjCode = `PRJ-${deal.target_year || 2026}-${String(projects.length + 1).padStart(2, '0')}`;
-    const budgetManwon = deal.amount;
-
-    await fetch('http://localhost:8080/api/groupware', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        module: 'projects',
-        action: 'create',
-        data: {
-          code: prjCode,
-          name: deal.title,
-          department: '사업본부',
-          pm_name: deal.owner_name || currentUser.name,
-          start_date: deal.start_date || `${deal.target_year || 2026}-04-01`,
-          end_date: deal.end_date || `${deal.target_year || 2026}-11-30`,
-          status: '진행중',
-          progress: 5,
-          budget: budgetManwon,
-          members: `${deal.owner_name || currentUser.name}, 최영진, 조예나`,
-          priority: '높음',
-          description: `[수주확정] 발주처: ${deal.client_name} 연동 프로젝트`,
-          yearly_revenue_json: deal.yearly_revenue_json,
-        },
-      }),
+    await apiFetch('/api/groupware', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ module: 'business_deals', action: 'convert_deal', id: deal.id, version: deal.version }),
     });
-
-    // 상태도 수주확정으로 업데이트
-    await fetch('http://localhost:8080/api/groupware', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        module: 'business_deals',
-        action: 'update',
-        id: deal.id,
-        data: { ...deal, stage: '수주확정' },
-      }),
-    });
-
     await onRefresh();
-    alert(`프로젝트 [${prjCode}] 생성이 완료되었습니다. 프로젝트 관리 메뉴에서 계약품의서를 확인하세요.`);
+    alert('프로젝트가 생성되었습니다. 프로젝트 관리에서 계약 초안을 작성하세요.');
   };
 
   return (
@@ -346,7 +307,7 @@ export default function BusinessDealsView({
               >
                 <Calendar className="w-3.5 h-3.5" />
                 <span>{yr}년도 사업</span>
-                {yr > 2026 && (
+                {yr > new Date().getFullYear() && (
                   <span className="text-[10px] px-1 py-0.2 rounded bg-white/20 text-white font-normal">
                     예상
                   </span>
@@ -574,7 +535,7 @@ export default function BusinessDealsView({
 
                 <div className="flex items-center gap-1">
                   {/* 수주확정 단계일 때 프로젝트/품의서 연동 버튼 */}
-                  {deal.stage === '수주확정' && (
+                  {deal.stage === '수주확정' && !deal.converted_project_id && (
                     <button
                       onClick={() => handleConvertToProject(deal)}
                       className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xs transition"
@@ -787,7 +748,7 @@ export default function BusinessDealsView({
                     type="number"
                     min="10"
                     max="100"
-                    value={formData.probability || 60}
+                    value={formData.probability ?? 60}
                     onChange={(e) => setFormData({ ...formData, probability: Number(e.target.value) })}
                     className="w-full p-2 rounded-xl border border-slate-300 text-right font-semibold"
                   />

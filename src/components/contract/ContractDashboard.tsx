@@ -1,4 +1,5 @@
 'use client';
+import { unitPrice as configuredPrice } from '@/lib/api';
 
 import React, { useState, useMemo } from 'react';
 import {
@@ -42,180 +43,23 @@ const POSITION_TO_GRADE: Record<
   담당: { grade: '초급', role: 'WebGIS 프론트 / 모듈개발' },
 };
 
-export function buildDefaultFullContractDoc(
-  ap?: Approval,
-  currentUser?: AuthUser,
-  count: number = 1
-): FullContractDocument {
-  if (ap && ap.items_json && ap.items_json.startsWith('{')) {
-    try {
-      const parsed = JSON.parse(ap.items_json);
-      if (parsed.manpower_list && !parsed.manpowerPlans) {
-        return {
-          docNo: ap.doc_no || '',
-          version: '1.0',
-          title: ap.title,
-          clientName: parsed.client || ap.vendor || '한국국토정보공사',
-          contractPeriod: parsed.period || '2026.04.01 ~ 2026.11.30 (8개월)',
-          startDate: '2026-04-01',
-          endDate: '2026-11-30',
-          contractType: '용역구축',
-          paymentTerms: parsed.payment_terms || '현금',
-          warrantyPeriod: parsed.warranty_period || '12개월',
-          delayPenaltyRate: parsed.delay_penalty_rate || 0.15,
-          ourShareRate: parsed.our_share || 100,
-
-          supplyAmount: parsed.contract_amount_supply || ap.amount || 450000,
-          vatAmount: parsed.contract_amount_vat || Math.round((ap.amount || 450000) * 0.1),
-
-          productCostTotal: parsed.product_cost || 0,
-          outsourcingTotal: parsed.outsourcing_cost || 0,
-          laborCostTotal: parsed.internal_labor_cost || 346800,
-          directExpenseTotal: parsed.direct_expense || 19270,
-          estimatedAsTotal: parsed.estimated_as_cost || 0,
-          proposalCostTotal: parsed.proposal_cost || 0,
-
-          totalBudget: parsed.total_budget || 366070,
-          salesProfit: (parsed.contract_amount_supply || 450000) - (parsed.total_budget || 366070),
-
-          contingencyRate: parsed.contingency_rate || 2.0,
-          contingencyCost: parsed.contingency_cost || 7321.4,
-          projectNetProfit: parsed.project_profit || 76608.6,
-          profitRate: parsed.profit_rate || 17.02,
-
-          productCosts: [
-            { id: 'p1', category: 'H/W 장비', itemName: '공간정보 PostGIS DB 서버', spec: '64Core / 256GB RAM', qty: 0, unitPrice: 0, amount: 0, note: '당사 보유 자산 활용' },
-          ],
-          manpowerPlans: (parsed.manpower_list || []).map((m: any, idx: number) => ({
-            id: `m_${idx}`,
-            type: m.type || '당사',
-            grade: m.grade || '특급',
-            role: m.role || '개발',
-            name: m.name || '담당자',
-            position: m.position || '과장',
-            months: [1, 1, 1, 1, 1, 1, 0, 0],
-            totalMM: m.mm || 6,
-            unitPrice: m.unit_price || 9600,
-            laborCost: m.amount || (m.mm * (m.unit_price || 9600)),
-          })),
-          outsourcings: [],
-          directExpenses: (parsed.expense_list || []).map((e: any, idx: number) => ({
-            id: `e_${idx}`,
-            account: e.account || '복리/특근식대',
-            qty: 1,
-            unitPrice: e.amount || 1000,
-            basis: e.basis || '',
-            amount: e.amount || 1000,
-            note: e.note || '',
-          })),
-          riskEvaluations: [
-            { id: 'r1', category: '고객성향', question: '고객 커뮤니케이션 채널 및 요구조건 명확성', selectedLevel: '하', score: 1, exposureWeight: 2, calculatedExposure: 2 },
-            { id: 'r2', category: '고객성향', question: '프로젝트 기간 및 마일스톤 적정성 (8개월)', selectedLevel: '중', score: 3, exposureWeight: 2, calculatedExposure: 6 },
-            { id: 'r3', category: '기술력', question: '유사 GIS/디지털트윈 플랫폼 구축 경험', selectedLevel: '하', score: 1, exposureWeight: 3, calculatedExposure: 3 },
-            { id: 'r4', category: '기술력', question: 'PostGIS / GeoServer / 3D WebGIS 기술 난이도', selectedLevel: '중', score: 3, exposureWeight: 2, calculatedExposure: 6 },
-            { id: 'r5', category: '팀구성도', question: '사내 특급/고급 핵심인력 투입 비율 (70% 이상)', selectedLevel: '하', score: 1, exposureWeight: 3, calculatedExposure: 3 },
-          ],
-          cashflowMilestones: [
-            { id: 'cf1', turnName: '선금 (30%)', milestone: '계약체결 및 착수보고', plannedDate: '2026.04.15', ratePercent: 30, supplyAmount: 135000, vatAmount: 13500, totalAmount: 148500, status: '입금완료' },
-            { id: 'cf2', turnName: '1차 중도금 (40%)', milestone: '중간보고회 및 기능검수', plannedDate: '2026.08.31', ratePercent: 40, supplyAmount: 180000, vatAmount: 18000, totalAmount: 198000, status: '청구완료' },
-            { id: 'cf3', turnName: '잔금 (30%)', milestone: '최종 완료보고 및 납품검수', plannedDate: '2026.11.30', ratePercent: 30, supplyAmount: 135000, vatAmount: 13500, totalAmount: 148500, status: '입금예정' },
-          ],
-          approvalLine: {
-            drafter: { name: ap.requester, position: ap.requester_position || '부장', dept: ap.department, status: '작성완료', date: ap.created_at },
-            bizHead: { name: '', position: '', status: '' },
-            ceo: { name: '', position: '', status: '' },
-          },
-          consensusLine: {
-            qm: { name: '', position: '', dept: '', status: '' },
-            mgmt: { name: '', position: '', dept: '', status: '' },
-            pm: { name: '', position: '', dept: '', status: '' },
-          },
-        };
-      } else if (parsed.productCosts) {
-        return parsed as FullContractDocument;
-      }
-    } catch (e) {
-      console.error(e);
-    }
-  }
-
-  const drafterName = currentUser ? currentUser.name : '우광일';
-  const drafterPos = currentUser ? currentUser.position : '부장';
-  const drafterDept = currentUser ? currentUser.department : '기술연구소';
-
-  return {
-    docNo: '',
-    version: '1.0',
-    title: '한국국토정보공사 디지털트윈 플랫폼 구축',
-    clientName: '한국국토정보공사',
-    contractPeriod: '2026.04.01 ~ 2026.11.30 (8개월)',
-    startDate: '2026-04-01',
-    endDate: '2026-11-30',
-    contractType: '용역구축',
-    paymentTerms: '현금',
-    warrantyPeriod: '12개월',
-    delayPenaltyRate: 0.15,
-    ourShareRate: 100,
-
-    supplyAmount: 450000,
-    vatAmount: 45000,
-
-    productCostTotal: 0,
-    outsourcingTotal: 0,
-    laborCostTotal: 346800,
-    directExpenseTotal: 19270,
-    estimatedAsTotal: 0,
-    proposalCostTotal: 0,
-
-    totalBudget: 366070,
-    salesProfit: 83930,
-
-    contingencyRate: 2.0,
-    contingencyCost: 7321.4,
-    projectNetProfit: 76608.6,
-    profitRate: 17.02,
-
-    productCosts: [
-      { id: 'p1', category: 'H/W 장비', itemName: '공간정보 DB 서버', spec: '64Core / 256GB RAM', qty: 0, unitPrice: 0, amount: 0, note: '사내 서버 활용' },
-    ],
-    manpowerPlans: [
-      { id: 'm1', type: '당사', grade: '특급', role: '총괄 PM', name: '우광일', position: '차장', months: [1, 1, 1, 1, 1, 1, 0, 0], totalMM: 6, unitPrice: 13100, laborCost: 78600 },
-      { id: 'm2', type: '당사', grade: '고급', role: 'GIS 플랫폼 PL', name: '조경연', position: '과장', months: [1, 1, 1, 1, 1, 1, 0, 0], totalMM: 6, unitPrice: 9600, laborCost: 57600 },
-      { id: 'm3', type: '당사', grade: '고급', role: '품질/보안 총괄', name: '이승은', position: '과장', months: [1, 1, 0.5, 0.5, 0.5, 0.5, 0, 0], totalMM: 4, unitPrice: 9600, laborCost: 38400 },
-      { id: 'm4', type: '당사', grade: '중급', role: '공간DB/검수', name: '최영진', position: '대리', months: [1, 1, 1, 1, 1, 1, 1, 1], totalMM: 12, unitPrice: 7800, laborCost: 93600 },
-      { id: 'm5', type: '당사', grade: '초급', role: 'WebGIS/API 개발', name: '김진수', position: '담당', months: [1, 1, 1, 1, 1, 1, 1, 1], totalMM: 14, unitPrice: 6600, laborCost: 92400 },
-    ],
-    outsourcings: [],
-    directExpenses: [
-      { id: 'e1', account: '복리/특근식대', qty: 660, unitPrice: 10, basis: '42 MM × 15일', amount: 6600, note: '야근식대' },
-      { id: 'e2', account: '복리/회의비', qty: 36, unitPrice: 70, basis: '5명 × 6개월', amount: 2520, note: '착수/중간보고' },
-      { id: 'e3', account: '국내출장비', qty: 12, unitPrice: 400, basis: '12회 출장', amount: 4800, note: '기술협의 출장' },
-      { id: 'e4', account: '시내교통비', qty: 8, unitPrice: 400, basis: '8개월', amount: 3200, note: '현장실사 차량유지' },
-      { id: 'e5', account: '인쇄도서비', qty: 1, unitPrice: 2150, basis: '1식', amount: 2150, note: '보고서 인쇄' },
-    ],
-    riskEvaluations: [
-      { id: 'r1', category: '고객성향', question: '고객 커뮤니케이션 채널 및 요구조건 명확성', selectedLevel: '하', score: 1, exposureWeight: 2, calculatedExposure: 2 },
-      { id: 'r2', category: '고객성향', question: '프로젝트 기간 및 마일스톤 적정성 (8개월)', selectedLevel: '중', score: 3, exposureWeight: 2, calculatedExposure: 6 },
-      { id: 'r3', category: '기술력', question: '유사 GIS/디지털트윈 플랫폼 구축 경험', selectedLevel: '하', score: 1, exposureWeight: 3, calculatedExposure: 3 },
-      { id: 'r4', category: '기술력', question: 'PostGIS / GeoServer / 3D WebGIS 기술 난이도', selectedLevel: '중', score: 3, exposureWeight: 2, calculatedExposure: 6 },
-      { id: 'r5', category: '팀구성도', question: '사내 특급/고급 핵심인력 투입 비율 (70% 이상)', selectedLevel: '하', score: 1, exposureWeight: 3, calculatedExposure: 3 },
-    ],
-    cashflowMilestones: [
-      { id: 'cf1', turnName: '선금 (30%)', milestone: '계약체결 및 착수보고', plannedDate: '2026.04.15', ratePercent: 30, supplyAmount: 135000, vatAmount: 13500, totalAmount: 148500, status: '입금완료' },
-      { id: 'cf2', turnName: '1차 중도금 (40%)', milestone: '중간보고회 및 기능검수', plannedDate: '2026.08.31', ratePercent: 40, supplyAmount: 180000, vatAmount: 18000, totalAmount: 198000, status: '청구완료' },
-      { id: 'cf3', turnName: '잔금 (30%)', milestone: '최종 완료보고 및 납품검수', plannedDate: '2026.11.30', ratePercent: 30, supplyAmount: 135000, vatAmount: 13500, totalAmount: 148500, status: '입금예정' },
-    ],
-    approvalLine: {
-      drafter: { name: drafterName, position: drafterPos, dept: drafterDept, status: '작성완료', date: '2026-10-29' },
-      bizHead: { name: '', position: '', status: '' },
-      ceo: { name: '', position: '', status: '' },
-    },
-    consensusLine: {
-      qm: { name: '', position: '', dept: '', status: '' },
-      mgmt: { name: '', position: '', dept: '', status: '' },
-      pm: { name: '', position: '', dept: '', status: '' },
-    },
+export function buildDefaultFullContractDoc(ap?: Approval, currentUser?: AuthUser, count = 1): FullContractDocument {
+  const today = new Date();
+  const start = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-01`;
+  const blank: FullContractDocument = {
+    docNo: ap?.doc_no || '', version: '1.0', title: ap?.title || '', clientName: ap?.vendor || '',
+    contractPeriod: '', startDate: start, endDate: start, linkedProjectId: ap?.project_id,
+    contractType: '용역구축', paymentTerms: '', warrantyPeriod: '12개월', delayPenaltyRate: 0, ourShareRate: 100,
+    supplyAmount: ap?.amount || 0, vatAmount: 0, productCostTotal: 0, outsourcingTotal: 0, laborCostTotal: 0,
+    directExpenseTotal: 0, estimatedAsTotal: 0, proposalCostTotal: 0, totalBudget: 0, salesProfit: 0,
+    contingencyRate: 0, contingencyCost: 0, projectNetProfit: 0, profitRate: 0,
+    productCosts: [], manpowerPlans: [], outsourcings: [], directExpenses: [], riskEvaluations: [], cashflowMilestones: [],
+    approvalLine: { drafter: { name: currentUser?.name || '', position: currentUser?.position || '', dept: currentUser?.department || '', status: '작성중', date: '' }, bizHead: { name: '', position: '', status: '' }, ceo: { name: '', position: '', status: '' } },
+    consensusLine: { qm: { name: '', position: '', dept: '', status: '' }, mgmt: { name: '', position: '', dept: '', status: '' }, pm: { name: '', position: '', dept: '', status: '' } },
   };
+  if (!ap?.items_json) return blank;
+  try { const parsed = JSON.parse(ap.items_json); if (!Array.isArray(parsed.productCosts) || !Array.isArray(parsed.manpowerPlans)) throw new Error(); return { ...blank, ...parsed }; }
+  catch { throw new Error('이 계약은 이전 문서 형식입니다. 원본을 보존한 상태에서 관리자에게 문서 변환을 요청하세요.'); }
 }
 
 export default function ContractDashboard({
@@ -302,8 +146,8 @@ export default function ContractDashboard({
         .map((n) => employees.find((e) => e.name === n))
         .filter((e): e is Employee => !!e);
 
-      const sDate = new Date(prj.start_date || '2026-04-01');
-      const eDate = new Date(prj.end_date || '2026-11-30');
+      const sDate = new Date(prj.start_date);
+      const eDate = new Date(prj.end_date);
       const prjMonths = Math.max(
         1,
         (eDate.getFullYear() - sDate.getFullYear()) * 12 +
@@ -317,12 +161,13 @@ export default function ContractDashboard({
         doc.manpowerPlans = matched.map((emp, idx) => {
           const meta = POSITION_TO_GRADE[emp.position] || { grade: '중급' as const, role: 'GIS 개발' };
           const priceObj = STANDARD_UNIT_PRICES.find((p) => p.position === emp.position);
-          const unitPrice = priceObj ? priceObj.price2026 : 7800;
+          const unitPrice = configuredPrice(emp.position, new Date(prj.start_date).getFullYear());
           return {
             id: `mp_prj_${emp.id}_${idx}`,
             type: '당사' as const,
             grade: meta.grade,
             role: idx === 0 ? '총괄 PM' : meta.role,
+            employeeId: emp.id,
             name: emp.name,
             position: emp.position,
             months: [...months],

@@ -1,8 +1,10 @@
 'use client';
+import { unitPrice as configuredPrice } from '@/lib/api';
 
 import React, { useState } from 'react';
 import {
   FullContractDocument,
+  getProjectOurBudget,
   Project,
   BusinessDeal,
   Employee,
@@ -52,7 +54,7 @@ function calcMonthsBetween(start: string, end: string): number {
   const e = new Date(end);
   if (isNaN(s.getTime()) || isNaN(e.getTime())) return 8;
   const diff = (e.getFullYear() - s.getFullYear()) * 12 + (e.getMonth() - s.getMonth()) + 1;
-  return Math.max(1, Math.min(60, diff));
+  return Math.max(1, Math.min(120, diff));
 }
 
 function formatPeriodText(start: string, end: string): string {
@@ -71,8 +73,8 @@ export default function SummarySheet({
   employees = [],
   readOnly,
 }: Props) {
-  const [startDate, setStartDate] = useState<string>(doc.startDate || '2026-04-01');
-  const [endDate, setEndDate] = useState<string>(doc.endDate || '2026-11-30');
+  const [startDate, setStartDate] = useState<string>(doc.startDate || new Date().toLocaleDateString('en-CA'));
+  const [endDate, setEndDate] = useState<string>(doc.endDate || new Date().toLocaleDateString('en-CA'));
   const [syncNotice, setSyncNotice] = useState<string>('');
 
   // 금액 변경 헬퍼
@@ -100,7 +102,7 @@ export default function SummarySheet({
 
   // 기간 프리셋 적용 (3개월, 6개월, 8개월, 12개월)
   const applyDurationPreset = (months: number) => {
-    const s = new Date(startDate || '2026-04-01');
+    const s = new Date(startDate || new Date().toLocaleDateString('en-CA'));
     if (isNaN(s.getTime())) return;
     const e = new Date(s.getFullYear(), s.getMonth() + months, 0); // 해당 월 말일
     const eStr = e.toISOString().split('T')[0];
@@ -115,10 +117,10 @@ export default function SummarySheet({
 
   // 프로젝트 선택 시 계약 기본정보 + 투입인력(members) 자동 연동
   const handleSelectProject = (prj: Project) => {
-    const supAmount = prj.budget * 10; // 만원 -> 천원 변환
+    const supAmount = getProjectOurBudget(prj) * 10; // 만원 -> 천원 변환
     const vatAmount = Math.round(supAmount * 0.1);
-    const sDate = prj.start_date || '2026-04-01';
-    const eDate = prj.end_date || '2026-11-30';
+    const sDate = prj.start_date;
+    const eDate = prj.end_date;
     setStartDate(sDate);
     setEndDate(eDate);
     const periodStr = formatPeriodText(sDate, eDate);
@@ -141,20 +143,17 @@ export default function SummarySheet({
     }
 
     // 프로젝트 참여 인원(prj.members)을 사내 직원 DB와 매칭하여 투입인력(manpowerPlans) 자동 생성
-    const memberNames = prj.members
-      .split(',')
-      .map((s) => s.trim())
-      .filter(Boolean);
+    const projectEmployees = [...new Set([prj.pm_id, ...(prj.member_ids || [])].filter(Boolean))].map(id => employees.find(e => e.id === id)).filter((e): e is Employee => !!e);
 
     // 프로젝트 실제 수행 개월 수에 맞춰 전체 기간 공수 배열 생성
     const activeMonths: number[] = Array.from({ length: durationMonths }, () => 1);
     const defaultMM = activeMonths.reduce((a, b) => a + b, 0);
 
-    const newManpowerPlans: ManpowerPlanItem[] = memberNames.map((mName, idx) => {
-      const matchedEmp = employees.find((e) => e.name === mName);
+    const newManpowerPlans: ManpowerPlanItem[] = projectEmployees.map((matchedEmp, idx) => {
+      const mName = matchedEmp.name;
       const pos = matchedEmp ? matchedEmp.position : idx === 0 ? '부장' : '과장';
       const priceObj = STANDARD_UNIT_PRICES.find((p) => p.position === pos);
-      const unitPrice = priceObj ? priceObj.price2026 : 9600;
+      const unitPrice = configuredPrice(pos, new Date(prj.start_date).getFullYear());
       const grade = (priceObj ? priceObj.grade : '고급') as '특급' | '고급' | '중급' | '초급';
       const role = matchedEmp
         ? mName === prj.pm_name
@@ -167,6 +166,7 @@ export default function SummarySheet({
         type: '당사',
         grade,
         role,
+        employeeId: matchedEmp?.id,
         name: mName,
         position: pos,
         months: [...activeMonths],
@@ -191,6 +191,7 @@ export default function SummarySheet({
     onChangeDoc({
       linkedProjectId: prj.id,
       linkedProjectCode: prj.code,
+      ourShareRate: prj.share_rate ?? 100,
       title: prj.name,
       clientName: inferredClient,
       startDate: sDate,
@@ -203,7 +204,7 @@ export default function SummarySheet({
     });
 
     setSyncNotice(
-      `프로젝트 [${prj.code}] 기본 정보 및 참여인력(${memberNames.length}명)이 투입인력 시트에 자동 반영되었습니다.`
+      `프로젝트 [${prj.code}] 기본 정보 및 참여인력(${projectEmployees.length}명)이 투입인력 시트에 자동 반영되었습니다.`
     );
     setTimeout(() => setSyncNotice(''), 5000);
   };

@@ -4,11 +4,11 @@ services:
     container_name: groupware-postgres
     restart: unless-stopped
     ports:
-      - "5433:5432"
+      - "127.0.0.1:5433:5432"
     environment:
       POSTGRES_DB: groupware_db
       POSTGRES_USER: nexus
-      POSTGRES_PASSWORD: nexus_password
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set}
       TZ: Asia/Seoul
     volumes:
       - postgres_data:/var/lib/postgresql/data

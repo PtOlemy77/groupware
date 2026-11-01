@@ -1,4 +1,5 @@
 'use client';
+import { unitPrice as configuredPrice } from '@/lib/api';
 
 import React, { useState, useRef, useEffect } from 'react';
 import {
@@ -163,7 +164,7 @@ export default function ManpowerSheet({
 
     let pos = defaultEmp ? defaultEmp.position : '과장';
     const priceInfo = STANDARD_UNIT_PRICES.find((p) => p.position === pos);
-    const unitPrice = priceInfo ? priceInfo.price2026 : 9600;
+    const unitPrice = configuredPrice(pos, new Date(startDate || Date.now()).getFullYear());
     const grade = (priceInfo ? priceInfo.grade : '고급') as '특급' | '고급' | '중급' | '초급';
 
     const newItem: ManpowerPlanItem = {
@@ -185,13 +186,14 @@ export default function ManpowerSheet({
   // 행 내에서 사내 직원 선택 시 (이름, 직급, 등급, 단가, 역할 자동 설정)
   const handleSelectEmployee = (rowId: string, emp: Employee) => {
     const priceInfo = STANDARD_UNIT_PRICES.find((p) => p.position === emp.position);
-    const unitPrice = priceInfo ? priceInfo.price2026 : 9600;
+    const unitPrice = configuredPrice(emp.position, new Date(startDate || Date.now()).getFullYear());
     const grade = (priceInfo ? priceInfo.grade : '고급') as '특급' | '고급' | '중급' | '초급';
 
     const updated = items.map((it) => {
       if (it.id !== rowId) return it;
       return {
         ...it,
+        employeeId: emp.id,
         name: emp.name,
         position: emp.position,
         grade,

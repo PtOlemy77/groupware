@@ -1,5 +1,7 @@
 'use client';
 
+import { apiFetch } from '@/lib/api';
+
 import React, { useState } from 'react';
 import { AuthUser } from '@/types/groupware';
 import { Layers, Lock, Mail, ArrowRight } from 'lucide-react';
@@ -30,13 +32,13 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
       setLoading(true);
       setErrorMsg('');
 
-      const res = await fetch('http://localhost:8080/api/groupware', {
+      const res = await apiFetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'login',
           identifier: identifier.trim(),
-          password: password.trim(),
+          password: password,
         }),
       });
 
@@ -48,7 +50,7 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
       }
     } catch (e) {
       console.error(e);
-      setErrorMsg('서버(포트 8080) 연결에 실패했습니다.');
+      setErrorMsg(e instanceof Error ? e.message : '서버 연결에 실패했습니다.');
     } finally {
       setLoading(false);
     }
@@ -79,7 +81,7 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
         {/* Login Form */}
         <form onSubmit={handleLogin} className="space-y-4">
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1.5">
+            <label htmlFor="login-identifier" className="block text-xs font-bold text-slate-700 mb-1.5">
               사내 아이디
             </label>
             <div className="flex items-stretch rounded-xl border border-slate-300 bg-white focus-within:ring-2 focus-within:ring-indigo-500 focus-within:border-transparent overflow-hidden transition">
@@ -87,6 +89,8 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
                 <Mail className="w-4 h-4" />
               </div>
               <input
+                id="login-identifier"
+                autoComplete="username"
                 type="text"
                 autoFocus
                 value={identifier}
@@ -101,7 +105,7 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1.5">
+            <label htmlFor="login-password" className="block text-xs font-bold text-slate-700 mb-1.5">
               비밀번호
             </label>
             <div className="flex items-stretch rounded-xl border border-slate-300 bg-white focus-within:ring-2 focus-within:ring-indigo-500 focus-within:border-transparent overflow-hidden transition">
@@ -109,6 +113,8 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
                 <Lock className="w-4 h-4" />
               </div>
               <input
+                id="login-password"
+                autoComplete="current-password"
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}

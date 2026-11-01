@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import {
   LayoutDashboard,
   Users,
@@ -36,6 +36,7 @@ export default function Sidebar({
   currentUser,
   counts,
 }: Props) {
+  const [mobileOpen, setMobileOpen] = useState(false);
   const userRole = normalizeUserRole(currentUser?.role, currentUser?.position);
   const canAccessMasterData = userRole === '시스템 관리자' || userRole === '임원 권한';
   // 주간/월간보고는 PM 권한 이상(PM, 임원, 시스템 관리자)만 메뉴 노출
@@ -44,6 +45,10 @@ export default function Sidebar({
     userRole === '시스템 관리자';
 
   const navItems = [
+    ...(canAccessReports ? [
+      { id: 'approvals' as TabKey, label: '계약품의 · 결재', icon: <FileSpreadsheet className="w-5 h-5" /> },
+      { id: 'business_deals' as TabKey, label: '영업 · 수주 관리', icon: <TrendingUp className="w-5 h-5" /> },
+    ] : []),
     {
       id: 'dashboard' as TabKey,
       label: '통합 대시보드',
@@ -94,7 +99,9 @@ export default function Sidebar({
   ];
 
   return (
-    <aside className="w-72 bg-slate-900 text-slate-100 flex flex-col shrink-0 border-r border-slate-800 select-none">
+    <>
+    <button aria-label="메뉴 열기" aria-expanded={mobileOpen} className="md:hidden fixed left-2 top-3 z-50 bg-slate-900 text-white p-2 rounded" onClick={() => setMobileOpen(!mobileOpen)}>☰</button>
+    <aside aria-label="업무 메뉴" className={`${mobileOpen ? 'flex' : 'hidden'} md:flex fixed md:relative top-12 md:top-0 bottom-0 left-0 z-40 w-72 bg-slate-900 text-slate-100 flex-col shrink-0 border-r border-slate-800 select-none`}>
       {/* Brand Logo & Header */}
       <div className="p-6 border-b border-slate-800 flex items-center gap-3">
         <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-blue-600 flex items-center justify-center shadow-lg shadow-indigo-500/30">
@@ -121,7 +128,8 @@ export default function Sidebar({
           return (
             <button
               key={item.id}
-              onClick={() => onTabChange(item.id)}
+              aria-current={active ? 'page' : undefined}
+              onClick={() => { onTabChange(item.id); setMobileOpen(false); }}
               className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-left transition-all ${
                 active
                   ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/25'
@@ -179,6 +187,7 @@ export default function Sidebar({
         </div>
       </div>
     </aside>
+    </>
   );
 }
 

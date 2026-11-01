@@ -1,5 +1,7 @@
 'use client';
 
+import { apiFetch } from '@/lib/api';
+
 import React, { useState, useMemo, useEffect } from 'react';
 import {
   Employee,
@@ -95,50 +97,9 @@ export default function EmployeesView({
     return false;
   };
 
-  // 특정 프로젝트의 소속 직원 명단 추출 (DB projects.members + pm_name + 연계된 계약품의서 manpowerPlans 완벽 통합)
-  const getProjectMemberNames = (prj: Project): string[] => {
-    const memberSet = new Set<string>();
-    if (prj.pm_name && prj.pm_name.trim()) {
-      memberSet.add(prj.pm_name.trim());
-    }
-    if (prj.members) {
-      prj.members
-        .split(',')
-        .map((n) => n.trim())
-        .filter(Boolean)
-        .forEach((n) => memberSet.add(n));
-    }
-    // 연결된 계약품의서(Approvals)의 manpowerPlans에서도 투입 직원 동기화
-    approvals.forEach((ap) => {
-      if (!ap.items_json || !ap.items_json.startsWith('{')) return;
-      try {
-        const parsed = JSON.parse(ap.items_json);
-        const isMatched =
-          ap.project_name === prj.name ||
-          ap.title === prj.name ||
-          parsed.linkedProjectId === prj.id ||
-          parsed.linkedProjectCode === prj.code ||
-          parsed.title === prj.name;
-
-        if (isMatched) {
-          const plans = parsed.manpowerPlans || parsed.manpower_list || [];
-          plans.forEach((m: any) => {
-            if (m.name && typeof m.name === 'string' && m.name.trim()) {
-              memberSet.add(m.name.trim());
-            }
-          });
-        }
-      } catch (e) {}
-    });
-
-    return Array.from(memberSet);
-  };
-
-  // 내가 속한 프로젝트인지 판별하는 헬퍼
-  const isUserProject = (prj: Project) => {
-    if (!currentUser?.name) return false;
-    return getProjectMemberNames(prj).includes(currentUser.name);
-  };
+  const getProjectMemberIds = (prj: Project): number[] => [...new Set([prj.pm_id, ...(prj.member_ids || [])].filter((id): id is number => !!id))];
+  const getProjectMemberNames = (prj: Project): string[] => getProjectMemberIds(prj).map(id => employees.find(e => e.id === id)?.name || '미등록 직원');
+  const isUserProject = (prj: Project) => getProjectMemberIds(prj).includes(currentUser.id);
 
   // 현재 로그인 사용자의 부서 코드
   const myDeptCode = useMemo(() => {
@@ -213,13 +174,11 @@ export default function EmployeesView({
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editingEmp, setEditingEmp] = useState<Employee | null>(null);
+  const [initialPassword, setInitialPassword] = useState('');
   const [emailId, setEmailId] = useState('');
   const [formData, setFormData] = useState<Partial<Employee>>({});
 
-  const canEdit =
-    isPmOrAbove(currentUser.role, currentUser.position) ||
-    isExecutiveOrAbove(currentUser.role, currentUser.position) ||
-    currentUser.role === '시스템 관리자';
+  const canEdit = currentUser.role === '시스템 관리자';
 
   // 현재 DB에 실제로 존재하는 활성 프로젝트(진행중/수행)에 투입된 직원 명단만 매핑
   // (삭제된 프로젝트나 과거 계약품의서의 유령 프로젝트가 노출되지 않도록 실제 projects 테이블만 기준)
@@ -228,7 +187,7 @@ export default function EmployeesView({
     projects
       .filter(isActiveProject)
       .forEach((prj) => {
-        const names = getProjectMemberNames(prj);
+        const names = getProjectMemberIds(prj);
         names.forEach((name) => {
           if (!map[name]) map[name] = [];
           if (!map[name].includes(prj.name)) {
@@ -258,7 +217,7 @@ export default function EmployeesView({
     if (emp.status === '휴직') {
       return { status: '휴직', label: '휴직', isBizDept: false, projects: [] };
     }
-    const currentPrjs = assignedProjectsMap[emp.name] || [];
+    const currentPrjs = assignedProjectsMap[emp.id] || [];
     const isBiz =
       cleanDeptName(emp.department) === '사업본부' ||
       emp.department_code === 'DEPT_BIZ';
@@ -358,8 +317,8 @@ export default function EmployeesView({
         empNo.toLowerCase().includes(q) ||
         emp.position.toLowerCase().includes(q) ||
         emp.department.toLowerCase().includes(q) ||
-        emp.email.toLowerCase().includes(q) ||
-        emp.phone.toLowerCase().includes(q) ||
+        (emp.email || '').toLowerCase().includes(q) ||
+        (emp.phone || '').toLowerCase().includes(q) ||
         avail.projects.some((p) => p.toLowerCase().includes(q));
 
       return matchDept && matchAvailability && matchPosition && matchSearch;
@@ -404,10 +363,11 @@ export default function EmployeesView({
   };
 
   const openCreateModal = () => {
+    setInitialPassword('');
     setEditingEmp(null);
     setEmailId('');
     const defaultHireDate = new Date().toISOString().split('T')[0];
-    const defaultEmpNo = defaultHireDate.replace(/-/g, '');
+    const defaultEmpNo = `EMP-${crypto.randomUUID()}`;
 
     setFormData({
       emp_no: defaultEmpNo,
@@ -427,6 +387,7 @@ export default function EmployeesView({
   };
 
   const openEditModal = (emp: Employee) => {
+    setInitialPassword('');
     setEditingEmp(emp);
     const idPart = emp.email?.includes('@') ? emp.email.split('@')[0] : (emp.email || '');
     setEmailId(idPart);
@@ -471,6 +432,7 @@ export default function EmployeesView({
 
       const payload = {
         ...formData,
+        ...(initialPassword ? { password: initialPassword } : {}),
         emp_no: formData.emp_no || getEmpNoFromHireDate(formData.hire_date, formData.emp_no),
         email: finalEmail,
         department_code: deptObj?.code || formData.department_code || 'DEPT_RND',
@@ -480,7 +442,7 @@ export default function EmployeesView({
       };
 
       const targetId = editingEmp ? editingEmp.id : formData.id;
-      const res = await fetch('http://localhost:8080/api/groupware', {
+      const res = await apiFetch('/api/groupware', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -512,7 +474,7 @@ export default function EmployeesView({
     }
     if (!confirm('정말 삭제하시겠습니까?')) return;
 
-    await fetch('http://localhost:8080/api/groupware', {
+    await apiFetch('/api/groupware', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ module: 'employees', action: 'delete', id }),
@@ -762,14 +724,14 @@ export default function EmployeesView({
                   : [];
 
                 // 프로젝트에 투입/배정된 직원 명단 집합 (프로젝트 하위에만 노출하고 사업본부 직속에서는 제외)
-                const assignedEmpNames = new Set<string>();
+                const assignedEmpNames = new Set<number>();
                 deptProjects.forEach((prj) => {
-                  getProjectMemberNames(prj).forEach((name) => assignedEmpNames.add(name));
+                  getProjectMemberIds(prj).forEach((name) => assignedEmpNames.add(name));
                 });
 
                 // 사업본부(DEPT_BIZ)의 경우 프로젝트 투입 인원은 프로젝트 하위에서만 조회되도록 직속 목록에서 필터링
                 const directDeptEmps = isBizDept
-                  ? deptEmps.filter((emp) => !assignedEmpNames.has(emp.name))
+                  ? deptEmps.filter((emp) => !assignedEmpNames.has(emp.id))
                   : deptEmps;
 
                 return (
@@ -861,7 +823,7 @@ export default function EmployeesView({
 
                           // PM 인력 정보 추출
                           const pmName = prj.pm_name || memberNames[0] || '';
-                          const pmEmp = employees.find((e) => e.name === pmName);
+                          const pmEmp = employees.find((e) => e.id === prj.pm_id);
                           const pmPosition = pmEmp ? pmEmp.position : '';
 
                           return (
@@ -962,10 +924,11 @@ export default function EmployeesView({
                                   )}
 
                                   {/* 투입 팀원들 */}
-                                  {memberNames
-                                    .filter((m) => m !== pmName)
-                                    .map((memberName, idx) => {
-                                      const memberEmp = employees.find((e) => e.name === memberName);
+                                  {getProjectMemberIds(prj)
+                                    .filter((id) => id !== prj.pm_id)
+                                    .map((memberId, idx) => {
+                                      const memberEmp = employees.find((e) => e.id === memberId);
+                                      const memberName = memberEmp?.name || '미등록 직원';
                                       const memberPos = memberEmp ? memberEmp.position : '';
                                       const isMemberActive = searchQuery === memberName;
 
@@ -1404,6 +1367,10 @@ export default function EmployeesView({
                 </select>
               </div>
 
+              <label className="block font-semibold">{editingEmp ? '비밀번호 재설정 (선택)' : '초기 비밀번호 (필수)'}
+                <input type="password" autoComplete="new-password" minLength={12} required={!editingEmp} value={initialPassword} onChange={e => setInitialPassword(e.target.value)} className="w-full border rounded p-2 mt-1" />
+                <span className="text-xs text-slate-500">12자 이상. 최초 로그인 후 변경해야 합니다.</span>
+              </label>
               {/* 사내 이메일 계정 */}
               <div>
                 <label className="block font-semibold text-slate-700 mb-1">사내 이메일 계정</label>

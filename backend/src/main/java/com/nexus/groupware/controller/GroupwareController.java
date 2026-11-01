@@ -1,35 +1,33 @@
 package com.nexus.groupware.controller;
 
 import com.nexus.groupware.service.GroupwareService;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
-
 import java.util.Map;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/groupware")
-@CrossOrigin(origins = "*")
 public class GroupwareController {
+  private final GroupwareService service;
 
-    private final GroupwareService groupwareService;
+  public GroupwareController(GroupwareService s) {
+    service = s;
+  }
 
-    public GroupwareController(GroupwareService groupwareService) {
-        this.groupwareService = groupwareService;
-    }
+  @GetMapping
+  public Map<String, Object> all(
+      @RequestParam(defaultValue = "dashboard") String scope,
+      @RequestParam(defaultValue = "0") int page,
+      @RequestParam(defaultValue = "50") int size) {
+    return service.getAllData(scope, page, size);
+  }
 
-    @GetMapping
-    public ResponseEntity<Map<String, Object>> getAllGroupwareData() {
-        return ResponseEntity.ok(groupwareService.getAllData());
-    }
+  @GetMapping("/approvals/{id}")
+  public Map<String, Object> detail(@PathVariable Long id) {
+    return service.approvalDetail(id);
+  }
 
-    @PostMapping
-    public ResponseEntity<Map<String, Object>> mutateGroupwareData(@RequestBody Map<String, Object> payload) {
-        if ("login".equals(payload.get("action"))) {
-            String identifier = payload.get("identifier") != null ? payload.get("identifier").toString() : "";
-            String password = payload.get("password") != null ? payload.get("password").toString() : "";
-            return ResponseEntity.ok(groupwareService.authenticate(identifier, password));
-        }
-        groupwareService.processMutation(payload);
-        return ResponseEntity.ok(Map.of("ok", true));
-    }
+  @PostMapping
+  public Map<String, Object> mutate(@RequestBody Map<String, Object> payload) {
+    return service.processMutation(payload);
+  }
 }

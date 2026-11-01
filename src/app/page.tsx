@@ -1,5 +1,7 @@
 'use client';
 
+import { apiFetch } from '@/lib/api';
+
 import React, { useState, useEffect } from 'react';
 import {
   AuthUser,
@@ -27,15 +29,31 @@ import EquipmentsView from '@/components/equipments/EquipmentsView';
 import BusinessDealsView from '@/components/deals/BusinessDealsView';
 import EvaluationsView from '@/components/evaluations/EvaluationsView';
 import MasterDataView from '@/components/master/MasterDataView';
+import PasswordChange from '@/components/PasswordChange';
+import InteractionGuard from '@/components/InteractionGuard';
+import ContractApprovalView from '@/components/ContractApprovalView';
 import WeeklyMonthlyReportView from '@/components/projects/WeeklyMonthlyReportView';
-
-const SESSION_STORAGE_KEY = 'spatialt_groupware_session_user';
 
 export default function GroupwareApp() {
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
   const [activeTab, setActiveTab] = useState<TabKey>('dashboard');
-  const [selectedReportProjectId, setSelectedReportProjectId] = useState<number | null>(null);
+  const [selectedReportProjectId, setSelectedReportProjectId] = useState<
+    number | null
+  >(null);
   const [loading, setLoading] = useState(true);
+  const [restoring, setRestoring] = useState(true);
+  const [error, setError] = useState('');
+  const [loadedAt, setLoadedAt] = useState('');
+  const [page, setPage] = useState(0),
+    [pageTotal, setPageTotal] = useState(0);
+  const [counts, setCounts] = useState({
+    employees: 0,
+    projects: 0,
+    equipments: 0,
+    deals: 0,
+    evaluations: 0,
+    approvals: 0,
+  });
 
   // Core Data States
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -46,103 +64,149 @@ export default function GroupwareApp() {
   const [approvals, setApprovals] = useState<Approval[]>([]);
   const [commonCodes, setCommonCodes] = useState<CommonCode[]>([]);
 
-  // Fetch all domain data from Spring Boot Backend
+  const clearData = () => {
+    setEmployees([]);
+    setProjects([]);
+    setEquipments([]);
+    setDeals([]);
+    setEvaluations([]);
+    setApprovals([]);
+    setCommonCodes([]);
+  };
   const fetchAllData = async () => {
+    setLoading(true);
+    setError('');
     try {
-      setLoading(true);
-      const res = await fetch('http://localhost:8080/api/groupware');
-      if (res.ok) {
-        const json = await res.json();
-        setEmployees(json.employees || []);
-        setProjects(json.projects || []);
-        setEquipments(json.equipments || []);
-        setDeals(json.business_deals || []);
-        setEvaluations(json.evaluations || []);
-        setApprovals(json.approvals || []);
-        setCommonCodes(json.common_codes || []);
-
-        // 최신 DB 직원 정보와 현재 로그인 세션 사용자(직급/권한/부서 등) 실시간 동기화
-        if (json.employees && json.employees.length > 0) {
-          try {
-            const savedSession = sessionStorage.getItem(SESSION_STORAGE_KEY);
-            const activeUser = currentUser || (savedSession ? JSON.parse(savedSession) : null);
-            if (activeUser) {
-              const fresh = json.employees.find(
-                (e: Employee) =>
-                  e.id === activeUser.id ||
-                  e.emp_no === activeUser.emp_no ||
-                  (e.name === activeUser.name && e.department === activeUser.department)
-              );
-              if (fresh) {
-                const updated: AuthUser = {
-                  ...activeUser,
-                  ...fresh,
-                  role: normalizeUserRole(fresh.role, fresh.position),
-                };
-                setCurrentUser(updated);
-                sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(updated));
-              }
-            }
-          } catch (err) {
-            console.error('Failed to sync session with fresh employee data:', err);
-          }
-        }
-      }
+      const me = await apiFetch('/api/auth/me');
+      const user = (await me.json()).user;
+      setCurrentUser(user);
+      if (user.password_change_required) return;
+      const res = await apiFetch(
+        `/api/groupware?scope=${activeTab}&page=${page}&size=50`,
+      );
+      const data = await res.json();
+      setEmployees(data.employees);
+      setProjects(data.projects);
+      setEquipments(data.equipments);
+      setDeals(data.business_deals);
+      setEvaluations(data.evaluations);
+      setApprovals(data.approvals);
+      setCommonCodes(data.common_codes);
+      setCounts(data.counts);
+      setPageTotal(data.page_total || 0);
+      setLoadedAt(new Date(data.loaded_at).toLocaleString('ko-KR'));
     } catch (e) {
-      console.error('Failed to load groupware data:', e);
+      setError(
+        e instanceof Error ? e.message : '데이터를 불러오지 못했습니다.',
+      );
     } finally {
       setLoading(false);
+      setRestoring(false);
     }
   };
-
-  // 브라우저 탭이 열려있는 동안(새로고침 포함) 세션 유지, 브라우저 닫으면 세션 종료
   useEffect(() => {
-    fetchAllData();
-    try {
-      const saved = sessionStorage.getItem(SESSION_STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (parsed && (parsed.emp_no || parsed.id)) {
-          setCurrentUser({
-            ...parsed,
-            role: normalizeUserRole(parsed.role, parsed.position),
-          });
-        }
-      }
-    } catch (e) {
-      console.error('Failed to restore session:', e);
-    }
-  }, []);
-
-  const handleLoginSuccess = (user: AuthUser) => {
-    const normalized = {
-      ...user,
-      role: normalizeUserRole(user.role, user.position),
+    const expire = () => {
+      setCurrentUser(null);
+      clearData();
+      setRestoring(false);
     };
-    setCurrentUser(normalized);
+    const fail = (e: Event) => setError((e as CustomEvent<string>).detail);
+    const unhandled = (e: PromiseRejectionEvent) => {
+      if (e.reason instanceof Error) {
+        setError(e.reason.message);
+        e.preventDefault();
+      }
+    };
+    const hash = () => {
+      const key = location.hash.slice(1);
+      if (
+        [
+          'dashboard',
+          'projects',
+          'approvals',
+          'business_deals',
+          'reports',
+          'employees',
+          'equipments',
+          'evaluations',
+          'master_data',
+        ].includes(key)
+      )
+        setActiveTab(key as TabKey);
+    };
+    window.addEventListener('session-expired', expire);
+    window.addEventListener('api-error', fail);
+    window.addEventListener('unhandledrejection', unhandled);
+    window.addEventListener('hashchange', hash);
+    hash();
+    fetchAllData();
+    return () => {
+      window.removeEventListener('session-expired', expire);
+      window.removeEventListener('api-error', fail);
+      window.removeEventListener('unhandledrejection', unhandled);
+      window.removeEventListener('hashchange', hash);
+    };
+  }, []);
+  useEffect(() => {
+    if (!restoring) {
+      window.location.hash = activeTab;
+      if (currentUser && !currentUser.password_change_required)
+        void fetchAllData();
+    }
+  }, [activeTab, page]);
+  const handleLoginSuccess = (user: AuthUser) => {
+    setCurrentUser(user);
+    clearData();
+    setError('');
+    if (!user.password_change_required) void fetchAllData();
+  };
+  const handleLogout = async () => {
     try {
-      sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(normalized));
+      await apiFetch('/api/auth/logout', { method: 'POST' });
+      setCurrentUser(null);
+      clearData();
+      setActiveTab('dashboard');
+      setError('');
     } catch (e) {
-      console.error('Failed to persist session:', e);
+      setError(e instanceof Error ? e.message : '로그아웃하지 못했습니다.');
     }
   };
-
-  const handleLogout = () => {
-    setCurrentUser(null);
-    try {
-      sessionStorage.removeItem(SESSION_STORAGE_KEY);
-    } catch (e) {
-      console.error(e);
-    }
-  };
-
-  // If not logged in, render Login Page immediately
-  if (!currentUser) {
-    return <LoginPage onLoginSuccess={handleLoginSuccess} />;
-  }
+  useEffect(() => {
+    if (!currentUser) return;
+    let timer: ReturnType<typeof setTimeout>;
+    const reset = () => {
+      clearTimeout(timer);
+      timer = setTimeout(
+        () => {
+          void handleLogout();
+        },
+        30 * 60 * 1000,
+      );
+    };
+    reset();
+    for (const event of ['pointerdown', 'keydown', 'touchstart'])
+      window.addEventListener(event, reset, { passive: true });
+    return () => {
+      clearTimeout(timer);
+      for (const event of ['pointerdown', 'keydown', 'touchstart'])
+        window.removeEventListener(event, reset);
+    };
+  }, [currentUser?.id]);
+  if (restoring)
+    return (
+      <div role="status" className="p-10">
+        로그인 상태 확인 중…
+      </div>
+    );
+  if (!currentUser) return <LoginPage onLoginSuccess={handleLoginSuccess} />;
+  if (currentUser.password_change_required)
+    return (
+      <PasswordChange onChanged={handleLoginSuccess} onLogout={handleLogout} />
+    );
 
   // 기준정보 관리 권한 가드 (일반직원/PM은 접근 불가 -> 대시보드로 전환)
-  const isSysOrExec = currentUser.role === '시스템 관리자' || currentUser.role === '임원 권한';
+  const isSysOrExec =
+    currentUser.role === '시스템 관리자' || currentUser.role === '임원 권한';
   // 주간/월간보고 권한 가드 (PM 권한 이상만 접근 가능)
   const canAccessReports =
     isPmOrAbove(currentUser.role, currentUser.position) ||
@@ -151,25 +215,25 @@ export default function GroupwareApp() {
   let effectiveTab = activeTab;
   if (effectiveTab === 'master_data' && !isSysOrExec) {
     effectiveTab = 'dashboard';
-  } else if (effectiveTab === 'reports' && !canAccessReports) {
+  } else if (
+    ['reports', 'approvals', 'business_deals'].includes(effectiveTab) &&
+    !canAccessReports
+  ) {
     effectiveTab = 'dashboard';
   }
 
   return (
     <div className="min-h-screen flex bg-slate-50 text-slate-900">
+      <InteractionGuard />
       {/* 1. Left Sidebar Navigation */}
       <Sidebar
         activeTab={effectiveTab}
-        onTabChange={setActiveTab}
-        currentUser={currentUser}
-        counts={{
-          approvals: approvals.length,
-          employees: employees.length,
-          projects: projects.length,
-          equipments: equipments.length,
-          deals: deals.length,
-          evaluations: evaluations.length,
+        onTabChange={(tab) => {
+          setPage(0);
+          setActiveTab(tab);
         }}
+        currentUser={currentUser}
+        counts={counts}
       />
 
       {/* 2. Main Content Container */}
@@ -184,8 +248,52 @@ export default function GroupwareApp() {
         />
 
         {/* Dynamic Tab Body */}
-        <main className="flex-1 p-5 overflow-y-auto">
-          {activeTab === 'dashboard' && (
+        <main className="flex-1 p-3 md:p-5 overflow-y-auto min-w-0">
+          {[
+            'equipments',
+            'evaluations',
+            'business_deals',
+            'approvals',
+          ].includes(effectiveTab) && (
+            <div className="mb-3 flex items-center justify-end gap-3 text-sm">
+              <button
+                disabled={page === 0 || loading}
+                onClick={() => setPage((p) => p - 1)}
+              >
+                이전
+              </button>
+              <span>
+                {page + 1} / {Math.max(1, Math.ceil(pageTotal / 50))} 페이지 ·
+                전체 {pageTotal}건
+              </span>
+              <button
+                disabled={(page + 1) * 50 >= pageTotal || loading}
+                onClick={() => setPage((p) => p + 1)}
+              >
+                다음
+              </button>
+            </div>
+          )}
+          {error && (
+            <div
+              role="alert"
+              className="mb-4 flex items-center justify-between gap-3 rounded border border-rose-300 bg-rose-50 p-3 text-rose-800"
+            >
+              <span>{error}</span>
+              <button onClick={fetchAllData}>다시 불러오기</button>
+            </div>
+          )}
+          {loadedAt && (
+            <p className="mb-3 text-xs text-slate-500">
+              마지막 갱신: {loadedAt}
+            </p>
+          )}
+          {loading && (
+            <p role="status" className="mb-3 text-sm">
+              데이터 갱신 중…
+            </p>
+          )}
+          {effectiveTab === 'dashboard' && (
             <DashboardView
               currentUser={currentUser}
               employees={employees}
@@ -198,7 +306,7 @@ export default function GroupwareApp() {
             />
           )}
 
-          {activeTab === 'projects' && (
+          {effectiveTab === 'projects' && (
             <ProjectsView
               projects={projects}
               currentUser={currentUser}
@@ -214,8 +322,9 @@ export default function GroupwareApp() {
             />
           )}
 
-          {activeTab === 'reports' && (
+          {effectiveTab === 'reports' && (
             <WeeklyMonthlyReportView
+              employees={employees}
               projects={projects}
               approvals={approvals}
               currentUser={currentUser}
@@ -224,31 +333,26 @@ export default function GroupwareApp() {
             />
           )}
 
-          {activeTab === 'approvals' && (
-            <ProjectsView
-              projects={projects}
+          {effectiveTab === 'approvals' && (
+            <ContractApprovalView
               currentUser={currentUser}
               approvals={approvals}
               employees={employees}
+              projects={projects}
               deals={deals}
-              commonCodes={commonCodes}
+              onRefresh={fetchAllData}
+            />
+          )}
+          {effectiveTab === 'business_deals' && (
+            <BusinessDealsView
+              currentUser={currentUser}
+              deals={deals}
+              projects={projects}
               onRefresh={fetchAllData}
             />
           )}
 
-          {activeTab === 'business_deals' && (
-            <ProjectsView
-              projects={projects}
-              currentUser={currentUser}
-              approvals={approvals}
-              employees={employees}
-              deals={deals}
-              commonCodes={commonCodes}
-              onRefresh={fetchAllData}
-            />
-          )}
-
-          {activeTab === 'employees' && (
+          {effectiveTab === 'employees' && (
             <EmployeesView
               employees={employees}
               currentUser={currentUser}
@@ -259,7 +363,7 @@ export default function GroupwareApp() {
             />
           )}
 
-          {activeTab === 'equipments' && (
+          {effectiveTab === 'equipments' && (
             <EquipmentsView
               equipments={equipments}
               currentUser={currentUser}
@@ -268,7 +372,7 @@ export default function GroupwareApp() {
             />
           )}
 
-          {activeTab === 'evaluations' && (
+          {effectiveTab === 'evaluations' && (
             <EvaluationsView
               evaluations={evaluations}
               currentUser={currentUser}
@@ -277,7 +381,7 @@ export default function GroupwareApp() {
             />
           )}
 
-          {activeTab === 'master_data' && (
+          {effectiveTab === 'master_data' && (
             <MasterDataView
               currentUser={currentUser}
               commonCodes={commonCodes}

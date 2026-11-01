@@ -1,8 +1,12 @@
 'use client';
 
+import { apiFetch } from '@/lib/api';
+
 import React, { useState } from 'react';
 import {
   FullContractDocument,
+  isPmOrAbove,
+  isExecutiveOrAbove,
   AuthUser,
   Approval,
   Employee,
@@ -63,6 +67,16 @@ export default function ContractWorkstationModal({
   const updateDocAndRecalculate = (patch: Partial<FullContractDocument>) => {
     setDoc((prev) => {
       const next = { ...prev, ...patch };
+      if ((patch.startDate || patch.endDate) && !patch.manpowerPlans) {
+        const oldStart = new Date(prev.startDate || ''), start = new Date(next.startDate || ''), end = new Date(next.endDate || '');
+        const count = (end.getFullYear()-start.getFullYear())*12+end.getMonth()-start.getMonth()+1;
+        if (Number.isFinite(count) && count > 0 && count <= 120) next.manpowerPlans = next.manpowerPlans.map(plan => {
+          const offset = (start.getFullYear()-oldStart.getFullYear())*12+start.getMonth()-oldStart.getMonth();
+          const months = Array.from({length:count},(_,i)=>plan.months[i+offset] ?? 0);
+          const totalMM = Math.round(months.reduce((sum,value)=>sum+value,0)*100)/100;
+          return {...plan,months,totalMM,laborCost:Math.round(totalMM*plan.unitPrice*100)/100};
+        });
+      }
 
       // Calculate totals from sub-sheets
       const productCostTotal = next.productCosts.reduce((s, it) => s + it.amount, 0);
@@ -109,150 +123,25 @@ export default function ContractWorkstationModal({
     });
   };
 
-  // Save changes to backend (and optionally sync with Project table)
+  const readOnly = !isPmOrAbove(currentUser.role) || (!isExecutiveOrAbove(currentUser.role) && !!doc.linkedProjectId && projects.find(p => p.id === doc.linkedProjectId)?.pm_id !== currentUser.id) || !!(approvalRecord && !['작성중', '반려'].includes(approvalRecord.status));
+  const [approverId, setApproverId] = useState<number | undefined>(approvalRecord?.approver_id);
   const handleSaveDocument = async () => {
-    if (!doc.title.trim()) {
-      alert('계약명(프로젝트 과제명)을 입력하거나 상단에서 프로젝트를 선택해주세요.');
-      setActiveSheet('summary');
-      return;
-    }
-    if (!doc.clientName.trim()) {
-      alert('고객사(발주처)를 입력하거나 선택해주세요.');
-      setActiveSheet('summary');
-      return;
-    }
-
+    if (readOnly) return;
+    if (!doc.title.trim() || !doc.clientName.trim()) { alert('계약명과 고객사를 입력하세요.'); return; }
     try {
       setSaving(true);
-
-      // 1) Sync with Project table (DB projects 테이블과 100% 실시간 동기화)
-      if (syncWithProject) {
-        const uniqueNames = Array.from(
-          new Set(
-            doc.manpowerPlans
-              .map((m) => (m.name || '').trim())
-              .filter(Boolean)
-          )
-        );
-        const memberNames = uniqueNames.join(', ');
-        const pmItem =
-          doc.manpowerPlans.find((m) => m.role.includes('PM')) || doc.manpowerPlans[0];
-        const pmName = pmItem && pmItem.name ? pmItem.name.trim() : currentUser.name;
-        const budgetManwon = Math.round(doc.supplyAmount / 10); // 천원 -> 만원
-        const totalMM = doc.manpowerPlans.reduce((s, m) => s + m.totalMM, 0);
-
-        const existingPrj = projects.find(
-          (p) =>
-            p.id === doc.linkedProjectId ||
-            (doc.linkedProjectCode && p.code === doc.linkedProjectCode) ||
-            p.name === doc.title
-        );
-
-        if (existingPrj) {
-          await fetch('http://localhost:8080/api/groupware', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              module: 'projects',
-              action: 'update',
-              id: existingPrj.id,
-              data: {
-                ...existingPrj,
-                name: doc.title,
-                department: '사업본부',
-                pm_name: pmName,
-                start_date: doc.startDate || existingPrj.start_date,
-                end_date: doc.endDate || existingPrj.end_date,
-                budget: budgetManwon,
-                members: memberNames || existingPrj.members,
-                description: `계약품의서 연동 — 발주처: ${doc.clientName}, 투입공수: ${totalMM.toFixed(1)} M/M, 손익률: ${doc.profitRate}%`,
-              },
-            }),
-          });
-        } else {
-          const newPrjCode =
-            doc.linkedProjectCode ||
-            `PRJ-2026-${String(projects.length + 1).padStart(2, '0')}`;
-          await fetch('http://localhost:8080/api/groupware', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              module: 'projects',
-              action: 'create',
-              data: {
-                code: newPrjCode,
-                name: doc.title,
-                department: '사업본부',
-                pm_name: pmName,
-                start_date: doc.startDate || '2026-04-01',
-                end_date: doc.endDate || '2026-11-30',
-                status: '프로젝트 수행',
-                progress: 10,
-                budget: budgetManwon,
-                members: memberNames || currentUser.name,
-                priority: '높음',
-                description: `계약품의서 연동 — 발주처: ${doc.clientName}, 투입공수: ${totalMM.toFixed(1)} M/M, 손익률: ${doc.profitRate}%`,
-              },
-            }),
-          });
-        }
-      }
-
-      // 2) Save Contract Record to DB approvals table
-      const hasExistingApproval = !!(approvalRecord && approvalRecord.id);
-      const payload = {
-        module: 'approvals',
-        action: hasExistingApproval ? 'update' : 'create',
-        id: approvalRecord?.id,
-        data: {
-          id: approvalRecord?.id,
-          doc_no:
-            doc.docNo ||
-            approvalRecord?.doc_no ||
-            `CONTRACT-${Date.now().toString().slice(-6)}`,
-          category: approvalRecord?.category || '계약품의서',
-          title: doc.title,
-          requester: hasExistingApproval
-            ? approvalRecord?.requester || currentUser.name
-            : currentUser.name,
-          requester_position: hasExistingApproval
-            ? approvalRecord?.requester_position || currentUser.position
-            : currentUser.position,
-          department: hasExistingApproval
-            ? approvalRecord?.department || '사업본부'
-            : '사업본부',
-          created_at:
-            approvalRecord?.created_at || new Date().toISOString().split('T')[0],
-          status: approvalRecord?.status || '승인완료',
-          amount: doc.supplyAmount,
-          project_name: doc.title,
-          vendor: doc.clientName,
-          payment_method: `${doc.paymentTerms} (하자 ${doc.warrantyPeriod} / 지체상금율 ${doc.delayPenaltyRate}%)`,
-          purpose: `계약품의서: 공급가 ${doc.supplyAmount.toLocaleString()}천원, 총예산 ${doc.totalBudget.toLocaleString()}천원, 손익 ${doc.projectNetProfit.toLocaleString()}천원 (이익율 ${doc.profitRate}%)`,
-          items_json: JSON.stringify(doc),
-          reviewer_comment: approvalRecord?.reviewer_comment || '정상 등록 및 프로젝트 동기화 완료',
-          approved_by: approvalRecord?.approved_by || currentUser.name,
-        },
-      };
-
-      const res = await fetch('http://localhost:8080/api/groupware', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+      await apiFetch('/api/groupware', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ module: 'approvals', action: 'save_contract', id: approvalRecord?.id,
+          version: approvalRecord?.version, sync_project: syncWithProject, project_id: doc.linkedProjectId,
+          project_version: projects.find(p => p.id === doc.linkedProjectId)?.version,
+          data: { title: doc.title, category: '계약품의서', project_id: doc.linkedProjectId,
+            approver_id: approverId, amount: Math.round(doc.supplyAmount), vendor: doc.clientName,
+            project_name: doc.title, items_json: JSON.stringify(doc) } }),
       });
-
-      if (res.ok) {
-        await onSaved();
-        onClose();
-      } else {
-        alert('저장에 실패했습니다. 백엔드 상태를 확인해주세요.');
-      }
-    } catch (e) {
-      console.error(e);
-      alert('오류가 발생했습니다.');
-    } finally {
-      setSaving(false);
-    }
+      await onSaved(); onClose();
+    } catch (error) { alert(error instanceof Error ? error.message : '저장하지 못했습니다.'); }
+    finally { setSaving(false); }
   };
 
   const totalMM = doc.manpowerPlans.reduce((s, m) => s + m.totalMM, 0);
@@ -343,8 +232,15 @@ export default function ContractWorkstationModal({
 
         {/* 3. 본문 워크스페이스 영역 (상단 탭은 고정되어 있고, 오직 이 영역만 내부 스크롤) */}
         <div className="flex-1 p-6 overflow-y-auto bg-slate-50/70 min-h-0">
+          <label className="block mb-4 text-sm">최종 결재자
+            <select aria-label="최종 결재자" disabled={readOnly} value={approverId || ''} onChange={e => setApproverId(Number(e.target.value) || undefined)} className="ml-3 border rounded p-2">
+              <option value="">결재자 선택</option>
+              {employees.filter(e => isExecutiveOrAbove(e.role) && e.id !== (approvalRecord?.requester_id || currentUser.id)).map(e => <option key={e.id} value={e.id}>{e.name} {e.position}</option>)}
+            </select>
+          </label>
           {activeSheet === 'summary' && (
             <SummarySheet
+              readOnly={readOnly}
               doc={doc}
               onChangeDoc={(patch) => updateDocAndRecalculate(patch)}
               projects={projects}
@@ -355,6 +251,7 @@ export default function ContractWorkstationModal({
 
           {activeSheet === 'manpower' && (
             <ManpowerSheet
+              readOnly={readOnly}
               items={doc.manpowerPlans}
               onChangeItems={(items) => updateDocAndRecalculate({ manpowerPlans: items })}
               employees={employees}
@@ -365,6 +262,7 @@ export default function ContractWorkstationModal({
 
           {activeSheet === 'expenses' && (
             <DirectExpenseSheet
+              readOnly={readOnly}
               items={doc.directExpenses}
               onChangeItems={(items) => updateDocAndRecalculate({ directExpenses: items })}
               totalMM={totalMM}
@@ -374,6 +272,7 @@ export default function ContractWorkstationModal({
 
           {activeSheet === 'products' && (
             <ProductCostSheet
+              readOnly={readOnly}
               items={doc.productCosts}
               onChangeItems={(items) => updateDocAndRecalculate({ productCosts: items })}
             />
@@ -381,6 +280,7 @@ export default function ContractWorkstationModal({
 
           {activeSheet === 'outsourcing' && (
             <OutsourcingSheet
+              readOnly={readOnly}
               items={doc.outsourcings}
               onChangeItems={(items) => updateDocAndRecalculate({ outsourcings: items })}
             />
@@ -388,6 +288,7 @@ export default function ContractWorkstationModal({
 
           {activeSheet === 'risk' && (
             <RiskContingencySheet
+              readOnly={readOnly}
               items={doc.riskEvaluations}
               onChangeItems={(items) => updateDocAndRecalculate({ riskEvaluations: items })}
               totalBudget={doc.totalBudget}
@@ -414,7 +315,7 @@ export default function ContractWorkstationModal({
 
           <div className="flex items-center gap-2">
             <button
-              disabled={saving}
+              disabled={saving || readOnly}
               onClick={handleSaveDocument}
               className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white transition shadow-sm disabled:opacity-50"
             >

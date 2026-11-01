@@ -1,4 +1,5 @@
 'use client';
+import { monthlyAllocations } from '@/lib/calendar';
 
 import React, { useState, useMemo } from 'react';
 import {
@@ -62,7 +63,7 @@ export default function ManpowerWorkloadView({
   projects,
   currentUser,
 }: Props) {
-  const [targetYear, setTargetYear] = useState<number>(2026);
+  const [targetYear, setTargetYear] = useState<number>(new Date().getFullYear());
   const [deptFilter, setDeptFilter] = useState<string>('전체');
   const [statusFilter, setStatusFilter] = useState<string>('전체');
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -79,7 +80,7 @@ export default function ManpowerWorkloadView({
       )
       .map((ap) => {
         try {
-          const fullDoc = buildDefaultFullContractDoc(ap, currentUser);
+          const fullDoc = JSON.parse(ap.items_json!) as import('@/types/groupware').FullContractDocument;
           return {
             ap,
             fullDoc,
@@ -103,38 +104,10 @@ export default function ManpowerWorkloadView({
         const plans = fullDoc.manpowerPlans || [];
 
         // 해당 직원의 투입 계획 찾기 (이름 매칭)
-        const myPlans = plans.filter((p) => p.name === emp.name);
+        const myPlans = plans.filter((p) => p.employeeId === emp.id);
 
         myPlans.forEach((plan) => {
-          // 계약 기간 분석 (예: 2026-04-01 ~ 2026-11-30)
-          let startMonth = 3; // 기본 4월 (0-indexed: 3)
-          let endMonth = 10;  // 기본 11월 (0-indexed: 10)
-
-          if (fullDoc.startDate) {
-            const startD = new Date(fullDoc.startDate);
-            if (startD.getFullYear() === targetYear) {
-              startMonth = startD.getMonth();
-            }
-          }
-          if (fullDoc.endDate) {
-            const endD = new Date(fullDoc.endDate);
-            if (endD.getFullYear() === targetYear) {
-              endMonth = endD.getMonth();
-            }
-          }
-
-          // 12개월 M/M 배열 생성
-          const monthlyMM = Array(12).fill(0);
-          const rawMonths = plan.months || [];
-
-          let mIdx = 0;
-          for (let m = 0; m < 12; m++) {
-            if (m >= startMonth && m <= endMonth) {
-              const val = rawMonths[mIdx] !== undefined ? rawMonths[mIdx] : 1.0;
-              monthlyMM[m] = Number(val) || 0;
-              mIdx++;
-            }
-          }
+          const monthlyMM = monthlyAllocations(fullDoc.startDate || '', fullDoc.endDate || '', plan.months || [], targetYear);
 
           // 월별 합산에 누적
           for (let m = 0; m < 12; m++) {
@@ -157,59 +130,6 @@ export default function ManpowerWorkloadView({
           });
         });
       });
-
-      // 프로젝트 members 필드에 등록되었으나 아직 계약품의서가 없는 경우 보조 연결 ('프로젝트 수행', '제안준비중', '진행중', '검토중')
-      projects
-        .filter((p) => {
-          const st = (p.status || '').trim();
-          return (
-            st === '프로젝트 수행' ||
-            st === '진행중' ||
-            st === '제안준비중' ||
-            st === '검토중'
-          );
-        })
-        .forEach((prj) => {
-          const isMember = (prj.members || '')
-            .split(',')
-            .map((n) => n.trim())
-            .includes(emp.name);
-          const isPm = prj.pm_name === emp.name;
-
-          // 이미 계약품의서로 집계된 프로젝트인지 확인
-          const alreadyAssigned = assignments.some(
-            (a) => a.projectName === prj.name || a.projectName.includes(prj.name)
-          );
-
-          if ((isMember || isPm) && !alreadyAssigned) {
-            const startD = prj.start_date ? new Date(prj.start_date) : new Date(`${targetYear}-04-01`);
-            const endD = prj.end_date ? new Date(prj.end_date) : new Date(`${targetYear}-11-30`);
-            const startMonth = startD.getFullYear() === targetYear ? startD.getMonth() : 3;
-            const endMonth = endD.getFullYear() === targetYear ? endD.getMonth() : 10;
-
-            const monthlyMM = Array(12).fill(0);
-            for (let m = 0; m < 12; m++) {
-              if (m >= startMonth && m <= endMonth) {
-                monthlyMM[m] = 1.0;
-                monthlyTotalMM[m] += 1.0;
-              }
-            }
-            const totalMM = monthlyMM.reduce((sum, v) => sum + v, 0);
-
-            assignments.push({
-              approvalId: -prj.id,
-              docNo: prj.code,
-              projectName: prj.name,
-              client: '사업본부 수주과제',
-              role: isPm ? '총괄 PM' : '수행팀원',
-              grade: '당사 기준',
-              monthlyMM,
-              totalMM: Number(totalMM.toFixed(2)),
-              unitPrice: 0,
-              laborCost: 0,
-            });
-          }
-        });
 
       const totalYearlyMM = Number(monthlyTotalMM.reduce((sum, v) => sum + v, 0).toFixed(2));
       const capacityRate = Math.round((totalYearlyMM / 12) * 100);

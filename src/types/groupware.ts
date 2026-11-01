@@ -1,4 +1,5 @@
 export interface CommonCode {
+  version?: number;
   id: number;
   group_code: string;
   group_name: string;
@@ -101,6 +102,7 @@ export function isPmOrAbove(role?: string, _position?: string): boolean {
 }
 
 export interface AuthUser {
+  password_change_required?: boolean;
   id: number;
   emp_no: string;
   name: string;
@@ -114,6 +116,7 @@ export interface AuthUser {
 }
 
 export interface Employee {
+  version?: number;
   id: number;
   emp_no: string;
   name: string;
@@ -133,11 +136,14 @@ export interface Employee {
 }
 
 export interface Project {
+  version?: number;
   id: number;
   code: string;
   name: string;
   department: string;
   pm_name: string;
+  pm_id?: number;
+  member_ids?: number[];
   start_date: string;
   end_date: string;
   status: string;
@@ -155,6 +161,7 @@ export interface Project {
 }
 
 export interface Equipment {
+  version?: number;
   id: number;
   asset_no: string;
   category: string;
@@ -171,10 +178,13 @@ export interface Equipment {
 }
 
 export interface BusinessDeal {
+  version?: number;
   id: number;
   title: string;
   client_name: string;
   owner_name: string;
+  owner_id?: number;
+  converted_project_id?: number;
   stage: string; // '예상사업' | '제안준비' | '제안심사' | '수주확정' | '보류/탈락'
   amount: number; // 만원
   probability: number;
@@ -188,6 +198,8 @@ export interface BusinessDeal {
 }
 
 export interface Evaluation {
+  employee_id?: number;
+  version?: number;
   id: number;
   emp_no: string;
   emp_name: string;
@@ -207,6 +219,11 @@ export interface Evaluation {
 }
 
 export interface Approval {
+  details_loaded?: boolean;
+  project_id?: number;
+  requester_id?: number;
+  approver_id?: number;
+  version?: number;
   id: number;
   doc_no: string;
   category: string;
@@ -255,6 +272,7 @@ export interface ProductCostItem {
 
 // Sheet 2 & 4: 투입인력 공수 및 인건비 (월별 일정 M1~M8)
 export interface ManpowerPlanItem {
+  employeeId?: number;
   id: string;
   type: '당사' | '외주' | '자사화';
   grade: '특급' | '고급' | '중급' | '초급';
@@ -390,12 +408,12 @@ export const COMPANY_WEBSITE = 'http://www.spatialt.co.kr/';
 export const COMPANY_EMAIL_DOMAIN = '@spatialt.co.kr';
 
 export const STANDARD_UNIT_PRICES = [
-  { position: '이사', grade: '특급', price2026: 15800, price2027: 16500, desc: '총괄 PM / 공간정보 정책 및 감리 총괄' },
-  { position: '부장', grade: '특급', price2026: 13100, price2027: 13700, desc: '공간정보 PM / GIS 아키텍처 / 수주 총괄' },
-  { position: '차장', grade: '고급', price2026: 11000, price2027: 11500, desc: 'GIS 플랫폼 PL / 3D 디지털트윈 설계' },
-  { position: '과장', grade: '고급', price2026: 9600, price2027: 10100, desc: '품질총괄 / PostGIS DB 검수 / 백엔드' },
-  { position: '대리', grade: '중급', price2026: 7800, price2027: 8200, desc: 'OpenLayers / Cesium WebGIS 프론트엔드' },
-  { position: '담당', grade: '초급', price2026: 6600, price2027: 6900, desc: '공간정보 API / 지도 데이터 가공' },
+  { position: '이사', grade: '특급', desc: '총괄 PM / 공간정보 정책 및 감리 총괄' },
+  { position: '부장', grade: '특급', desc: '공간정보 PM / GIS 아키텍처 / 수주 총괄' },
+  { position: '차장', grade: '고급', desc: 'GIS 플랫폼 PL / 3D 디지털트윈 설계' },
+  { position: '과장', grade: '고급', desc: '품질총괄 / PostGIS DB 검수 / 백엔드' },
+  { position: '대리', grade: '중급', desc: 'OpenLayers / Cesium WebGIS 프론트엔드' },
+  { position: '담당', grade: '초급', desc: '공간정보 API / 지도 데이터 가공' },
 ];
 
 export function cleanDeptName(name?: string): string {
@@ -436,17 +454,9 @@ export function calculateMultiYearRevenues(
   endDateStr: string,
   totalAmount: number
 ): Record<number, number> {
-  if (!startDateStr || !endDateStr || totalAmount <= 0) {
-    const year = startDateStr ? new Date(startDateStr).getFullYear() : 2026;
-    return { [year]: totalAmount };
-  }
-
-  const start = new Date(startDateStr);
-  const end = new Date(endDateStr);
-  if (isNaN(start.getTime()) || isNaN(end.getTime()) || start > end) {
-    const year = isNaN(start.getTime()) ? 2026 : start.getFullYear();
-    return { [year]: totalAmount };
-  }
+  if (!startDateStr || !endDateStr || !Number.isFinite(totalAmount) || totalAmount < 0) return {};
+  const start = new Date(startDateStr), end = new Date(endDateStr);
+  if (isNaN(start.getTime()) || isNaN(end.getTime()) || start > end) return {};
 
   const startYear = start.getFullYear();
   const endYear = end.getFullYear();
@@ -486,7 +496,7 @@ export function calculateMultiYearRevenues(
 
 // 당사 지분율(%) 산출 헬퍼 (기본 100%)
 export function getProjectShareRate(project: Project): number {
-  if (typeof project.share_rate === 'number' && !isNaN(project.share_rate) && project.share_rate > 0) {
+  if (typeof project.share_rate === 'number' && !isNaN(project.share_rate) && project.share_rate >= 0) {
     return project.share_rate;
   }
   return 100;
@@ -494,7 +504,7 @@ export function getProjectShareRate(project: Project): number {
 
 // 당사 수주/배정 예산(만원) 산출 헬퍼 (컨소시엄 지분율 반영)
 export function getProjectOurBudget(project: Project): number {
-  if (typeof project.our_budget === 'number' && project.our_budget > 0) {
+  if (typeof project.our_budget === 'number' && project.our_budget >= 0) {
     return project.our_budget;
   }
   const shareRate = getProjectShareRate(project);
@@ -511,13 +521,11 @@ export function getMultiYearRevenueForYear(project: Project, targetYear: number 
       if (breakdown && breakdown[String(targetYear)] !== undefined) {
         return Math.round(breakdown[String(targetYear)] * (shareRate / 100));
       }
-      if (breakdown && breakdown[targetYear] !== undefined) {
-        return Math.round(breakdown[targetYear] * (shareRate / 100));
-      }
+      if (breakdown && Object.keys(breakdown).length) return 0;
     } catch (e) {}
   }
   const calculated = calculateMultiYearRevenues(project.start_date, project.end_date, ourBudget);
-  return calculated[targetYear] ?? (ourBudget || 0);
+  return calculated[targetYear] ?? 0;
 }
 
 

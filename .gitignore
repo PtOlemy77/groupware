@@ -45,3 +45,10 @@ backend/*.war
 backend/.mvn/wrapper/maven-wrapper.jar
 *.class
 *.log
+
+# Secrets and local backup archives
+.env
+.env.*
+!.env.example
+/backups/
+/test-results/

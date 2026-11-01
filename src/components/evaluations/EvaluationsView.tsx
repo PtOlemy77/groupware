@@ -1,5 +1,7 @@
 'use client';
 
+import { apiFetch } from '@/lib/api';
+
 import React, { useState, useMemo } from 'react';
 import { Evaluation, AuthUser, isExecutiveOrAbove, Employee, DEPARTMENT_CODES, POSITION_CODES } from '@/types/groupware';
 import { Award, Search, Plus, Edit3, Trash2, CheckCircle2, User } from 'lucide-react';
@@ -39,21 +41,22 @@ export default function EvaluationsView({ evaluations, currentUser, employees = 
     setEditingEv(null);
     const firstEmp = employees.length > 0 ? employees[0] : null;
     setFormData({
-      emp_no: firstEmp?.emp_no || '20110801',
-      emp_name: firstEmp?.name || '우광일',
+      employee_id: firstEmp?.id,
+      emp_no: firstEmp?.emp_no || '',
+      emp_name: firstEmp?.name || '',
       department_code: firstEmp?.department_code || 'DEPT_BIZ',
       department: firstEmp?.department || '사업본부',
       position_code: firstEmp?.position_code || 'POS_DGM',
       position: firstEmp?.position || '차장',
-      period: '2026년 상반기',
-      kpi_score: 95,
-      competency_score: 92,
-      peer_score: 94,
-      total_score: 94,
-      grade: 'S',
+      period: `${new Date().getFullYear()}년 ${new Date().getMonth() < 6 ? '상반기' : '하반기'}`,
+      kpi_score: 0,
+      competency_score: 0,
+      peer_score: 0,
+      total_score: 0,
+      grade: 'D',
       reviewer: currentUser.name,
-      status: '확정',
-      feedback: '주요 사업 수주 및 디지털트윈 프로젝트 총괄 우수 수행',
+      status: '작성중',
+      feedback: '',
     });
     setModalOpen(true);
   };
@@ -70,7 +73,7 @@ export default function EvaluationsView({ evaluations, currentUser, employees = 
     const comp = Number(formData.competency_score || 0);
     const peer = Number(formData.peer_score || 0);
     const total = Math.round((kpi * 0.5 + comp * 0.3 + peer * 0.2) * 10) / 10;
-    const grade = total >= 90 ? 'S' : total >= 80 ? 'A' : total >= 70 ? 'B' : 'C';
+    const grade = total >= 93 ? 'S' : total >= 87 ? 'A' : total >= 78 ? 'B' : total >= 68 ? 'C' : 'D';
 
     const payload = {
       ...formData,
@@ -78,7 +81,7 @@ export default function EvaluationsView({ evaluations, currentUser, employees = 
       grade,
     };
 
-    await fetch('http://localhost:8080/api/groupware', {
+    await apiFetch('/api/groupware', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -99,7 +102,7 @@ export default function EvaluationsView({ evaluations, currentUser, employees = 
     }
     if (!confirm('정말 삭제하시겠습니까?')) return;
 
-    await fetch('http://localhost:8080/api/groupware', {
+    await apiFetch('/api/groupware', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ module: 'evaluations', action: 'delete', id }),
@@ -124,7 +127,7 @@ export default function EvaluationsView({ evaluations, currentUser, employees = 
           </div>
 
           <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg text-xs">
-            {['전체', 'S', 'A', 'B', 'C'].map((g) => (
+            {['전체', 'S', 'A', 'B', 'C', 'D'].map((g) => (
               <button
                 key={g}
                 onClick={() => setGradeFilter(g)}
@@ -249,6 +252,7 @@ export default function EvaluationsView({ evaluations, currentUser, employees = 
                         if (target) {
                           setFormData({
                             ...formData,
+                            employee_id: target.id,
                             emp_no: target.emp_no,
                             emp_name: target.name,
                             department: target.department,
