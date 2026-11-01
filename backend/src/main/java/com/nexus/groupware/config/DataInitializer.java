@@ -3,6 +3,7 @@ package com.nexus.groupware.config;
 import com.nexus.groupware.entity.Employee;
 import com.nexus.groupware.repository.EmployeeRepository;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Value;
@@ -13,6 +14,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Component
 public class DataInitializer implements CommandLineRunner {
+  public static final String DEFAULT_INITIAL_PASSWORD = "spatialt2019!!";
+
   private final EmployeeRepository employees;
   private final PasswordEncoder encoder;
 
@@ -30,19 +33,20 @@ public class DataInitializer implements CommandLineRunner {
   @Override
   @Transactional
   public void run(String... args) {
-    // Preserve every business row. Legacy credentials are migrated, never compared as plaintext.
-    for (Employee e : employees.findAll()) {
+    // Preserve every business row. Legacy credentials are migrated to standard initial password (spatialt2019!!).
+    List<Employee> allEmployees = employees.findAll();
+    for (Employee e : allEmployees) {
       if ("관리자 권한".equals(e.getRole()) || "경영팀 권한".equals(e.getRole())) e.setRole("시스템 관리자");
       else if (e.getRole() == null || e.getRole().isBlank()) e.setRole("일반직원");
-      if (e.getPassword() == null || !e.getPassword().matches("^[$]2[aby][$][0-9]{2}[$].{53}$")) {
-        String old = e.getPassword();
-        e.setPassword(
-            encoder.encode(old == null || old.isBlank() ? UUID.randomUUID().toString() : old));
-        e.setAccountEnabled(old != null && old.length() >= 12);
-        e.setPasswordChangeRequired(true);
-        e.setSessionVersion(e.getSessionVersion() + 1);
-      }
+
+      // 공통 초기 비밀번호(spatialt2019!!)로 전 직원 일괄 설정 및 활성화
+      e.setPassword(encoder.encode(DEFAULT_INITIAL_PASSWORD));
+      e.setAccountEnabled(true);
+      e.setPasswordChangeRequired(true);
+      e.setSessionVersion(e.getSessionVersion() + 1);
     }
+    employees.saveAll(allEmployees);
+    employees.flush();
     if (email.isBlank()
         || password.isBlank()
         || employees.findAll().stream()
