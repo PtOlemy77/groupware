@@ -6,9 +6,7 @@ import {
   Users,
   Briefcase,
   Laptop,
-  TrendingUp,
   Award,
-  FileSpreadsheet,
   FileText,
   Layers,
   Globe,
@@ -45,10 +43,6 @@ export default function Sidebar({
     userRole === '시스템 관리자';
 
   const navItems = [
-    ...(canAccessReports ? [
-      { id: 'approvals' as TabKey, label: '계약품의 · 결재', icon: <FileSpreadsheet className="w-5 h-5" /> },
-      { id: 'business_deals' as TabKey, label: '영업 · 수주 관리', icon: <TrendingUp className="w-5 h-5" /> },
-    ] : []),
     {
       id: 'dashboard' as TabKey,
       label: '통합 대시보드',

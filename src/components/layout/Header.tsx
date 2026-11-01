@@ -1,6 +1,9 @@
 'use client';
-import { AuthUser, TabKey } from '@/types/groupware';
-import { RefreshCw, LogOut, Plus } from 'lucide-react';
+
+import React from 'react';
+import { AuthUser, normalizeUserRole, TabKey } from '@/types/groupware';
+import { RefreshCw, Plus, LogOut } from 'lucide-react';
+
 interface Props {
   activeTab: TabKey;
   currentUser: AuthUser;
@@ -9,17 +12,17 @@ interface Props {
   onLogout: () => void;
   onOpenCreateModal?: () => void;
 }
-const titles: Record<TabKey, string> = {
-  dashboard: '통합 대시보드',
-  projects: '프로젝트 관리',
-  approvals: '계약품의 · 결재',
-  reports: '주간/월간 보고',
-  business_deals: '영업 · 수주 관리',
-  employees: '직원 관리',
-  equipments: '자산 관리',
-  evaluations: '인사 평가',
-  master_data: '기준정보 관리',
+
+const TAB_TITLES: Partial<Record<TabKey, { label: string; sub: string }>> = {
+  dashboard: { label: '통합 대시보드', sub: '스패셜티 전사 운영 현황' },
+  projects: { label: '프로젝트 관리', sub: '과제수행 · 계약품의 · 투입공수' },
+  reports: { label: '주간/월간 보고', sub: 'PM 금주/차주 작성 · 이사 취합/보완 · 사장님 최종 보고' },
+  employees: { label: '직원 관리', sub: '임직원 명부 및 조직도' },
+  equipments: { label: 'IT 자산 관리', sub: 'IT 자산/워크스테이션/서버' },
+  evaluations: { label: '인사 평가 관리', sub: 'KPI/역량/다면평가 등급' },
+  master_data: { label: '기준정보 관리', sub: '연도별 SW 기술자 노임단가 및 사내 공통 코드 관리' },
 };
+
 export default function Header({
   activeTab,
   currentUser,
@@ -28,42 +31,94 @@ export default function Header({
   onLogout,
   onOpenCreateModal,
 }: Props) {
+  const currentTabInfo = TAB_TITLES[activeTab] || { label: '그룹웨어', sub: '' };
+  const currentRole = normalizeUserRole(currentUser.role, currentUser.position);
+
+  const getAddButtonLabel = () => {
+    switch (activeTab) {
+      case 'employees':
+        return currentRole === '시스템 관리자' ? '신규 직원 등록' : null;
+      case 'projects':
+        return currentRole !== '일반직원' ? '신규 프로젝트 생성' : null;
+      case 'equipments':
+        return currentRole === '시스템 관리자' ? '신규 자산 등록' : null;
+      case 'evaluations':
+        return currentRole === '시스템 관리자' || currentRole === '임원 권한' || currentRole === 'PM 권한'
+          ? '인사평가 작성'
+          : null;
+      default:
+        return null;
+    }
+  };
+
+  const addBtnLabel = getAddButtonLabel();
+
   return (
-    <header className="min-h-16 py-3 pl-14 pr-3 md:px-6 bg-white border-b border-slate-200 flex items-center gap-2 sticky top-0 z-20">
-      <h1 className="text-base md:text-lg font-bold truncate min-w-0 flex-1">
-        {titles[activeTab]}
-      </h1>
-      <span className="hidden md:block text-sm text-slate-600">
-        {currentUser.name} {currentUser.position} · {currentUser.role}
-      </span>
-      <button
-        aria-label="새로고침"
-        title="새로고침"
-        disabled={loading}
-        onClick={onRefresh}
-        className="p-2 rounded hover:bg-slate-100 shrink-0"
-      >
-        <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
-      </button>
-      {onOpenCreateModal && (
+    <header className="h-16 bg-white border-b border-slate-200 px-6 md:px-8 flex items-center justify-between sticky top-0 z-20 shadow-2xs">
+      <div className="flex items-center gap-3">
+        <div>
+          <h1 className="text-base md:text-lg font-bold text-slate-900">{currentTabInfo.label}</h1>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-3">
+        {/* 로그인 사용자 정보 및 보안 권한 뱃지 */}
+        <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200">
+          <div className="w-6 h-6 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold text-xs">
+            {currentUser.name ? currentUser.name.slice(0, 1) : 'U'}
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs font-bold text-slate-800">
+              {currentUser.name} {currentUser.position}
+            </span>
+            <span
+              className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                currentRole === '시스템 관리자'
+                  ? 'bg-rose-50 text-rose-700 border-rose-200'
+                  : currentRole === '임원 권한'
+                  ? 'bg-purple-50 text-purple-700 border-purple-200'
+                  : currentRole === 'PM 권한'
+                  ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
+                  : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+              }`}
+            >
+              {currentRole}
+            </span>
+          </div>
+        </div>
+
+        {/* Refresh button */}
         <button
-          aria-label="신규 등록"
-          title="신규 등록"
-          onClick={onOpenCreateModal}
-          className="p-2 shrink-0"
+          onClick={onRefresh}
+          disabled={loading}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium text-slate-600 hover:bg-slate-100 border border-slate-200 transition"
+          title="최신 데이터 새로고침"
         >
-          <Plus className="w-5 h-5" />
+          <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-indigo-600' : ''}`} />
+          <span className="hidden sm:inline">새로고침</span>
         </button>
-      )}
-      <button
-        aria-label="로그아웃"
-        title="로그아웃"
-        onClick={onLogout}
-        className="flex items-center gap-1 p-2 rounded hover:bg-rose-50 text-rose-700 shrink-0"
-      >
-        <LogOut className="w-5 h-5" />
-        <span className="hidden sm:inline text-sm">로그아웃</span>
-      </button>
+
+        {/* Module Add button */}
+        {addBtnLabel && onOpenCreateModal && (
+          <button
+            onClick={onOpenCreateModal}
+            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold bg-indigo-600 text-white hover:bg-indigo-700 shadow-2xs transition"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>{addBtnLabel}</span>
+          </button>
+        )}
+
+        {/* Logout button */}
+        <button
+          onClick={onLogout}
+          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-medium text-rose-600 hover:bg-rose-50 border border-rose-200 transition"
+          title="로그아웃"
+        >
+          <LogOut className="w-3.5 h-3.5" />
+          <span className="hidden sm:inline">로그아웃</span>
+        </button>
+      </div>
     </header>
   );
 }
