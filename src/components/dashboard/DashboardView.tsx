@@ -26,7 +26,10 @@ import {
   CheckCircle2,
   Layers,
   Calendar,
+  BarChart3,
+  CalendarDays,
 } from 'lucide-react';
+import CompanyScheduleCalendar from './CompanyScheduleCalendar';
 
 interface Props {
   currentUser: AuthUser;
@@ -50,12 +53,14 @@ export function normalizeProjectStatus(status: string): '발주예상' | '제안
 }
 
 export default function DashboardView({
+  currentUser,
   employees,
   projects,
   deals,
   approvals,
   onNavigateTab,
 }: Props) {
+  const [dashboardTab, setDashboardTab] = useState<'overview' | 'calendar'>('overview');
   const currentYear = new Date().getFullYear();
 
   // 1. 기준정보 관리에서 연동되는 연도별 전사 사업 목표매출 (기본값: 2026년 25억원 = 250,000만원)
@@ -186,8 +191,55 @@ export default function DashboardView({
 
   return (
     <div className="space-y-4">
-      {/* 1. 상단 통합 요약 카드: 4대 핵심 KPI + 연간 목표 달성 프로그레스 바 */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-2xs">
+      {/* 대시보드 메인 탭: 사업 현황 대시보드 vs 주요 일정 캘린더 */}
+      <div className="bg-white p-2.5 rounded-2xl border border-slate-200 shadow-2xs flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl text-xs font-bold">
+          <button
+            onClick={() => setDashboardTab('overview')}
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-lg transition ${
+              dashboardTab === 'overview'
+                ? 'bg-white text-indigo-700 shadow-xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <BarChart3 className="w-4 h-4" />
+            <span>사업 현황 종합 대시보드</span>
+          </button>
+          <button
+            onClick={() => setDashboardTab('calendar')}
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-lg transition ${
+              dashboardTab === 'calendar'
+                ? 'bg-white text-indigo-700 shadow-xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <CalendarDays className="w-4 h-4" />
+            <span>주요 일정 캘린더 (달력)</span>
+          </button>
+        </div>
+
+        <div className="text-xs text-slate-500 font-medium px-2 hidden sm:block">
+          {dashboardTab === 'overview'
+            ? `${currentYear}년도 전사 사업목표 및 프로젝트 파이프라인`
+            : '전사 창립기념일 · 임직원 휴가/근태 · 프로젝트 마일스톤'}
+        </div>
+      </div>
+
+      {/* 탭 1: 주요 일정 캘린더 */}
+      {dashboardTab === 'calendar' && (
+        <CompanyScheduleCalendar
+          currentUser={currentUser}
+          employees={employees}
+          projects={projects}
+          approvals={approvals}
+        />
+      )}
+
+      {/* 탭 2: 기존 사업 현황 종합 대시보드 */}
+      {dashboardTab === 'overview' && (
+        <>
+          {/* 1. 상단 통합 요약 카드: 4대 핵심 KPI + 연간 목표 달성 프로그레스 바 */}
+          <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-2xs">
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           {/* 1) 올해 사업목표 */}
           <div
@@ -538,6 +590,8 @@ export default function DashboardView({
           })}
         </div>
       </div>
+        </>
+      )}
     </div>
   );
 }
