@@ -128,6 +128,13 @@ export default function ProjectsView({
     return map;
   }, [projects]);
 
+  // PM 직군 후보 목록: 재직 중인 PM 이상 권한자만 선별
+  const pmCandidates = useMemo(() => {
+    return employees
+      .filter((emp) => (isPmOrAbove(emp) && emp.status === '재직') || emp.id === formData.pm_id)
+      .sort((a, b) => a.name.localeCompare(b.name, 'ko'));
+  }, [employees, formData.pm_id]);
+
   const openCreateModal = () => {
     setEditingPrj(null);
     const startStr = new Date().toLocaleDateString('en-CA');
@@ -896,8 +903,8 @@ export default function ProjectsView({
       {/* 프로젝트 생성/수정 상세 모달 */}
       {modalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 max-h-[92vh] overflow-y-auto">
-            <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
+          <div className="bg-white rounded-2xl max-w-4xl w-full p-6 shadow-2xl border border-slate-200 max-h-[92vh] flex flex-col">
+            <div className="shrink-0 flex items-center justify-between mb-3 pb-3 border-b border-slate-100">
               <h3 className="text-base font-bold text-slate-900">
                 {editingPrj ? '프로젝트 상세 정보 및 수정' : '신규 사업·프로젝트 등록'}
               </h3>
@@ -917,53 +924,56 @@ export default function ProjectsView({
               )}
             </div>
 
-            <form onSubmit={handleSave} className="space-y-4 text-xs">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">프로젝트 코드</label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.code || ''}
-                    onChange={(e) => setFormData({ ...formData, code: e.target.value })}
-                    className="w-full p-2.5 rounded-xl border border-slate-300 font-mono font-bold"
-                  />
+            <form onSubmit={handleSave} className="flex-1 flex flex-col min-h-0 text-xs">
+              <div className="flex-1 overflow-y-auto pr-2 space-y-4">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-1">프로젝트 코드</label>
+                    <input
+                      type="text"
+                      required
+                      value={formData.code || ''}
+                      onChange={(e) => setFormData({ ...formData, code: e.target.value })}
+                      className="w-full p-2.5 rounded-xl border border-slate-300 font-mono font-bold"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-1">주관 부서 (사업본부 전담)</label>
+                    <input
+                      type="text"
+                      disabled
+                      value="사업본부"
+                      className="w-full p-2.5 rounded-xl border border-slate-200 font-bold bg-slate-100 text-slate-600 cursor-not-allowed"
+                    />
+                  </div>
                 </div>
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">주관 부서 (사업본부 전담)</label>
-                  <input
-                    type="text"
-                    disabled
-                    value="사업본부"
-                    className="w-full p-2.5 rounded-xl border border-slate-200 font-bold bg-slate-100 text-slate-600 cursor-not-allowed"
-                  />
+
+                {/* 과제명 및 발주기관 (2열 배치로 컴팩트하고 시원하게 표시) */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-1">프로젝트 과제명 (사업명)</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="예: LX 공간정보 플랫폼 유지관리 및 기능고도화 사업"
+                      value={formData.name || ''}
+                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                      className="w-full p-2.5 rounded-xl border border-slate-300 font-bold text-slate-900"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-1">
+                      발주기관 (고객사) <span className="text-[11px] text-indigo-600 font-normal">(계약품의서 연동)</span>
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="예: 한국국토정보공사, 농촌진흥청, 충청북도청"
+                      value={formData.client_name || ''}
+                      onChange={(e) => setFormData({ ...formData, client_name: e.target.value })}
+                      className="w-full p-2.5 rounded-xl border border-slate-300 font-bold text-slate-800"
+                    />
+                  </div>
                 </div>
-              </div>
-
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">프로젝트 과제명 (사업명)</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="예: LX 공간정보 플랫폼 유지관리 및 기능고도화 사업"
-                  value={formData.name || ''}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="w-full p-2.5 rounded-xl border border-slate-300 font-bold text-slate-900"
-                />
-              </div>
-
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">
-                  발주기관 (고객사) <span className="text-[11px] text-indigo-600 font-normal">(계약품의서 연동)</span>
-                </label>
-                <input
-                  type="text"
-                  placeholder="예: 한국국토정보공사, 농촌진흥청, 충청북도청"
-                  value={formData.client_name || ''}
-                  onChange={(e) => setFormData({ ...formData, client_name: e.target.value })}
-                  className="w-full p-2.5 rounded-xl border border-slate-300 font-bold text-slate-800"
-                />
-              </div>
 
               {/* 사업관리 라이프사이클 4단계 선택 */}
               <div className="grid grid-cols-2 gap-3">
@@ -1118,15 +1128,15 @@ export default function ProjectsView({
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block font-bold text-slate-700 mb-1">
-                    총괄 PM <span className="text-[11px] text-indigo-600 font-normal">(DB 직원 선택)</span>
+                    총괄 PM <span className="text-[11px] text-indigo-600 font-normal">(PM 직군 선택)</span>
                   </label>
                   <select
                     value={formData.pm_id || ''}
                     onChange={(e) => { const emp = employees.find(x => x.id === Number(e.target.value)); setFormData({ ...formData, pm_id: emp?.id, pm_name: emp?.name || '' }); }}
                     className="w-full p-2.5 rounded-xl border border-slate-300 font-bold text-slate-800 bg-white"
                   >
-                    <option value="">PM 선택</option>
-                    {employees.map((emp) => (
+                    <option value="">PM 선택 (PM 직군 전용)</option>
+                    {pmCandidates.map((emp) => (
                       <option key={emp.id} value={emp.id}>
                         {emp.name} {emp.position} ({emp.department})
                       </option>
@@ -1289,27 +1299,29 @@ export default function ProjectsView({
                 </div>
               </div>
 
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">과제 세부 설명</label>
-                <textarea
-                  rows={2}
-                  value={formData.description || ''}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  className="w-full p-2.5 rounded-xl border border-slate-300"
-                />
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">과제 세부 설명</label>
+                  <textarea
+                    rows={2}
+                    value={formData.description || ''}
+                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                    className="w-full p-2.5 rounded-xl border border-slate-300"
+                  />
+                </div>
               </div>
 
-              <div className="flex justify-end gap-2 pt-3 border-t">
+              {/* 하단 고정 푸터: 저장/취소 버튼이 항상 보이도록 하단 고정 */}
+              <div className="shrink-0 flex justify-end gap-2 pt-3 mt-2 border-t border-slate-200 bg-white">
                 <button
                   type="button"
                   onClick={() => setModalOpen(false)}
-                  className="px-4 py-2 rounded-xl text-slate-600 font-semibold hover:bg-slate-100"
+                  className="px-5 py-2 rounded-xl text-slate-600 font-semibold hover:bg-slate-100 transition"
                 >
                   취소
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold"
+                  className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold transition shadow-sm"
                 >
                   저장
                 </button>
