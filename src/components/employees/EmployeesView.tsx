@@ -178,8 +178,6 @@ export default function EmployeesView({
   // 정렬 상태 (기본 정렬: 직급 서열 및 입사일)
   const [sortBy, setSortBy] = useState<'emp_no' | 'name' | 'position' | 'hire_date'>('position');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
-  // 사업본부 프로젝트 투입 인원 기본 목록 제외 토글 (기본값: false - 투입 인원 제외)
-  const [includeAssignedBizInList, setIncludeAssignedBizInList] = useState(false);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editingEmp, setEditingEmp] = useState<Employee | null>(null);
@@ -307,24 +305,7 @@ export default function EmployeesView({
   // 필터링 및 정렬
   const filteredEmployees = useMemo(() => {
     const list = employees.filter((emp) => {
-      const isBiz =
-        cleanDeptName(emp.department) === '사업본부' ||
-        emp.department_code === 'DEPT_BIZ';
-
       const avail = getEmployeeAvailability(emp);
-      const isAssigned = avail.projects.length > 0;
-
-      // 사업본부에서 프로젝트에 포함되어 있으면 기본 목록에서는 제거
-      // (단, 사용자가 '투입중' 탭을 선택했거나 검색창에 입력했거나 포함 토글을 켠 경우는 표시)
-      if (
-        isBiz &&
-        isAssigned &&
-        availabilityFilter === '전체' &&
-        !searchQuery.trim() &&
-        !includeAssignedBizInList
-      ) {
-        return false;
-      }
 
       const matchDept =
         deptFilter === '전체' ||
@@ -387,7 +368,6 @@ export default function EmployeesView({
     searchQuery,
     sortBy,
     sortOrder,
-    includeAssignedBizInList,
     assignedProjectsMap,
   ]);
 
@@ -688,23 +668,10 @@ export default function EmployeesView({
             ))}
           </select>
 
-          {/* 사업본부 투입자 포함/제외 토글 */}
-          <button
-            onClick={() => setIncludeAssignedBizInList(!includeAssignedBizInList)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition ${
-              includeAssignedBizInList
-                ? 'bg-amber-50 text-amber-800 border-amber-300'
-                : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'
-            }`}
-            title="사업본부 소속 중 프로젝트에 투입된 인원을 목록에 포함할지 여부를 토글합니다."
-          >
-            <span>{includeAssignedBizInList ? '투입자 포함 보기' : '사업본부 투입자 제외됨'}</span>
-          </button>
-
           {/* 조직도 토글 버튼 */}
           <button
             onClick={() => setShowOrgTree(!showOrgTree)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition ${
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition cursor-pointer ${
               showOrgTree
                 ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
                 : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'
@@ -806,16 +773,8 @@ export default function EmployeesView({
                       })
                   : [];
 
-                // 프로젝트에 투입/배정된 직원 명단 집합 (프로젝트 하위에만 노출하고 사업본부 직속에서는 제외)
-                const assignedEmpNames = new Set<number>();
-                deptProjects.forEach((prj) => {
-                  getProjectMemberIds(prj).forEach((name) => assignedEmpNames.add(name));
-                });
-
-                // 사업본부(DEPT_BIZ)의 경우 프로젝트 투입 인원은 프로젝트 하위에서만 조회되도록 직속 목록에서 필터링
-                const directDeptEmps = isBizDept
-                  ? deptEmps.filter((emp) => !assignedEmpNames.has(emp.id))
-                  : deptEmps;
+                // 부서 소속 전체 직원 (투입자 제외 없이 전원 포함)
+                const directDeptEmps = deptEmps;
 
                 // 사업본부 정렬은 직급, 입사일 순으로 정렬
                 const sortedDirectDeptEmps = [...directDeptEmps].sort(
@@ -859,8 +818,8 @@ export default function EmployeesView({
 
                     {/* 부서 하위 트리 가지 */}
                     {isExpanded && (
-                      <div className="ml-2 pl-3 border-l border-slate-300 space-y-1 py-0.5">
-                        {/* 1) 부서 소속 직원 목록 (직급 및 입사일 순 정렬 + 연락처/이메일 표시) */}
+                      <div className="ml-2 pl-3 border-l border-slate-300 space-y-0.5 py-0.5">
+                        {/* 1) 부서 소속 직원 목록 (이름과 직함만 표시 + 클릭 시 우측 조회) */}
                         {sortedDirectDeptEmps.map((emp) => {
                           const isEmpActive = searchQuery === emp.name;
                           return (
@@ -872,54 +831,32 @@ export default function EmployeesView({
                                 setCurrentPage(1);
                               }}
                               onDoubleClick={() => canEdit && openEditModal(emp)}
-                              className={`relative flex flex-col py-1 px-1.5 rounded cursor-pointer transition border border-transparent before:absolute before:-left-3 before:top-3 before:w-3 before:border-t before:border-slate-300 ${
+                              className={`relative flex items-center justify-between py-1 px-1.5 rounded cursor-pointer transition border border-transparent before:absolute before:-left-3 before:top-3 before:w-3 before:border-t before:border-slate-300 ${
                                 isEmpActive
                                   ? 'bg-indigo-50 border-indigo-200 text-indigo-900 font-bold'
                                   : 'hover:bg-slate-50 text-slate-700'
                               }`}
-                              title={canEdit ? '클릭 시 검색 / 더블클릭 시 정보 수정' : '클릭 시 상세 검색'}
+                              title={canEdit ? '클릭 시 우측 조회 / 더블클릭 시 정보 수정' : '클릭 시 우측 조회'}
                             >
-                              <div className="flex items-center justify-between gap-1">
-                                <div className="flex items-center gap-1.5 truncate">
-                                  <User className="w-3.5 h-3.5 text-slate-400 shrink-0 fill-slate-200" />
-                                  <span className="text-[12px] font-semibold truncate">
-                                    {emp.name} {emp.position}
-                                  </span>
-                                </div>
-                                {canEdit && (
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      openEditModal(emp);
-                                    }}
-                                    className="text-slate-400 hover:text-indigo-600 p-0.5 shrink-0"
-                                    title="직원 정보 수정"
-                                  >
-                                    <Edit3 className="w-3 h-3" />
-                                  </button>
-                                )}
+                              <div className="flex items-center gap-1.5 truncate">
+                                <User className="w-3.5 h-3.5 text-slate-400 shrink-0 fill-slate-200" />
+                                <span className="text-[12px] font-medium text-slate-800 truncate">
+                                  {emp.name} <span className="text-slate-500 font-normal">{emp.position}</span>
+                                </span>
                               </div>
-                              {/* 연락처 및 이메일 표시 */}
-                              <div className="mt-0.5 pl-5 flex flex-col gap-0.5 text-[10.5px] text-slate-500 font-mono">
-                                {emp.phone && (
-                                  <span className="flex items-center gap-1 truncate text-slate-600" title={emp.phone}>
-                                    <Phone className="w-2.5 h-2.5 text-slate-400 shrink-0" />
-                                    {emp.phone}
-                                  </span>
-                                )}
-                                {emp.email && (
-                                  <a
-                                    href={`mailto:${emp.email}`}
-                                    onClick={(e) => e.stopPropagation()}
-                                    className="flex items-center gap-1 truncate text-slate-500 hover:text-indigo-600 hover:underline"
-                                    title={emp.email}
-                                  >
-                                    <Mail className="w-2.5 h-2.5 text-slate-400 shrink-0" />
-                                    <span className="truncate">{emp.email}</span>
-                                  </a>
-                                )}
-                              </div>
+                              {canEdit && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    openEditModal(emp);
+                                  }}
+                                  className="text-slate-400 hover:text-indigo-600 p-0.5 shrink-0"
+                                  title="직원 정보 수정"
+                                >
+                                  <Edit3 className="w-3 h-3" />
+                                </button>
+                              )}
                             </div>
                           );
                         })}
@@ -1077,53 +1014,32 @@ export default function EmployeesView({
                                           onDoubleClick={() => {
                                             if (canEdit) openEditModal(memberEmp);
                                           }}
-                                          className={`relative flex flex-col py-1 px-1.5 rounded cursor-pointer transition border border-transparent before:absolute before:-left-3 before:top-3 before:w-3 before:border-t before:border-slate-300 ${
+                                          className={`relative flex items-center justify-between py-1 px-1.5 rounded cursor-pointer transition border border-transparent before:absolute before:-left-3 before:top-3 before:w-3 before:border-t before:border-slate-300 ${
                                             isMemberActive
                                               ? 'bg-indigo-50 border-indigo-200 text-indigo-900 font-bold'
                                               : 'hover:bg-slate-50 text-slate-700'
                                           }`}
-                                          title={canEdit ? '더블클릭 시 정보 수정' : '클릭 시 검색'}
+                                          title={canEdit ? '클릭 시 우측 조회 / 더블클릭 시 정보 수정' : '클릭 시 우측 조회'}
                                         >
-                                          <div className="flex items-center justify-between gap-1">
-                                            <div className="flex items-center gap-1.5 truncate">
-                                              <User className="w-3.5 h-3.5 text-slate-400 shrink-0 fill-slate-200" />
-                                              <span className="text-[12px] truncate">
-                                                {memberName} {memberPos}
-                                              </span>
-                                            </div>
-                                            {canEdit && (
-                                              <button
-                                                type="button"
-                                                onClick={(e) => {
-                                                  e.stopPropagation();
-                                                  openEditModal(memberEmp);
-                                                }}
-                                                className="text-slate-400 hover:text-indigo-600 p-0.5 shrink-0"
-                                                title="정보 수정"
-                                              >
-                                                <Edit3 className="w-3 h-3" />
-                                              </button>
-                                            )}
+                                          <div className="flex items-center gap-1.5 truncate">
+                                            <User className="w-3.5 h-3.5 text-slate-400 shrink-0 fill-slate-200" />
+                                            <span className="text-[12px] font-medium text-slate-800 truncate">
+                                              {memberName} <span className="text-slate-500 font-normal">{memberPos}</span>
+                                            </span>
                                           </div>
-                                          <div className="mt-0.5 pl-5 flex flex-col gap-0.5 text-[10.5px] text-slate-500 font-mono">
-                                            {memberEmp.phone && (
-                                              <span className="flex items-center gap-1 truncate text-slate-600" title={memberEmp.phone}>
-                                                <Phone className="w-2.5 h-2.5 text-slate-400 shrink-0" />
-                                                {memberEmp.phone}
-                                              </span>
-                                            )}
-                                            {memberEmp.email && (
-                                              <a
-                                                href={`mailto:${memberEmp.email}`}
-                                                onClick={(e) => e.stopPropagation()}
-                                                className="flex items-center gap-1 truncate text-slate-500 hover:text-indigo-600 hover:underline"
-                                                title={memberEmp.email}
-                                              >
-                                                <Mail className="w-2.5 h-2.5 text-slate-400 shrink-0" />
-                                                <span className="truncate">{memberEmp.email}</span>
-                                              </a>
-                                            )}
-                                          </div>
+                                          {canEdit && (
+                                            <button
+                                              type="button"
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                openEditModal(memberEmp);
+                                              }}
+                                              className="text-slate-400 hover:text-indigo-600 p-0.5 shrink-0"
+                                              title="정보 수정"
+                                            >
+                                              <Edit3 className="w-3 h-3" />
+                                            </button>
+                                          )}
                                         </div>
                                       );
                                     })}
@@ -1159,11 +1075,6 @@ export default function EmployeesView({
               )}
               {deptFilter !== '전체' && (
                 <span className="text-slate-700 font-semibold">[{deptFilter}]</span>
-              )}
-              {!includeAssignedBizInList && availabilityFilter === '전체' && (
-                <span className="text-[11px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
-                  사업본부 프로젝트 투입자 제외됨
-                </span>
               )}
             </div>
             <div className="text-[11px] text-slate-400">
