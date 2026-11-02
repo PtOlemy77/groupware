@@ -166,9 +166,52 @@ export async function saveMaster(key: string, value: unknown) {
   ];
   window.dispatchEvent(new Event('target-revenues-updated'));
 }
-export function unitPrice(position: string, year: number): number {
-  const data = JSON.parse(readMaster('unit_prices') || '{}');
-  return Number(
-    data[year]?.find((p: any) => p.position === position)?.monthlyPrice ?? 0,
-  );
+const DEFAULT_STANDARD_PRICES: Record<string, number> = {
+  사장: 15450,
+  대표이사: 15450,
+  이사: 15450,
+  부장: 12875,
+  차장: 10400,
+  과장: 9100,
+  대리: 7400,
+  담당: 6300,
+  사원: 6300,
+  특급: 12875,
+  고급: 10400,
+  중급: 7400,
+  초급: 6300,
+};
+
+export function unitPrice(position: string, year?: number): number {
+  const normPos = (position || '').trim();
+  const searchPos = normPos === '사장' || normPos === '대표이사' ? '이사' : normPos;
+  try {
+    const raw = readMaster('unit_prices');
+    if (raw) {
+      const data = JSON.parse(raw);
+      const targetYear = year && !isNaN(year) ? year : new Date().getFullYear();
+      let list = data[targetYear] || data[String(targetYear)];
+      if (!list || !Array.isArray(list)) {
+        const years = Object.keys(data).map(Number).filter(Boolean).sort((a, b) => b - a);
+        if (years.length > 0) {
+          list = data[years[0]];
+        }
+      }
+      if (Array.isArray(list)) {
+        const found = list.find(
+          (p: any) =>
+            p.position === normPos ||
+            p.position === searchPos ||
+            p.grade === normPos
+        );
+        if (found && Number(found.monthlyPrice) > 0) {
+          return Number(found.monthlyPrice);
+        }
+      }
+    }
+  } catch (e) {
+    // fallback
+  }
+
+  return DEFAULT_STANDARD_PRICES[normPos] || DEFAULT_STANDARD_PRICES[searchPos] || 6300;
 }

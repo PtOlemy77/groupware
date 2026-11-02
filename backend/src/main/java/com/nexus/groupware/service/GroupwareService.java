@@ -131,7 +131,7 @@ public class GroupwareService {
 
   private boolean projectEdit(Project p, Employee actor) {
     return AuthService.executive(actor)
-        || (AuthService.pm(actor) && Objects.equals(p.getPmId(), actor.getId()));
+        || (AuthService.pm(actor) && (p.getPmId() == null || Objects.equals(p.getPmId(), actor.getId())));
   }
 
   private Map<String, Object> map(Object o) {
@@ -781,16 +781,27 @@ public class GroupwareService {
                     : input.containsKey("status") ? Objects.toString(input.get("status"), p.getStatus()) : p.getStatusCode());
         p.setStatusCode(pstage.getCode());
         p.setStatus(pstage.getLabel());
-        Employee pm =
-            input.containsKey("pm_id") && p.getPmId() != null
-                ? employee(p.getPmId())
-                : input.containsKey("pm_name")
-                    ? employeeByName(p.getPmName())
-                    : p.getPmId() != null ? employee(p.getPmId()) : actor;
-        permit(AuthService.executive(actor) || pm.getId().equals(actor.getId()));
-        require(AuthService.pm(pm) && "재직".equals(pm.getStatus()), "재직 중인 PM 권한자를 선택하세요.");
-        p.setPmId(pm.getId());
-        p.setPmName(pm.getName());
+        Employee pm = null;
+        if (input.containsKey("pm_id")) {
+          Long pid = id(input.get("pm_id"));
+          if (pid != null) pm = employee(pid);
+        } else if (p.getPmId() != null) {
+          pm = employee(p.getPmId());
+        } else if (input.containsKey("pm_name") && p.getPmName() != null && !p.getPmName().isBlank()) {
+          try {
+            pm = employeeByName(p.getPmName().trim());
+          } catch (Exception ignored) {}
+        }
+        if (pm != null) {
+          permit(AuthService.executive(actor) || pm.getId().equals(actor.getId()) || AuthService.pm(actor));
+          require(AuthService.pm(pm) && "재직".equals(pm.getStatus()), "재직 중인 PM 권한자를 선택하세요.");
+          p.setPmId(pm.getId());
+          p.setPmName(pm.getName());
+        } else {
+          permit(AuthService.executive(actor) || AuthService.pm(actor));
+          p.setPmId(null);
+          p.setPmName("");
+        }
         Set<Long> members = new HashSet<>(p.getMemberIds());
         if (input.containsKey("members") && !input.containsKey("member_ids")) {
           members.clear();

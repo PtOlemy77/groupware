@@ -1,6 +1,6 @@
 'use client';
 
-import { apiFetch } from '@/lib/api';
+import { apiFetch, unitPrice as configuredPrice } from '@/lib/api';
 import { useModal } from '@/contexts/ModalContext';
 
 import React, { useState } from 'react';
@@ -9,7 +9,7 @@ import {
   isPmOrAbove,
   isExecutiveOrAbove,
   AuthUser,
-  Approval,
+Approval,
   Employee,
   Project,
   BusinessDeal,
@@ -59,7 +59,47 @@ export default function ContractWorkstationModal({
   onSaved,
   isNew = false,
 }: Props) {
-  const [doc, setDoc] = useState<FullContractDocument>(initialDoc);
+  const [doc, setDoc] = useState<FullContractDocument>(() => {
+    const copy = { ...initialDoc };
+    const targetYear = new Date(copy.startDate || Date.now()).getFullYear();
+    if (copy.manpowerPlans && copy.manpowerPlans.length > 0) {
+      let changed = false;
+      const patchedPlans = copy.manpowerPlans.map((p) => {
+        if (!p.unitPrice || p.unitPrice <= 0) {
+          const price = configuredPrice(p.position, targetYear);
+          if (price > 0) {
+            changed = true;
+            return {
+              ...p,
+              unitPrice: price,
+              laborCost: Math.round(p.totalMM * price),
+            };
+          }
+        }
+        return p;
+      });
+      if (changed) {
+        copy.manpowerPlans = patchedPlans;
+        copy.laborCostTotal = patchedPlans.reduce((s, it) => s + it.laborCost, 0);
+        copy.totalBudget =
+          copy.productCostTotal +
+          copy.laborCostTotal +
+          copy.outsourcingTotal +
+          copy.directExpenseTotal +
+          copy.estimatedAsTotal +
+          copy.proposalCostTotal;
+        copy.salesProfit = copy.supplyAmount - copy.totalBudget;
+        copy.contingencyCost =
+          Math.round(copy.totalBudget * (copy.contingencyRate / 100) * 10) / 10;
+        copy.projectNetProfit = copy.salesProfit - copy.contingencyCost;
+        copy.profitRate =
+          copy.supplyAmount > 0
+            ? Math.round((copy.projectNetProfit / copy.supplyAmount) * 10000) / 100
+            : 0;
+      }
+    }
+    return copy;
+  });
   const [activeSheet, setActiveSheet] = useState<SheetKey>('summary');
   const [saving, setSaving] = useState(false);
   const [syncWithProject, setSyncWithProject] = useState(true);

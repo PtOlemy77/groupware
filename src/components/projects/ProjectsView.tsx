@@ -1139,14 +1139,22 @@ export default function ProjectsView({
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block font-bold text-slate-700 mb-1">
-                    총괄 PM <span className="text-[11px] text-indigo-600 font-normal">(PM 직군 선택)</span>
+                    총괄 PM <span className="text-[11px] text-slate-500 font-normal">(선택 사항)</span>
                   </label>
                   <select
                     value={formData.pm_id || ''}
-                    onChange={(e) => { const emp = employees.find(x => x.id === Number(e.target.value)); setFormData({ ...formData, pm_id: emp?.id, pm_name: emp?.name || '' }); }}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (!val) {
+                        setFormData({ ...formData, pm_id: undefined, pm_name: '' });
+                      } else {
+                        const emp = employees.find((x) => x.id === Number(val));
+                        setFormData({ ...formData, pm_id: emp?.id, pm_name: emp?.name || '' });
+                      }
+                    }}
                     className="w-full p-2.5 rounded-xl border border-slate-300 font-bold text-slate-800 bg-white"
                   >
-                    <option value="">PM 선택 (PM 직군 전용)</option>
+                    <option value="">미배정 (선택 안 함)</option>
                     {pmCandidates.map((emp) => (
                       <option key={emp.id} value={emp.id}>
                         {emp.name} {emp.position} ({emp.department})
