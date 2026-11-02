@@ -1,6 +1,14 @@
 'use client';
 
-import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react';
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useCallback,
+  useRef,
+  useEffect,
+  ReactNode,
+} from 'react';
 import {
   CheckCircle2,
   AlertTriangle,
@@ -19,6 +27,8 @@ export interface ModalOptions {
   confirmText?: string;
   cancelText?: string;
   isDanger?: boolean;
+  autoClose?: boolean; // 자동 닫힘 여부 (기본값: alert는 true, confirm은 false)
+  autoCloseDuration?: number; // 자동 닫힘 시간(ms, 기본값: 2000ms)
 }
 
 interface ModalState extends ModalOptions {
@@ -27,8 +37,14 @@ interface ModalState extends ModalOptions {
 }
 
 export interface ModalContextType {
-  showAlert: (message: string, options?: Partial<Omit<ModalOptions, 'message'>>) => Promise<void>;
-  showConfirm: (message: string, options?: Partial<Omit<ModalOptions, 'message'>>) => Promise<boolean>;
+  showAlert: (
+    message: string,
+    options?: Partial<Omit<ModalOptions, 'message'>>
+  ) => Promise<void>;
+  showConfirm: (
+    message: string,
+    options?: Partial<Omit<ModalOptions, 'message'>>
+  ) => Promise<boolean>;
 }
 
 const ModalContext = createContext<ModalContextType | undefined>(undefined);
@@ -59,27 +75,55 @@ export function ModalProvider({ children }: { children: ReactNode }) {
     type: 'info',
   });
 
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearTimer = useCallback(() => {
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+  }, []);
+
+  const closeModal = useCallback(
+    (result?: any) => {
+      clearTimer();
+      setModal((prev) => {
+        if (prev.resolve) {
+          prev.resolve(result);
+        }
+        return { ...prev, isOpen: false, resolve: undefined };
+      });
+    },
+    [clearTimer]
+  );
+
   const showAlert = useCallback(
     (message: string, options?: Partial<Omit<ModalOptions, 'message'>>) => {
+      clearTimer();
       return new Promise<void>((resolve) => {
+        const autoClose = options?.autoClose ?? true; // alert는 기본 2초 자동 닫힘
+        const autoCloseDuration = options?.autoCloseDuration ?? 2000;
+
         setModal({
           isOpen: true,
           message,
           title: options?.title,
           type: options?.type || 'info',
           confirmText: options?.confirmText || '확인',
+          autoClose,
+          autoCloseDuration,
           resolve: () => {
-            setModal((prev) => ({ ...prev, isOpen: false }));
             resolve();
           },
         });
       });
     },
-    []
+    [clearTimer]
   );
 
   const showConfirm = useCallback(
     (message: string, options?: Partial<Omit<ModalOptions, 'message'>>) => {
+      clearTimer();
       return new Promise<boolean>((resolve) => {
         setModal({
           isOpen: true,
@@ -89,28 +133,40 @@ export function ModalProvider({ children }: { children: ReactNode }) {
           confirmText: options?.confirmText || '확인',
           cancelText: options?.cancelText || '취소',
           isDanger: options?.isDanger ?? false,
+          autoClose: options?.autoClose ?? false, // confirm은 기본 수동 선택 유지
+          autoCloseDuration: options?.autoCloseDuration ?? 0,
           resolve: (result: boolean) => {
-            setModal((prev) => ({ ...prev, isOpen: false }));
             resolve(result);
           },
         });
       });
     },
-    []
+    [clearTimer]
   );
 
+  // 자동 닫힘 타이머 처리
+  useEffect(() => {
+    if (modal.isOpen && modal.autoClose && (modal.autoCloseDuration || 0) > 0) {
+      clearTimer();
+      timerRef.current = setTimeout(() => {
+        closeModal(true);
+      }, modal.autoCloseDuration);
+    }
+    return () => {
+      clearTimer();
+    };
+  }, [modal.isOpen, modal.autoClose, modal.autoCloseDuration, closeModal, clearTimer]);
+
   // 브리지 등록
-  React.useEffect(() => {
+  useEffect(() => {
     globalModalBridge = { showAlert, showConfirm };
-    // window.alert 및 window.confirm 오버라이드로 서드파티나 기존 호출 자동 낚아채기
     const originalAlert = window.alert;
     const originalConfirm = window.confirm;
     window.alert = (msg) => {
-      showAlert(String(msg));
+      void showAlert(String(msg));
     };
     window.confirm = (msg) => {
-      // confirm의 동기적 반환 특성상 기본 true 처리 및 비동기 모달 표시
-      showConfirm(String(msg));
+      void showConfirm(String(msg));
       return originalConfirm(msg);
     };
 
@@ -122,15 +178,11 @@ export function ModalProvider({ children }: { children: ReactNode }) {
   }, [showAlert, showConfirm]);
 
   const handleConfirm = () => {
-    if (modal.resolve) {
-      modal.resolve(true);
-    }
+    closeModal(true);
   };
 
   const handleCancel = () => {
-    if (modal.resolve) {
-      modal.resolve(false);
-    }
+    closeModal(false);
   };
 
   const getIcon = () => {
@@ -189,11 +241,27 @@ export function ModalProvider({ children }: { children: ReactNode }) {
 
       {/* Global Dialog Modal */}
       {modal.isOpen && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-in fade-in duration-200">
+        <div
+          className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-in fade-in duration-150"
+          onClick={() => {
+            // 알림 모달은 백드롭 클릭 시에도 편안하게 닫힘
+            if (modal.type !== 'confirm') closeModal(true);
+          }}
+        >
           <div
-            className="w-full max-w-sm bg-white rounded-3xl shadow-2xl border border-slate-100 overflow-hidden transform transition-all animate-in zoom-in-95 duration-200"
+            className="w-full max-w-sm bg-white rounded-3xl shadow-2xl border border-slate-100 overflow-hidden transform transition-all animate-in zoom-in-95 duration-150 relative"
             role="dialog"
             aria-modal="true"
+            onClick={(e) => e.stopPropagation()}
+            onMouseEnter={clearTimer}
+            onMouseLeave={() => {
+              if (modal.autoClose && (modal.autoCloseDuration || 0) > 0) {
+                clearTimer();
+                timerRef.current = setTimeout(() => {
+                  closeModal(true);
+                }, 1000); // 마우스 나간 후 1초 뒤 종료
+              }
+            }}
           >
             <div className="p-6">
               <div className="flex items-start gap-4">
@@ -202,11 +270,11 @@ export function ModalProvider({ children }: { children: ReactNode }) {
                 >
                   {getIcon()}
                 </div>
-                <div className="flex-1 pt-1">
+                <div className="flex-1 pt-1 min-w-0">
                   <h3 className="text-base font-bold text-slate-900 mb-1 leading-snug">
                     {getDefaultTitle()}
                   </h3>
-                  <p className="text-xs text-slate-600 font-medium leading-relaxed whitespace-pre-line">
+                  <p className="text-xs text-slate-600 font-medium leading-relaxed whitespace-pre-line break-words">
                     {modal.message}
                   </p>
                 </div>
@@ -214,32 +282,59 @@ export function ModalProvider({ children }: { children: ReactNode }) {
             </div>
 
             {/* Modal Actions */}
-            <div className="bg-slate-50 px-6 py-4 flex items-center justify-end gap-2 border-t border-slate-100">
-              {modal.type === 'confirm' && (
+            <div className="bg-slate-50 px-6 py-4 flex items-center justify-between gap-2 border-t border-slate-100">
+              <span className="text-[11px] font-medium text-slate-400">
+                {modal.autoClose && modal.type !== 'confirm'
+                  ? '2초 후 자동으로 닫힙니다'
+                  : ''}
+              </span>
+              <div className="flex items-center gap-2">
+                {modal.type === 'confirm' && (
+                  <button
+                    type="button"
+                    onClick={handleCancel}
+                    className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800 bg-white hover:bg-slate-100 border border-slate-200 rounded-xl transition cursor-pointer"
+                  >
+                    {modal.cancelText || '취소'}
+                  </button>
+                )}
                 <button
                   type="button"
-                  onClick={handleCancel}
-                  className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800 bg-white hover:bg-slate-100 border border-slate-200 rounded-xl transition"
+                  autoFocus
+                  onClick={handleConfirm}
+                  className={`px-5 py-2 text-xs font-bold text-white rounded-xl shadow-xs transition cursor-pointer ${
+                    modal.isDanger || modal.type === 'error'
+                      ? 'bg-rose-600 hover:bg-rose-700 focus:ring-4 focus:ring-rose-500/20'
+                      : 'bg-indigo-600 hover:bg-indigo-700 focus:ring-4 focus:ring-indigo-500/20'
+                  }`}
                 >
-                  {modal.cancelText || '취소'}
+                  {modal.confirmText || '확인'}
                 </button>
-              )}
-              <button
-                type="button"
-                autoFocus
-                onClick={handleConfirm}
-                className={`px-5 py-2 text-xs font-bold text-white rounded-xl shadow-xs transition ${
-                  modal.isDanger || modal.type === 'error'
-                    ? 'bg-rose-600 hover:bg-rose-700 focus:ring-4 focus:ring-rose-500/20'
-                    : 'bg-indigo-600 hover:bg-indigo-700 focus:ring-4 focus:ring-indigo-500/20'
-                }`}
-              >
-                {modal.confirmText || '확인'}
-              </button>
+              </div>
             </div>
+
+            {/* 2초 자동 카운트다운 애니메이션 바 */}
+            {modal.autoClose && (modal.autoCloseDuration || 0) > 0 && (
+              <div className="h-1 w-full bg-slate-100 overflow-hidden">
+                <div
+                  className="h-full bg-indigo-500 transition-all ease-linear"
+                  style={{
+                    animation: `modalCountdown ${modal.autoCloseDuration}ms linear forwards`,
+                  }}
+                />
+              </div>
+            )}
           </div>
         </div>
       )}
+
+      {/* Countdown animation keyframe */}
+      <style>{`
+        @keyframes modalCountdown {
+          from { width: 100%; }
+          to { width: 0%; }
+        }
+      `}</style>
     </ModalContext.Provider>
   );
 }
@@ -254,4 +349,3 @@ export function useModal() {
   }
   return context;
 }
-
