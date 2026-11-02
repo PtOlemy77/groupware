@@ -64,6 +64,19 @@ interface Props {
 export const PROJECT_STAGES = ['발주예상', '제안준비중', '프로젝트 수행', '완료'] as const;
 export type ProjectStage = typeof PROJECT_STAGES[number];
 
+// 수행기간 대비 현재 일자 기준 진행률 자동 산출
+export function calcPeriodProgress(startDate?: string, endDate?: string, status?: string): number {
+  if (status === '완료') return 100;
+  if (!startDate || !endDate) return 0;
+  const s = new Date(startDate).getTime();
+  const e = new Date(endDate).getTime();
+  if (isNaN(s) || isNaN(e) || s >= e) return 0;
+  const now = Date.now();
+  if (now <= s) return 0;
+  if (now >= e) return 100;
+  return Math.min(100, Math.max(0, Math.round(((now - s) / (e - s)) * 100)));
+}
+
 export default function ProjectsView({
   projects,
   currentUser,
@@ -216,12 +229,16 @@ export default function ProjectsView({
       (s) => s.code === formData.status_code || s.label === formData.status
     );
 
+    const resolvedStatus = stageObj?.label || formData.status || '프로젝트 수행';
+    const autoProgress = calcPeriodProgress(formData.start_date, formData.end_date, resolvedStatus);
+
     const finalData = {
       ...formData,
       department_code: 'DEPT_BIZ',
       department: '사업본부', // 프로젝트는 항상 사업본부 전담
       status_code: stageObj?.code || 'STAGE_EXEC',
-      status: stageObj?.label || formData.status || '프로젝트 수행',
+      status: resolvedStatus,
+      progress: autoProgress,
       budget: totalBudget,
       share_rate: shareRate,
       our_budget: ourBudget,
@@ -599,9 +616,9 @@ export default function ProjectsView({
             )}
           </div>
 
-          {/* 1) 그리드 카드 뷰 */}
+          {/* 1) 그리드 카드 뷰 (화면에 9개(3×3)가 시원하게 보이도록 컴팩트 최적화) */}
           {viewMode === 'grid' && (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
               {filteredProjects.map((prj) => {
                 const normStatus = normalizeProjectStatus(prj.status);
                 let breakdownObj: Record<string, number> = {};
@@ -611,6 +628,7 @@ export default function ProjectsView({
                   } catch (e) {}
                 }
                 const isMultiYear = Object.keys(breakdownObj).length > 1;
+                const periodProgress = calcPeriodProgress(prj.start_date, prj.end_date, normStatus);
 
                 const statusBadgeStyle =
                   normStatus === '발주예상'
@@ -624,99 +642,82 @@ export default function ProjectsView({
                 return (
                   <div
                     key={prj.id}
-                    className="bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs hover:shadow-md transition flex flex-col justify-between group"
+                    className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs hover:shadow-md transition flex flex-col justify-between group"
                   >
                     <div>
-                      {/* 카드 상단: 코드 + 다년도 배지 + 상태 배지 */}
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="font-mono text-xs font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded">
-                          {prj.code}
-                        </span>
-                        <div className="flex items-center gap-1.5">
+                      {/* 1. 발주기관 및 상태 뱃지 (프로젝트 코드는 제거) */}
+                      <div className="flex items-center justify-between gap-1.5 mb-2">
+                        <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-indigo-50 border border-indigo-100 text-xs font-bold text-indigo-900 truncate">
+                          <Building2 className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                          <span className="truncate">{prj.client_name || '발주기관 미지정'}</span>
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0">
                           {getProjectShareRate(prj) < 100 && (
-                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
+                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
                               컨소시엄 {getProjectShareRate(prj)}%
                             </span>
                           )}
                           {isMultiYear && (
-                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
+                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
                               다년도
                             </span>
                           )}
                           <span
-                            className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full border ${statusBadgeStyle}`}
+                            className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${statusBadgeStyle}`}
                           >
                             {normStatus}
                           </span>
                         </div>
                       </div>
 
-                      {/* 과제명 */}
-                      <h4 className="font-bold text-sm text-slate-900 mb-1 line-clamp-1 group-hover:text-indigo-600 transition">
+                      {/* 2. 프로젝트명 (사업명) */}
+                      <h4
+                        onClick={() => openEditModal(prj)}
+                        className="font-extrabold text-[15px] text-slate-900 mb-2 line-clamp-1 group-hover:text-indigo-600 cursor-pointer transition"
+                        title={prj.name}
+                      >
                         {prj.name}
                       </h4>
-                      {prj.client_name && (
-                        <div className="flex items-center gap-1 text-[11px] font-semibold text-slate-600 mb-2">
-                          <Building2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                          <span className="truncate">{prj.client_name}</span>
-                        </div>
-                      )}
-                      <p className="text-xs text-slate-500 line-clamp-2 mb-3">
-                        {prj.description || '공간정보 GIS 구축 및 고도화 사업'}
-                      </p>
 
-                      {/* 주요 속성 */}
-                      <div className="space-y-2 pt-2 border-t border-slate-100 text-xs">
-                        <div className="flex items-center justify-between text-slate-500">
-                          <span>주관부서 / PM</span>
-                          <span className="font-semibold text-slate-800">
-                            사업본부 ({prj.pm_name})
-                          </span>
+                      {/* 3. 총괄 PM 강조 박스 */}
+                      <div className="flex items-center justify-between py-1 px-2.5 rounded-xl bg-slate-50 border border-slate-100 mb-2.5 text-xs">
+                        <div className="flex items-center gap-1.5 font-bold text-slate-800">
+                          <User className="w-3.5 h-3.5 text-indigo-600" />
+                          <span>총괄 PM: <strong className="text-indigo-950 font-black">{prj.pm_name || '미배정'}</strong></span>
                         </div>
+                        <span className="text-[11px] text-slate-400 font-medium">사업본부</span>
+                      </div>
+
+                      {/* 4. 부가 속성 (예산, 수행기간, 기간 기준 진행율) */}
+                      <div className="space-y-1.5 pt-2 border-t border-slate-100 text-xs">
                         <div className="flex items-center justify-between text-slate-500">
                           <span>사업 예산</span>
                           <div className="text-right">
-                            <span className="font-bold text-slate-900">
+                            <span className="font-extrabold text-slate-900">
                               {formatCurrencyManwon(prj.budget)}
                             </span>
                             {getProjectShareRate(prj) < 100 && (
-                              <div className="text-[11px] font-semibold text-indigo-700">
-                                당사 지분({getProjectShareRate(prj)}%): <strong>{formatCurrencyManwon(getProjectOurBudget(prj))}</strong>
-                              </div>
+                              <span className="text-[11px] font-bold text-indigo-700 ml-1.5">
+                                (당사: {formatCurrencyManwon(getProjectOurBudget(prj))})
+                              </span>
                             )}
                           </div>
                         </div>
 
-                        {/* 다년도 사업 연차별 안분 매출 */}
-                        {isMultiYear && (
-                          <div className="p-2 rounded-lg bg-indigo-50/50 border border-indigo-100 text-[11px] space-y-0.5">
-                            <div className="font-bold text-indigo-900 flex items-center gap-1">
-                              <Calculator className="w-3 h-3 text-indigo-600" /> 연차별 안분 매출:
-                            </div>
-                            <div className="grid grid-cols-2 gap-1 text-slate-700">
-                              {Object.entries(breakdownObj).map(([yr, val]) => (
-                                <div key={yr}>
-                                  {yr}년: <strong>{formatCurrencyManwon(val)}</strong>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-
                         <div className="flex items-center justify-between text-slate-500">
                           <span>수행 기간</span>
-                          <span>
+                          <span className="font-semibold text-slate-700">
                             {prj.start_date} ~ {prj.end_date}
                           </span>
                         </div>
 
-                        {/* 진척률 */}
-                        <div className="pt-1.5">
-                          <div className="flex justify-between text-xs mb-1">
-                            <span className="text-slate-500">진척률</span>
-                            <span className="font-bold text-indigo-600">{prj.progress}%</span>
+                        {/* 진척률 (기간에 따라 현재 일자로 자동 계산) */}
+                        <div className="pt-1">
+                          <div className="flex justify-between text-[11px] mb-1">
+                            <span className="text-slate-500 font-medium">진척률 (기간 자동 산출)</span>
+                            <span className="font-bold text-indigo-600">{periodProgress}%</span>
                           </div>
-                          <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                          <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
                             <div
                               className={`h-full rounded-full transition-all duration-500 ${
                                 normStatus === '완료'
@@ -725,7 +726,7 @@ export default function ProjectsView({
                                   ? 'bg-indigo-600'
                                   : 'bg-blue-500'
                               }`}
-                              style={{ width: `${prj.progress}%` }}
+                              style={{ width: `${periodProgress}%` }}
                             />
                           </div>
                         </div>
@@ -842,15 +843,20 @@ export default function ProjectsView({
                             key={prj.id}
                             className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-2xs hover:shadow-xs transition"
                           >
-                            <div className="flex items-center justify-between mb-1.5">
-                              <span className="font-mono text-[10px] font-bold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded">
-                                {prj.code}
-                              </span>
-                              <span className="text-[10px] text-slate-500">PM: {prj.pm_name}</span>
+                            <div className="flex items-center justify-between gap-1 mb-1.5">
+                              {prj.client_name ? (
+                                <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded truncate max-w-[120px]">
+                                  {prj.client_name}
+                                </span>
+                              ) : (
+                                <span className="text-[10px] text-slate-400">발주처 미지정</span>
+                              )}
+                              <span className="text-[11px] font-bold text-slate-700">PM: {prj.pm_name || '미배정'}</span>
                             </div>
                             <h5
                               onClick={() => openEditModal(prj)}
                               className="font-bold text-xs text-slate-900 mb-2 line-clamp-2 hover:text-indigo-600 cursor-pointer"
+                              title={prj.name}
                             >
                               {prj.name}
                             </h5>
@@ -926,29 +932,41 @@ export default function ProjectsView({
 
             <form onSubmit={handleSave} className="flex-1 flex flex-col min-h-0 text-xs">
               <div className="flex-1 overflow-y-auto pr-2 space-y-4">
+                {/* 1행: 주관 부서 & 사업관리 진행 단계 (프로젝트 코드는 서버에서 자동 채번) */}
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block font-bold text-slate-700 mb-1">프로젝트 코드</label>
-                    <input
-                      type="text"
-                      required
-                      value={formData.code || ''}
-                      onChange={(e) => setFormData({ ...formData, code: e.target.value })}
-                      className="w-full p-2.5 rounded-xl border border-slate-300 font-mono font-bold"
-                    />
-                  </div>
-                  <div>
-                    <label className="block font-bold text-slate-700 mb-1">주관 부서 (사업본부 전담)</label>
+                    <label className="block font-bold text-slate-700 mb-1">주관 부서</label>
                     <input
                       type="text"
                       disabled
-                      value="사업본부"
+                      value="사업본부 (전담)"
                       className="w-full p-2.5 rounded-xl border border-slate-200 font-bold bg-slate-100 text-slate-600 cursor-not-allowed"
                     />
                   </div>
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-1">사업관리 진행 단계</label>
+                    <select
+                      value={formData.status_code || (formData.status === '발주예상' ? 'STAGE_ORDER' : formData.status === '제안준비중' ? 'STAGE_PROPOSAL' : formData.status === '완료' ? 'STAGE_DONE' : 'STAGE_EXEC')}
+                      onChange={(e) => {
+                        const sc = PROJECT_STAGE_CODES.find((s) => s.code === e.target.value);
+                        setFormData({
+                          ...formData,
+                          status_code: e.target.value as ProjectStageCode,
+                          status: sc?.label || '프로젝트 수행',
+                        });
+                      }}
+                      className="w-full p-2.5 rounded-xl border border-indigo-300 bg-indigo-50/20 font-bold text-indigo-900"
+                    >
+                      {PROJECT_STAGE_CODES.map((sc) => (
+                        <option key={sc.code} value={sc.code}>
+                          {sc.sort_order}. {sc.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
 
-                {/* 과제명 및 발주기관 (2열 배치로 컴팩트하고 시원하게 표시) */}
+                {/* 2행: 과제명 및 발주기관 (2열 배치) */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div>
                     <label className="block font-bold text-slate-700 mb-1">프로젝트 과제명 (사업명)</label>
@@ -975,29 +993,7 @@ export default function ProjectsView({
                   </div>
                 </div>
 
-              {/* 사업관리 라이프사이클 4단계 선택 */}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">사업관리 진행 단계</label>
-                  <select
-                    value={formData.status_code || (formData.status === '발주예상' ? 'STAGE_ORDER' : formData.status === '제안준비중' ? 'STAGE_PROPOSAL' : formData.status === '완료' ? 'STAGE_DONE' : 'STAGE_EXEC')}
-                    onChange={(e) => {
-                      const sc = PROJECT_STAGE_CODES.find((s) => s.code === e.target.value);
-                      setFormData({
-                        ...formData,
-                        status_code: e.target.value as ProjectStageCode,
-                        status: sc?.label || '프로젝트 수행',
-                      });
-                    }}
-                    className="w-full p-2.5 rounded-xl border border-indigo-300 bg-indigo-50/20 font-bold text-indigo-900"
-                  >
-                    {PROJECT_STAGE_CODES.map((sc) => (
-                      <option key={sc.code} value={sc.code}>
-                        {sc.sort_order}. {sc.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                {/* 3행: 총 사업 예산 */}
                 <div>
                   <label className="block font-bold text-slate-700 mb-1">총 사업 예산 (만원)</label>
                   <input
@@ -1013,7 +1009,6 @@ export default function ProjectsView({
                     className="w-full p-2.5 rounded-xl border border-slate-300 font-extrabold text-indigo-600 text-right"
                   />
                 </div>
-              </div>
 
               {/* 사업 수행 방식 및 당사 지분율 (%) */}
               <div className="p-3.5 rounded-xl border border-indigo-200 bg-indigo-50/40 space-y-3">
@@ -1144,15 +1139,15 @@ export default function ProjectsView({
                   </select>
                 </div>
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">과제 진척률 (%)</label>
-                  <input
-                    type="number"
-                    min="0"
-                    max="100"
-                    value={formData.progress || 0}
-                    onChange={(e) => setFormData({ ...formData, progress: Number(e.target.value) })}
-                    className="w-full p-2.5 rounded-xl border border-slate-300 text-right font-bold"
-                  />
+                  <label className="block font-bold text-slate-700 mb-1">
+                    과제 진행율 <span className="text-[11px] text-slate-400 font-normal">(기간 자동 계산)</span>
+                  </label>
+                  <div className="p-2.5 rounded-xl border border-slate-200 bg-slate-50 flex items-center justify-between font-bold text-slate-800">
+                    <span className="text-slate-500 text-xs">현재 진행율:</span>
+                    <span className="text-indigo-600 font-black text-sm">
+                      {calcPeriodProgress(formData.start_date, formData.end_date, formData.status)}%
+                    </span>
+                  </div>
                 </div>
               </div>
 

@@ -706,11 +706,51 @@ public class GroupwareService {
       case "projects" -> {
         Project p = (Project) entity;
         required(p.getName(), "프로젝트명");
-        if (creating && (p.getCode() == null || p.getCode().isBlank())) p.setCode(number("PRJ"));
+        if (creating && (p.getCode() == null || p.getCode().isBlank() || p.getCode().contains("UUID") || p.getCode().startsWith("temp"))) {
+          int currentYear = Year.now(ZoneId.of("Asia/Seoul")).getValue();
+          long maxSeq = projects.findAll().stream()
+              .map(Project::getCode)
+              .filter(c -> c != null && c.contains(String.valueOf(currentYear)))
+              .mapToLong(c -> {
+                try {
+                  String[] parts = c.split("-");
+                  return Long.parseLong(parts[parts.length - 1]);
+                } catch (Exception ex) {
+                  return 0L;
+                }
+              })
+              .max()
+              .orElse(0L);
+          p.setCode(String.format("PRJ-%d-%02d", currentYear, maxSeq + 1));
+        }
         period(p.getStartDate(), p.getEndDate());
         range(p.getBudget(), 0, Integer.MAX_VALUE / 10, "전체 계약금액");
         range(p.getProgress(), 0, 100, "진행률");
         range(p.getShareRate(), 0, 100, "지분율");
+        // 클라이언트에서 progress를 전달하지 않은 경우 수행기간(착수일~완료일) 대비 현재 일자 기준 진행률 자동 산출
+        if (p.getProgress() == null) {
+          if (p.getStartDate() != null && p.getEndDate() != null) {
+            try {
+              LocalDate start = date(p.getStartDate());
+              LocalDate end = date(p.getEndDate());
+              LocalDate today = LocalDate.now(ZoneId.of("Asia/Seoul"));
+              if ("완료".equals(p.getStatus()) || !today.isBefore(end)) {
+                p.setProgress(100);
+              } else if (today.isBefore(start)) {
+                p.setProgress(0);
+              } else {
+                long totalDays = java.time.temporal.ChronoUnit.DAYS.between(start, end);
+                long elapsedDays = java.time.temporal.ChronoUnit.DAYS.between(start, today);
+                int calcProgress = totalDays > 0 ? (int) Math.min(100, Math.max(0, (elapsedDays * 100) / totalDays)) : 0;
+                p.setProgress(calcProgress);
+              }
+            } catch (Exception ignored) {
+              p.setProgress(0);
+            }
+          } else {
+            p.setProgress(0);
+          }
+        }
         require(
             BigDecimal.valueOf(p.getShareRate()).stripTrailingZeros().scale() <= 2,
             "지분율은 소수 둘째 자리까지 입력하세요.");
