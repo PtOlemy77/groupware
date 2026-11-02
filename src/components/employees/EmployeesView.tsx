@@ -44,10 +44,8 @@ import {
   User,
   X,
   CheckCircle2,
-  Briefcase,
   AlertCircle,
   Network,
-  UserCheck,
   UserX,
   Clock,
   Sparkles,
@@ -554,65 +552,6 @@ export default function EmployeesView({
 
   return (
     <div className="space-y-4">
-      {/* 1. 현재 회사 인력 현황 */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {/* 전체 임직원 */}
-        <button type="button" onClick={resetFilters} className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs flex items-center justify-between text-left hover:border-indigo-300">
-          <div>
-            <div className="text-[11px] font-semibold text-slate-500">재직·휴직 인원</div>
-            <div className="text-2xl font-extrabold text-slate-900 mt-1">{stats.activeTotal}명</div>
-            <div className="text-[11px] text-slate-400 mt-0.5">퇴사자 제외 · 클릭하여 전체 보기</div>
-          </div>
-          <div className="w-10 h-10 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center font-bold">
-            <Users className="w-5 h-5" />
-          </div>
-        </button>
-
-        {/* 프로젝트 투입 인력 */}
-        <button type="button" onClick={() => selectAvailability('ASSIGNED')} className="bg-white p-4 rounded-xl border border-indigo-200 bg-indigo-50/20 shadow-2xs flex items-center justify-between text-left hover:border-indigo-400">
-          <div>
-            <div className="text-[11px] font-semibold text-indigo-700">프로젝트 투입 인력</div>
-            <div className="text-2xl font-extrabold text-indigo-700 mt-1">{stats.activeAssigned}명</div>
-            <div className="text-[11px] text-indigo-600 mt-0.5 font-medium">
-              인력 투입률 {stats.assignmentRate}%
-            </div>
-          </div>
-          <div className="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center">
-            <Briefcase className="w-5 h-5" />
-          </div>
-        </button>
-
-        {/* 인재Pool (프로젝트 미투입 가용인력) */}
-        <button type="button"
-          onClick={() => selectAvailability('POOL')}
-          className="bg-white p-4 rounded-xl border border-emerald-200 bg-emerald-50/20 shadow-2xs flex items-center justify-between cursor-pointer hover:border-emerald-300 transition"
-          title="클릭하여 인재Pool (가용 인력)만 조회"
-        >
-          <div>
-            <div className="text-[11px] font-semibold text-emerald-800">인재Pool (대기 인력)</div>
-            <div className="text-2xl font-extrabold text-emerald-600 mt-1">{stats.bizAvailable}명</div>
-            <div className="text-[11px] text-emerald-700 mt-0.5 font-bold">
-              프로젝트 미투입 가용인력 (가용률 {stats.bizAvailabilityRate}%)
-            </div>
-          </div>
-          <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center">
-            <UserCheck className="w-5 h-5" />
-          </div>
-        </button>
-
-        {/* 휴직 (비가용) */}
-        <button type="button" onClick={() => selectAvailability('LEAVE')} className="bg-white p-4 rounded-xl border border-amber-200 bg-amber-50/20 shadow-2xs flex items-center justify-between text-left hover:border-amber-400">
-          <div>
-            <div className="text-[11px] font-semibold text-amber-800">휴직 (비가용)</div>
-            <div className="text-2xl font-extrabold text-amber-600 mt-1">{stats.suspended}명</div>
-            <div className="text-[11px] text-amber-600 mt-0.5">현재 투입 불가</div>
-          </div>
-          <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center">
-            <UserX className="w-5 h-5" />
-          </div>
-        </button>
-      </div>
-
       <section aria-label="직원 검색 및 필터" className="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs space-y-4">
         <div className="flex flex-wrap items-center gap-2" role="group" aria-label="직원 상태">
           {([

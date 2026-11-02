@@ -33,6 +33,7 @@ spring:
       max-request-size: 2MB
 app:
   bootstrap:
+    enabled: ${BOOTSTRAP_ENABLED:false}
     email: ${BOOTSTRAP_ADMIN_EMAIL:}
     password: ${BOOTSTRAP_ADMIN_PASSWORD:}
 logging:

@@ -11,6 +11,7 @@ spring:
     enabled: false
 app:
   bootstrap:
+    enabled: false
     email: ''
     password: ''
 logging:

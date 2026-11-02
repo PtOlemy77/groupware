@@ -20,6 +20,9 @@ public class DataInitializer implements CommandLineRunner {
   private final EmployeeRepository employees;
   private final PasswordEncoder encoder;
 
+  @Value("${app.bootstrap.enabled:false}")
+  private boolean enabled = true;
+
   @Value("${app.bootstrap.email:}")
   private String email;
 
@@ -34,6 +37,10 @@ public class DataInitializer implements CommandLineRunner {
   @Override
   @Transactional
   public void run(String... args) {
+    if (!enabled) {
+      return;
+    }
+
     // 사용자가 수정한 데이터와 비밀번호를 매 서버 기동 시 덮어쓰지 않습니다.
     long count = employees.count();
     if (count > 0) {
