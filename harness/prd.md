@@ -156,3 +156,4 @@ JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-25.jdk/Contents/Home ./backe
 # 3. 프론트엔드 프로덕션 빌드 검증
 npm run build
 ```
+
