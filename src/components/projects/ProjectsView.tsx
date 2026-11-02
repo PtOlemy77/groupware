@@ -92,7 +92,7 @@ export default function ProjectsView({
   const [reportTargetProjectId, setReportTargetProjectId] = useState<number | null>(null);
 
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('전체');
+  const [statusFilter, setStatusFilter] = useState<string>('프로젝트 수행');
   const [viewMode, setViewMode] = useState<'grid' | 'kanban'>('grid');
 
   const [modalOpen, setModalOpen] = useState(false);

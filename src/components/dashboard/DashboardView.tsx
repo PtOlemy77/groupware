@@ -192,6 +192,13 @@ export default function DashboardView({
     };
   }, [employees, projects, approvals]);
 
+  // 대시보드 하단: 수행 중인 프로젝트만 필터링하여 조회
+  const executingProjects = useMemo(() => {
+    return projects.filter(
+      (prj) => normalizeProjectStatus(prj.status) === '프로젝트 수행'
+    );
+  }, [projects]);
+
   return (
     <div className="space-y-4">
       {/* 대시보드 메인 탭: 사업 현황 대시보드 vs 주요 일정 캘린더 */}
@@ -447,10 +454,10 @@ export default function DashboardView({
           <div className="flex items-center gap-2">
             <Briefcase className="w-4 h-4 text-indigo-600" />
             <h2 className="text-sm font-bold text-slate-900">
-              주요 프로젝트 진행 현황
+              수행 중인 프로젝트 진행 현황
             </h2>
             <span className="text-xs text-slate-400">
-              (총 {projects.length}건)
+              (총 {executingProjects.length}건)
             </span>
           </div>
           <button
@@ -462,7 +469,7 @@ export default function DashboardView({
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-          {projects.map((prj) => {
+          {executingProjects.map((prj) => {
             const normStatus = normalizeProjectStatus(prj.status);
             const scope = getProjectYearlyScope(prj, currentYear);
 
@@ -592,6 +599,12 @@ export default function DashboardView({
               </div>
             );
           })}
+
+          {executingProjects.length === 0 && (
+            <div className="col-span-full py-12 text-center text-slate-400 text-xs font-medium">
+              현재 수행 중인 프로젝트가 없습니다.
+            </div>
+          )}
         </div>
       </div>
         </>
