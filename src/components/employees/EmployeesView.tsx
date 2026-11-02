@@ -310,7 +310,9 @@ export default function EmployeesView({
       const matchDept =
         deptFilter === '전체' ||
         cleanDeptName(emp.department) === cleanDeptName(deptFilter) ||
-        emp.department_code === deptFilter;
+        emp.department_code === deptFilter ||
+        DEPARTMENT_CODES.find((d) => d.code === emp.department_code)?.label === deptFilter ||
+        DEPARTMENT_CODES.find((d) => d.label === deptFilter)?.code === emp.department_code;
 
       const matchAvailability =
         availabilityFilter === '전체' || avail.status === availabilityFilter;

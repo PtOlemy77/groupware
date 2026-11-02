@@ -475,7 +475,10 @@ export const STANDARD_UNIT_PRICES = [
 
 export function cleanDeptName(name?: string): string {
   if (!name) return '';
-  return name.replace(/ST$/, '').trim();
+  const trimmed = name.replace(/ST$/, '').trim();
+  if (trimmed === '경영지원' || trimmed === '경영지원팀') return '경영지원팀';
+  if (trimmed === '사장' || trimmed === '대표이사') return '대표이사';
+  return trimmed;
 }
 
 export const DEPARTMENT_CODES: DepartmentCodeInfo[] = [
