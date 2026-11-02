@@ -306,11 +306,28 @@ export default function EmployeesView({
 
   // 필터링 및 정렬
   const filteredEmployees = useMemo(() => {
+    const q = searchQuery.toLowerCase().trim();
+
     const list = employees.filter((emp) => {
       const avail = getEmployeeAvailability(emp);
+      const isAssignedToProject = avail.status === '투입중';
+
+      // 사용자 요청: 프로젝트에 소속한 사람이면 기본 목록에서 안보이게 해주고, 인재Pool 소속으로 관리
+      if (deptFilter === 'DEPT_POOL') {
+        // 인재Pool 전용 필터: 프로젝트 소속 인력만 표시
+        if (!isAssignedToProject) return false;
+      } else if (availabilityFilter === '투입중') {
+        // 명시적으로 '인재Pool 투입자' 탭을 선택한 경우
+        if (!isAssignedToProject) return false;
+      } else if (!q && availabilityFilter === '전체' && isAssignedToProject) {
+        // 기본 목록 상태에서는 프로젝트 소속 인원을 기본 목록에서 숨김
+        return false;
+      }
 
       const matchDept =
-        deptFilter === 'ALL' || emp.department_code === deptFilter;
+        deptFilter === 'ALL' ||
+        deptFilter === 'DEPT_POOL' ||
+        emp.department_code === deptFilter;
 
       const matchAvailability =
         availabilityFilter === '전체' || avail.status === availabilityFilter;
@@ -319,7 +336,6 @@ export default function EmployeesView({
         positionFilter === 'ALL' || emp.position_code === positionFilter;
 
       const empNo = getEmpNoFromHireDate(emp.hire_date, emp.emp_no);
-      const q = searchQuery.toLowerCase().trim();
       const matchSearch =
         !q ||
         emp.name.toLowerCase().includes(q) ||
@@ -554,16 +570,25 @@ export default function EmployeesView({
           </div>
         </div>
 
-        {/* 프로젝트 투입중 */}
-        <div className="bg-white p-4 rounded-xl border border-indigo-200 bg-indigo-50/20 shadow-2xs flex items-center justify-between">
+        {/* 인재Pool (프로젝트 투입중) */}
+        <div
+          onClick={() => {
+            setDeptFilter('DEPT_POOL');
+            setAvailabilityFilter('전체');
+            setSearchQuery('');
+            setCurrentPage(1);
+          }}
+          className="bg-white p-4 rounded-xl border border-purple-200 bg-purple-50/20 shadow-2xs flex items-center justify-between cursor-pointer hover:border-purple-300 transition"
+          title="클릭하여 인재Pool 소속 직원만 조회"
+        >
           <div>
-            <div className="text-[11px] font-semibold text-indigo-700">프로젝트 투입중</div>
-            <div className="text-2xl font-extrabold text-indigo-600 mt-1">{stats.activeAssigned}명</div>
-            <div className="text-[11px] text-indigo-600/80 mt-0.5 font-medium">
+            <div className="text-[11px] font-semibold text-purple-700">인재Pool (프로젝트 투입)</div>
+            <div className="text-2xl font-extrabold text-purple-700 mt-1">{stats.activeAssigned}명</div>
+            <div className="text-[11px] text-purple-600 mt-0.5 font-medium">
               인력 투입률 {stats.assignmentRate}%
             </div>
           </div>
-          <div className="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center">
+          <div className="w-10 h-10 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center">
             <Briefcase className="w-5 h-5" />
           </div>
         </div>
@@ -601,9 +626,9 @@ export default function EmployeesView({
           {/* 가용인원 상태 탭 필터 */}
           <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg text-xs font-semibold mr-2">
             {[
-              { key: '전체', label: `전체 (${stats.total})` },
+              { key: '전체', label: `기본 목록 (${stats.bizAvailable + stats.otherDeptCount + stats.suspended + stats.retired})` },
+              { key: '투입중', label: `인재Pool (${stats.activeAssigned})` },
               { key: '투입대기', label: `사업본부 가용 (${stats.bizAvailable})` },
-              { key: '투입중', label: `투입중 (${stats.activeAssigned})` },
               { key: '부서고유업무', label: `타부서 (${stats.otherDeptCount})` },
               { key: '휴직', label: `휴직 (${stats.suspended})` },
               { key: '퇴사', label: `퇴사 (${stats.retired})` },
@@ -612,6 +637,9 @@ export default function EmployeesView({
                 key={tab.key}
                 onClick={() => {
                   setAvailabilityFilter(tab.key as any);
+                  if (tab.key === '투입중') {
+                    setDeptFilter('ALL');
+                  }
                   setCurrentPage(1);
                 }}
                 className={`px-3 py-1.5 rounded-md transition ${
@@ -649,7 +677,8 @@ export default function EmployeesView({
             }}
             className="px-2.5 py-1.5 text-xs rounded-lg border border-slate-300 bg-white font-medium"
           >
-            <option value="ALL">전체 부서</option>
+            <option value="ALL">전체 부서 (기본 목록)</option>
+            <option value="DEPT_POOL">인재Pool (프로젝트 투입 {stats.activeAssigned}명)</option>
             {DEPARTMENT_CODES.map((d) => (
               <option key={d.code} value={d.code}>
                 {d.label}
@@ -777,8 +806,10 @@ export default function EmployeesView({
                       })
                   : [];
 
-                // 부서 소속 전체 직원 (투입자 제외 없이 전원 포함)
-                const directDeptEmps = deptEmps;
+                // 사용자 요청: 프로젝트에 소속한 사람이면 기본 부서 목록에서 제외하고 인재Pool로 이동
+                const directDeptEmps = deptEmps.filter(
+                  (e) => !(assignedProjectsMap[e.id]?.length)
+                );
 
                 // 사업본부 정렬은 직급, 입사일 순으로 정렬
                 const sortedDirectDeptEmps = [...directDeptEmps].sort(
@@ -816,7 +847,7 @@ export default function EmployeesView({
                       </button>
                       <span className="text-[12px]">{dept.label}</span>
                       <span className="text-[10px] text-slate-400 font-normal font-mono ml-auto">
-                        ({deptEmps.length})
+                        ({directDeptEmps.length}명)
                       </span>
                     </div>
 
@@ -1063,6 +1094,88 @@ export default function EmployeesView({
                   </div>
                 );
               })}
+
+              {/* 사용자 요청: 프로젝트에 소속된 인력 전용 [인재Pool] 최상위 조직도 노드 */}
+              <div className="relative mt-2 pt-2 border-t border-slate-200">
+                <div
+                  className={`flex items-center gap-1.5 py-1.5 px-1.5 rounded cursor-pointer transition ${
+                    deptFilter === 'DEPT_POOL' && !searchQuery
+                      ? 'bg-purple-100 text-purple-950 font-bold border border-purple-200 shadow-2xs'
+                      : 'hover:bg-purple-50/60 text-purple-900 font-bold'
+                  }`}
+                  onClick={() => {
+                    setDeptFilter('DEPT_POOL');
+                    setAvailabilityFilter('전체');
+                    setSearchQuery('');
+                    setCurrentPage(1);
+                  }}
+                  title="클릭하여 프로젝트 투입 인재Pool 전체 조회"
+                >
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setExpandedDepts((prev) => ({
+                        ...prev,
+                        DEPT_POOL: !prev['DEPT_POOL'],
+                      }));
+                    }}
+                    className="w-3.5 h-3.5 shrink-0 bg-purple-600 text-white flex items-center justify-center text-[10px] font-mono font-bold leading-none rounded-xs hover:bg-purple-700 shadow-2xs"
+                  >
+                    {expandedDepts['DEPT_POOL'] ? '−' : '+'}
+                  </button>
+                  <Briefcase className="w-3.5 h-3.5 text-purple-600 shrink-0" />
+                  <span className="text-[12px] font-black">인재Pool (프로젝트)</span>
+                  <span className="text-[10px] text-purple-700 font-extrabold font-mono ml-auto bg-purple-200/80 px-1.5 py-0.2 rounded-full">
+                    {stats.activeAssigned}명
+                  </span>
+                </div>
+
+                {/* 인재Pool 하위 트리 가지: 투입된 직원 목록 + 관할 프로젝트 목록 */}
+                {expandedDepts['DEPT_POOL'] && (
+                  <div className="ml-2 pl-3 border-l border-purple-300 space-y-0.5 py-1">
+                    {/* 투입 인원 목록 */}
+                    {employees
+                      .filter((e) => assignedProjectsMap[e.id]?.length > 0)
+                      .sort(compareEmployeesByPositionAndHireDate)
+                      .map((emp) => {
+                        const isEmpActive = searchQuery === emp.name;
+                        const prjList = assignedProjectsMap[emp.id] || [];
+                        return (
+                          <div
+                            key={emp.id}
+                            onClick={() => {
+                              setSearchQuery(emp.name);
+                              setDeptFilter('DEPT_POOL');
+                              setCurrentPage(1);
+                            }}
+                            onDoubleClick={() => canEdit && openEditModal(emp)}
+                            className={`relative flex items-center justify-between py-1 px-1.5 rounded cursor-pointer transition border border-transparent before:absolute before:-left-3 before:top-3 before:w-3 before:border-t before:border-purple-300 ${
+                              isEmpActive
+                                ? 'bg-purple-100 border-purple-300 text-purple-950 font-bold'
+                                : 'hover:bg-purple-50 text-slate-800'
+                            }`}
+                            title={`소속: 인재Pool / 원소속: ${cleanDeptName(emp.department)} / 투입 프로젝트: ${prjList.join(', ')}`}
+                          >
+                            <div className="flex items-center gap-1.5 truncate">
+                              <User className="w-3.5 h-3.5 text-purple-600 shrink-0 fill-purple-200" />
+                              <span className="text-[12px] font-semibold text-slate-900 truncate">
+                                {emp.name}{' '}
+                                <span className="text-slate-500 font-normal">{emp.position}</span>
+                              </span>
+                            </div>
+                            <span
+                              className="text-[9.5px] px-1.5 py-0.2 rounded bg-purple-100 text-purple-800 font-bold shrink-0 truncate max-w-[85px]"
+                              title={prjList[0]}
+                            >
+                              {prjList[0]}
+                            </span>
+                          </div>
+                        );
+                      })}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         )}
@@ -1074,13 +1187,26 @@ export default function EmployeesView({
               <span>
                 조회 인원: <strong className="text-slate-900">{filteredEmployees.length}</strong>명
               </span>
-              {availabilityFilter !== '전체' && (
-                <span className="text-indigo-600 font-semibold">[{availabilityFilter}]</span>
-              )}
-              {deptFilter !== 'ALL' && (
-                <span className="text-slate-700 font-semibold">
-                  [{DEPARTMENT_CODES.find((d) => d.code === deptFilter)?.label || deptFilter}]
+              {deptFilter === 'DEPT_POOL' ? (
+                <span className="text-purple-700 font-bold bg-purple-100 px-2 py-0.5 rounded-full">
+                  [인재Pool (프로젝트 투입자)]
                 </span>
+              ) : (
+                <>
+                  {availabilityFilter !== '전체' && (
+                    <span className="text-indigo-600 font-semibold">[{availabilityFilter}]</span>
+                  )}
+                  {deptFilter !== 'ALL' && (
+                    <span className="text-slate-700 font-semibold">
+                      [{DEPARTMENT_CODES.find((d) => d.code === deptFilter)?.label || deptFilter}]
+                    </span>
+                  )}
+                  {deptFilter === 'ALL' && availabilityFilter === '전체' && !searchQuery && (
+                    <span className="text-slate-500 font-medium text-[11px] bg-slate-200/80 px-2 py-0.5 rounded-full">
+                      기본 목록 (프로젝트 투입자는 인재Pool로 분류)
+                    </span>
+                  )}
+                </>
               )}
               {positionFilter !== 'ALL' && (
                 <span className="text-slate-700 font-semibold">
@@ -1207,7 +1333,18 @@ export default function EmployeesView({
 
                       {/* 소속 부서 */}
                       <td className="px-4 py-3 font-semibold text-slate-800 whitespace-nowrap">
-                        {cleanDeptName(emp.department)}
+                        {avail.status === '투입중' ? (
+                          <div className="flex items-center gap-1.5">
+                            <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-100 text-purple-800 border border-purple-200">
+                              인재Pool
+                            </span>
+                            <span className="text-slate-500 text-[11px] font-normal">
+                              ({cleanDeptName(emp.department)})
+                            </span>
+                          </div>
+                        ) : (
+                          cleanDeptName(emp.department)
+                        )}
                       </td>
 
                       {/* 프로젝트명: 수행 중인 프로젝트만 보여주고 투입된 게 없으면 공란 */}
