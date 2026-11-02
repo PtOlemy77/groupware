@@ -13,6 +13,8 @@ import {
   TabKey,
   formatCurrencyManwon,
   getMultiYearRevenueForYear,
+  getProjectYearlyScope,
+  ProjectYearlyScope,
   calculateMultiYearRevenues,
   getProjectShareRate,
 } from '@/types/groupware';
@@ -23,6 +25,7 @@ import {
   Target,
   CheckCircle2,
   Layers,
+  Calendar,
 } from 'lucide-react';
 
 interface Props {
@@ -416,7 +419,7 @@ export default function DashboardView({
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
           {projects.map((prj) => {
             const normStatus = normalizeProjectStatus(prj.status);
-            const yearRev = getMultiYearRevenueForYear(prj, currentYear);
+            const scope = getProjectYearlyScope(prj, currentYear);
 
             const statusBadgeClass =
               normStatus === '완료'
@@ -440,7 +443,7 @@ export default function DashboardView({
                 onClick={() => onNavigateTab('projects')}
                 className="p-3.5 rounded-xl border border-slate-200/80 bg-slate-50/40 hover:bg-white hover:border-indigo-200 transition cursor-pointer"
               >
-                <div className="flex items-center justify-between gap-2 mb-1.5">
+                <div className="flex items-center justify-between gap-2 mb-2">
                   <div className="flex items-center gap-2 min-w-0">
                     <span className="font-mono text-[11px] font-bold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded shrink-0">
                       {prj.code}
@@ -449,32 +452,83 @@ export default function DashboardView({
                       {prj.name}
                     </span>
                   </div>
-                  <span
-                    className={`text-[11px] font-bold px-2 py-0.5 rounded-full border shrink-0 ${statusBadgeClass}`}
-                  >
-                    {normStatus}
-                  </span>
-                </div>
-
-                <div className="flex items-center justify-between text-[11px] text-slate-500 mb-2 flex-wrap gap-1">
-                  <div className="flex items-center gap-1.5">
-                    <span>
-                      PM: <strong className="text-slate-700">{prj.pm_name}</strong> · {prj.start_date} ~ {prj.end_date}
-                    </span>
-                    {getProjectShareRate(prj) < 100 && (
-                      <span className="px-1.5 py-0.2 rounded bg-indigo-100 text-indigo-700 font-bold text-[10px]">
-                        컨소 {getProjectShareRate(prj)}%
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {scope.isMultiYear && (
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-200">
+                        연차사업 ({currentYear}년)
                       </span>
                     )}
-                  </div>
-                  <div className="text-right">
-                    <span className="font-bold text-slate-800">
-                      당사: {formatCurrencyManwon(yearRev)}
-                    </span>
-                    {getProjectShareRate(prj) < 100 && (
-                      <span className="text-[10px] text-slate-400 ml-1">
-                        (총 {formatCurrencyManwon(prj.budget)})
+                    {scope.shareRate < 100 && (
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
+                        지분 {scope.shareRate}%
                       </span>
+                    )}
+                    <span
+                      className={`text-[11px] font-bold px-2 py-0.5 rounded-full border ${statusBadgeClass}`}
+                    >
+                      {normStatus}
+                    </span>
+                  </div>
+                </div>
+
+                {/* 기간 및 지분율 기반 올해 매출 표시 */}
+                <div className="flex items-start justify-between text-[11px] text-slate-500 mb-2.5 flex-wrap gap-2">
+                  <div className="space-y-0.5">
+                    <div className="flex items-center gap-1">
+                      <span>PM: <strong className="text-slate-800">{prj.pm_name}</strong></span>
+                      <span className="text-slate-300">·</span>
+                      {scope.isMultiYear ? (
+                        <span className="text-indigo-950 font-bold flex items-center gap-1">
+                          <Calendar className="w-3 h-3 text-indigo-600" />
+                          올해 기간: {scope.yearStartDate} ~ {scope.yearEndDate} ({scope.yearMonths}개월)
+                        </span>
+                      ) : (
+                        <span>기간: {prj.start_date} ~ {prj.end_date}</span>
+                      )}
+                    </div>
+                    {scope.isMultiYear && (
+                      <div className="text-[10px] text-slate-400 pl-0.5">
+                        전체 수행기간: {scope.fullStartDate} ~ {scope.fullEndDate}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="text-right">
+                    <div className="font-bold text-slate-900 text-xs">
+                      {scope.isMultiYear ? (
+                        <span>
+                          올해 당사:{' '}
+                          <strong className="text-indigo-700 text-sm font-black">
+                            {formatCurrencyManwon(scope.yearOurRevenue)}
+                          </strong>
+                        </span>
+                      ) : scope.shareRate < 100 ? (
+                        <span>
+                          당사:{' '}
+                          <strong className="text-indigo-700 font-bold">
+                            {formatCurrencyManwon(scope.yearOurRevenue)}
+                          </strong>
+                        </span>
+                      ) : (
+                        <span>{formatCurrencyManwon(scope.totalBudget)}</span>
+                      )}
+                    </div>
+                    {scope.isMultiYear ? (
+                      scope.shareRate < 100 ? (
+                        <div className="text-[10px] text-slate-500">
+                          (올해 {formatCurrencyManwon(scope.yearTotalBudget)} × 지분 {scope.shareRate}%)
+                        </div>
+                      ) : (
+                        <div className="text-[10px] text-slate-400">
+                          (총 {formatCurrencyManwon(scope.totalBudget)} 중 올해분)
+                        </div>
+                      )
+                    ) : (
+                      scope.shareRate < 100 && (
+                        <div className="text-[10px] text-slate-500">
+                          (총 {formatCurrencyManwon(scope.totalBudget)} × 지분 {scope.shareRate}%)
+                        </div>
+                      )
                     )}
                   </div>
                 </div>

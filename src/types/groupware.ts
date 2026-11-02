@@ -607,19 +607,106 @@ export function getProjectOurBudget(project: Project): number {
 
 // 특정 연도에 귀속되는 프로젝트의 안분 당사 매출액(만원) 산출 (지분율 반영)
 export function getMultiYearRevenueForYear(project: Project, targetYear: number = 2026): number {
-  const ourBudget = getProjectOurBudget(project);
+  return getProjectYearlyScope(project, targetYear).yearOurRevenue;
+}
+
+export interface ProjectYearlyScope {
+  isMultiYear: boolean;
+  currentYear: number;
+  yearStartDate: string;
+  yearEndDate: string;
+  yearMonths: number;
+  totalBudget: number;
+  yearTotalBudget: number; // 올해 전체 안분 예산
+  shareRate: number;       // 지분율 (%)
+  yearOurRevenue: number;  // 올해 당사 안분 매출 (지분율 적용)
+  fullStartDate: string;
+  fullEndDate: string;
+}
+
+// 통합 대시보드 및 연차사업 계산 헬퍼: 연차사업의 경우 올해 기간으로만, 지분율로 계산
+export function getProjectYearlyScope(
+  project: Project,
+  currentYear: number = new Date().getFullYear()
+): ProjectYearlyScope {
+  const shareRate = getProjectShareRate(project);
+  const start = new Date(project.start_date);
+  const end = new Date(project.end_date);
+  const startYear = isNaN(start.getTime()) ? currentYear : start.getFullYear();
+  const endYear = isNaN(end.getTime()) ? currentYear : end.getFullYear();
+  const isMultiYear = startYear !== endYear;
+
+  // 올해 기간 산정 (연차사업의 경우 올해 기간으로만)
+  let yearStartDate = project.start_date;
+  let yearEndDate = project.end_date;
+
+  if (isMultiYear) {
+    if (startYear < currentYear) {
+      yearStartDate = `${currentYear}-01-01`;
+    }
+    if (endYear > currentYear) {
+      yearEndDate = `${currentYear}-12-31`;
+    }
+  }
+
+  // 올해 개월 수
+  const yStart = new Date(yearStartDate);
+  const yEnd = new Date(yearEndDate);
+  let yearMonths = 12;
+  if (!isNaN(yStart.getTime()) && !isNaN(yEnd.getTime())) {
+    const sm = yStart.getFullYear() === currentYear ? yStart.getMonth() : 0;
+    const em = yEnd.getFullYear() === currentYear ? yEnd.getMonth() : 11;
+    yearMonths = Math.max(1, em - sm + 1);
+  }
+
+  // 올해 전체 안분 예산 (지분율 적용 전)
+  let yearTotalBudget = project.budget || 0;
   if (project.yearly_revenue_json) {
     try {
       const breakdown = JSON.parse(project.yearly_revenue_json) as Record<string, number>;
-      const shareRate = getProjectShareRate(project);
-      if (breakdown && breakdown[String(targetYear)] !== undefined) {
-        return Math.round(breakdown[String(targetYear)] * (shareRate / 100));
+      if (breakdown && breakdown[String(currentYear)] !== undefined) {
+        yearTotalBudget = Number(breakdown[String(currentYear)]) || 0;
+      } else if (isMultiYear) {
+        const calculated = calculateMultiYearRevenues(
+          project.start_date,
+          project.end_date,
+          project.budget
+        );
+        yearTotalBudget = calculated[currentYear] ?? 0;
       }
-      if (breakdown && Object.keys(breakdown).length) return 0;
-    } catch (e) {}
+    } catch {
+      const calculated = calculateMultiYearRevenues(
+        project.start_date,
+        project.end_date,
+        project.budget
+      );
+      yearTotalBudget = calculated[currentYear] ?? 0;
+    }
+  } else if (isMultiYear) {
+    const calculated = calculateMultiYearRevenues(
+      project.start_date,
+      project.end_date,
+      project.budget
+    );
+    yearTotalBudget = calculated[currentYear] ?? 0;
   }
-  const calculated = calculateMultiYearRevenues(project.start_date, project.end_date, ourBudget);
-  return calculated[targetYear] ?? 0;
+
+  // 올해 당사 안분 매출 (지분율 적용)
+  const yearOurRevenue = Math.round(yearTotalBudget * (shareRate / 100));
+
+  return {
+    isMultiYear,
+    currentYear,
+    yearStartDate,
+    yearEndDate,
+    yearMonths,
+    totalBudget: project.budget || 0,
+    yearTotalBudget,
+    shareRate,
+    yearOurRevenue,
+    fullStartDate: project.start_date,
+    fullEndDate: project.end_date,
+  };
 }
 
 
