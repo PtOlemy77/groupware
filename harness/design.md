@@ -98,7 +98,7 @@
 - 폼 컨트롤은 통일된 보더, 라운딩, 포커스 링을 가집니다:
 
 ```tsx
-// Label + Input 세트
+// 1. Label + Input 세트
 <div className="space-y-1.5">
   <label className="block text-xs font-semibold text-slate-700">
     프로젝트명 <span className="text-rose-500">*</span>
@@ -109,6 +109,12 @@
     className="w-full px-3.5 py-2.5 bg-white rounded-xl border border-slate-200 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition"
   />
 </div>
+
+// 2. 콤보박스 (Select 드롭다운)
+// 전역 CSS(index.css)에서 appearance: none 및 우측 0.75rem(12px) 여백의 꺽쇠 SVG와 padding-right: 2.25rem이 자동 적용됨
+<select className="px-3 py-2 text-xs rounded-lg border border-slate-300 bg-white font-medium focus:ring-2 focus:ring-indigo-500/20 focus:outline-none">
+  <option value="전체">전체 부서</option>
+</select>
 ```
 
 ### 4.3 테이블 및 그리드 (Data Tables)
@@ -174,3 +180,4 @@ if (!confirmed) return;
 - [ ] 테이블 헤더와 셀 폰트 크기 및 패딩이 통일되어 있는가? (`text-xs font-semibold py-3 px-4`)
 - [ ] 모든 입력창에 포커스 링(`focus:ring-2 focus:ring-indigo-500/20`)이 적용되어 있는가?
 - [ ] 상태 표시에 하드코딩 한글 비교 대신 시맨틱 뱃지 컬러 규칙을 따랐는가?
+
