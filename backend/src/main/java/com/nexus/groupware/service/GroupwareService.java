@@ -1123,6 +1123,57 @@ public class GroupwareService {
     return sum;
   }
 
+  private void recalculateDirectExpenses(Map<String, Object> doc, BigDecimal supply, String start, String end) {
+    BigDecimal totalMM = BigDecimal.ZERO, ourMM = BigDecimal.ZERO;
+    Set<String> people = new HashSet<>();
+    for (var plan : items(doc, "manpowerPlans")) {
+      BigDecimal mm = decimal(plan.get("totalMM"));
+      totalMM = totalMM.add(mm);
+      if (!"외주".equals(plan.get("type"))) ourMM = ourMM.add(mm);
+      if (mm.signum() > 0) people.add(plan.get("employeeId") != null ? "employee:" + plan.get("employeeId") : "row:" + plan.get("id"));
+    }
+    for (var row : items(doc, "directExpenses")) {
+      if (row.get("calculation") == null) continue;
+      require(row.get("calculation") instanceof Map, "직접경비 산출식 형식 오류");
+      Map<String, Object> calc = (Map<String, Object>) row.get("calculation");
+      require(calc.get("inputs") instanceof Map, "직접경비 입력값 형식 오류");
+      Map<String, Object> inputs = (Map<String, Object>) calc.get("inputs");
+      inputs.forEach((key, value) -> nonnegative(value, "직접경비 " + key));
+      String source = Objects.toString(calc.get("source"), "");
+      BigDecimal base = switch (source) {
+        case "MANUAL" -> nonnegative(calc.get("base"), "직접경비 기준 수량");
+        case "TOTAL_MM" -> totalMM;
+        case "OUR_MM" -> ourMM;
+        case "HEADCOUNT" -> BigDecimal.valueOf(people.size());
+        case "MONTHS" -> BigDecimal.valueOf(ChronoUnitMonths(start, end));
+        case "SUPPLY" -> supply;
+        default -> throw new IllegalArgumentException("직접경비 산출 기준 오류");
+      };
+      calc.put("base", base);
+      BigDecimal qty = base, unit;
+      switch (Objects.toString(calc.get("method"), "")) {
+        case "PRODUCT" -> {
+          qty = base.multiply(nonnegative(inputs.getOrDefault("multiplier", 1), "직접경비 횟수"));
+          unit = nonnegative(row.get("unitPrice"), "직접경비 단가");
+        }
+        case "RATE" -> {
+          BigDecimal rate = nonnegative(inputs.get("rate"), "보험 요율");
+          range(rate, 0, 100, "보험 요율");
+          unit = rate.divide(BigDecimal.valueOf(100));
+        }
+        case "TRAVEL" -> {
+          qty = base.multiply(nonnegative(inputs.getOrDefault("trips", 1), "출장 횟수"));
+          unit = nonnegative(inputs.get("days"), "출장 일수").multiply(nonnegative(inputs.get("dailyCost"), "출장 일비"))
+              .add(nonnegative(inputs.get("nights"), "숙박 일수").multiply(nonnegative(inputs.get("lodgingCost"), "숙박비")))
+              .add(nonnegative(inputs.get("transportCost"), "교통비"));
+        }
+        default -> throw new IllegalArgumentException("직접경비 계산 방식 오류");
+      }
+      row.put("qty", qty);
+      row.put("unitPrice", unit);
+    }
+  }
+
   private void recalculateContract(Map<String, Object> doc) {
     required(Objects.toString(doc.get("title"), ""), "계약명");
     required(Objects.toString(doc.get("clientName"), ""), "고객사");
@@ -1166,6 +1217,7 @@ public class GroupwareService {
       plan.put("laborCost", cost);
       labor = labor.add(cost);
     }
+    recalculateDirectExpenses(doc, supply, start, end);
     BigDecimal product = sumCosts(doc, "productCosts", "qty", "unitPrice", "amount"),
         out = sumCosts(doc, "outsourcings", "mm", "unitPrice", "contractAmount"),
         expense = sumCosts(doc, "directExpenses", "qty", "unitPrice", "amount");

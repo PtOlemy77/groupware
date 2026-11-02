@@ -1,0 +1,34 @@
+const assert = require('node:assert/strict');
+const path = require('node:path');
+module.exports = async function inspectExpenses({page,dialog,artifacts}) {
+  await dialog.getByRole('button',{name:'직접경비',exact:true}).click();
+  assert.equal(await dialog.getByRole('button',{name:'입금계획',exact:true}).count(),0);
+  const section=dialog.getByRole('region',{name:'직접경비 산출',exact:true});
+  assert.ok(await section.locator('[data-expense-code]').count()>40);
+  assert.equal(await section.getByTestId('direct-expense-total').textContent(),'0 천원');
+  const meal=section.locator('[data-expense-code="OVERTIME_MEAL"]');
+  await meal.getByRole('combobox').selectOption('MANUAL');
+  await meal.getByRole('spinbutton',{name:'복리/특근식대 M/M',exact:true}).fill('2.25');
+  await meal.getByRole('spinbutton',{name:'복리/특근식대 월 식수',exact:true}).fill('3');
+  await meal.getByRole('spinbutton',{name:'복리/특근식대 식대 (천원/식)',exact:true}).fill('10');
+  assert.equal(await meal.getByLabel('복리/특근식대 산출금액',{exact:true}).textContent(),'67.5 천원');
+  const travel=section.locator('[data-expense-code="TRAVEL_SENIOR"]');
+  for(const [label,value] of [['출장 인원','2'],['출장 횟수','3'],['일수 (1회)','2'],['일비 (천원/일)','20'],['숙박일수 (1회)','1'],['숙박비 (천원/박)','50'],['왕복 교통비 (천원/회)','30']]) await travel.getByRole('spinbutton',{name:'국내출장비/부·차장 '+label,exact:true}).fill(value);
+  assert.equal(await travel.getByLabel('국내출장비/부·차장 산출금액',{exact:true}).textContent(),'720 천원');
+  const insurance=section.locator('[data-expense-code="CONTRACT_INSURANCE"]');
+  const supply=Number(await insurance.getByRole('spinbutton',{name:'보증보험료(계약) 기준금액 (천원)',exact:true}).inputValue());
+  await insurance.getByRole('spinbutton',{name:'보증보험료(계약) 보험 요율 (%)',exact:true}).fill('0.3');
+  const expected=Math.round((787.5+supply*.003)*100)/100;
+  assert.equal(await section.getByTestId('direct-expense-total').textContent(),expected.toLocaleString()+' 천원');
+  await section.getByRole('button',{name:'금액 초기화',exact:true}).click();
+  await page.getByRole('dialog').last().getByRole('button',{name:'취소',exact:true}).click();
+  assert.equal(await section.getByTestId('direct-expense-total').textContent(),expected.toLocaleString()+' 천원');
+  for(const width of [390,768]) {
+    await page.setViewportSize({width,height:900});
+    assert.equal(await section.evaluate(node=>node.scrollWidth>node.clientWidth+1),false,'Expense inputs must fit '+width);
+  }
+  await page.setViewportSize({width:1440,height:1000});
+  await meal.screenshot({path:path.join(artifacts,'direct-expense-meal.png')});
+  await travel.screenshot({path:path.join(artifacts,'direct-expense-travel.png')});
+  return expected;
+};

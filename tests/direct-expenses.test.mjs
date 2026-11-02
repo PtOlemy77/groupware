@@ -1,0 +1,17 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import ts from 'typescript';
+const code=ts.transpileModule(fs.readFileSync('src/lib/direct-expenses.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.ES2022,target:ts.ScriptTarget.ES2022}}).outputText;
+const {EXPENSE_TEMPLATES:templates,expenseContext,expenseRows,calculateExpense,createExpense}=await import('data:text/javascript;base64,'+Buffer.from(code).toString('base64'));
+const doc={startDate:'2026-11-01',endDate:'2027-02-28',supplyAmount:100000,manpowerPlans:[{id:'a',employeeId:1,type:'당사',months:[.5,.5,0,0]},{id:'b',employeeId:1,type:'자사화',months:[0,0,.25,.25]},{id:'c',type:'외주',months:[1,1,1,1]}]};
+const context=expenseContext(doc);
+const row=code=>createExpense(templates.find(t=>t.code===code),context);
+test('every expense is visible and unentered items do not generate charges',()=>{const rows=expenseRows([],context);assert.equal(rows.length,templates.length);assert.ok(rows.length>40);assert.equal(new Set(templates.map(t=>t.code)).size,templates.length);assert.ok(rows.every(r=>r.amount===0));assert.ok(!rows.some(r=>r.account==='보증보험료'));});
+test('context preserves fractional MM, separates outsourcing and counts unique people',()=>assert.deepEqual(context,{TOTAL_MM:5.5,OUR_MM:1.5,HEADCOUNT:2,MONTHS:4,SUPPLY:100000}));
+test('MM formula follows personnel changes without rounding MM or inventing a minimum',()=>{const r=row('OVERTIME_MEAL');r.unitPrice=10;r.calculation.inputs.multiplier=3;assert.equal(calculateExpense(r,context).amount,45);assert.equal(calculateExpense(r,{...context,OUR_MM:0}).amount,0);assert.equal(calculateExpense(r,{...context,OUR_MM:2.25}).amount,67.5);});
+test('manual quantity including zero survives automatic source refresh',()=>{const r=row('OVERTIME_MEAL');Object.assign(r.calculation,{source:'MANUAL',base:0});r.unitPrice=10;assert.equal(calculateExpense(r,context).amount,0);r.calculation.base=2.25;assert.equal(calculateExpense(r,context).amount,22.5);});
+test('travel computes persons times trips times daily, lodging and transport components',()=>{const r=row('TRAVEL_SENIOR');r.calculation.base=2;r.calculation.inputs={trips:3,days:2,dailyCost:20,nights:1,lodgingCost:50,transportCost:30};assert.equal(calculateExpense(r,context).amount,720);});
+test('insurance uses percentage and recalculates when supply changes',()=>{const r=row('CONTRACT_INSURANCE');r.calculation.inputs.rate=.3;assert.equal(calculateExpense(r,context).amount,300);assert.equal(calculateExpense(r,{...context,SUPPLY:5000}).amount,15);});
+test('legacy rows, duplicate accounts, custom items and notes are retained without conversion',()=>{const legacy=[{id:'old1',account:'복리/회의비',qty:2,unitPrice:7,amount:14,basis:'legacy basis',note:'synthetic'},{id:'old2',account:'복리/회의비',qty:3,unitPrice:4,amount:12,basis:'duplicate',note:''},{id:'custom',account:'사용자 추가 항목',qty:1,unitPrice:2,amount:2,basis:'custom',note:''}];const result=expenseRows(legacy,context);for(const item of legacy)assert.deepEqual(result.find(r=>r.id===item.id),item);assert.equal(result.reduce((s,r)=>s+r.amount,0),28);assert.deepEqual(legacy[0].basis,'legacy basis');});
+test('expense details and amount survive serialization with cent precision',()=>{const r=row('OVERTIME_MEAL');r.unitPrice=1.25;r.calculation.inputs.multiplier=.5;const calculated=calculateExpense(r,context);assert.equal(calculated.amount,.94);assert.deepEqual(calculateExpense(JSON.parse(JSON.stringify(calculated)),context),calculated);});

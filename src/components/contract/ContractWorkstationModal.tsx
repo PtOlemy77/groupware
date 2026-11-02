@@ -2,6 +2,7 @@
 
 import { apiFetch, unitPrice as configuredPrice } from '@/lib/api';
 import { useModal } from '@/contexts/ModalContext';
+import { calculateExpense, expenseContext, expenseMoney } from '@/lib/direct-expenses';
 
 import React, { useState } from 'react';
 import {
@@ -119,11 +120,13 @@ export default function ContractWorkstationModal({
         });
       }
 
+      const context = expenseContext(next);
+      next.directExpenses = next.directExpenses.map(row => calculateExpense(row, context));
       // Calculate totals from sub-sheets
       const productCostTotal = next.productCosts.reduce((s, it) => s + it.amount, 0);
       const laborCostTotal = next.manpowerPlans.reduce((s, it) => s + it.laborCost, 0);
       const outsourcingTotal = next.outsourcings.reduce((s, it) => s + it.contractAmount, 0);
-      const directExpenseTotal = next.directExpenses.reduce((s, it) => s + it.amount, 0);
+      const directExpenseTotal = expenseMoney(next.directExpenses.reduce((s, it) => s + it.amount, 0));
 
       // Total budget B = C + D + E + F + AS + Proposal
       const totalBudget =
@@ -213,7 +216,6 @@ export default function ContractWorkstationModal({
     }
   };
 
-  const totalMM = doc.manpowerPlans.reduce((s, m) => s + m.totalMM, 0);
 
   // 고정 탭 목록 (입금계획 및 노임단가표 제거되어 6대 핵심 원가 시트로 집중)
   const navSheets: { key: SheetKey; label: string }[] = [
@@ -328,8 +330,7 @@ export default function ContractWorkstationModal({
               readOnly={readOnly}
               items={doc.directExpenses}
               onChangeItems={(items) => updateDocAndRecalculate({ directExpenses: items })}
-              totalMM={totalMM}
-              headcount={doc.manpowerPlans.length}
+              context={expenseContext(doc)}
             />
           )}
 

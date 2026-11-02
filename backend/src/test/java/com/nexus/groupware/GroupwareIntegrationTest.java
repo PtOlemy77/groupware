@@ -804,4 +804,52 @@ class GroupwareIntegrationTest {
         .andExpect(status().isTooManyRequests());
     assertThat(login(admin)).isNotNull();
   }
+  private Map<String, Object> expenseRow(String method, String source, Map<String, Object> inputs, double base, double price) {
+    return new HashMap<>(Map.of("id", "expense-review-" + method, "account", "합성 직접경비", "qty", 999, "unitPrice", price, "amount", 999999,
+        "calculation", new HashMap<>(Map.of("categoryCode", "REVIEW", "method", method, "source", source, "base", base, "inputs", inputs))));
+  }
+
+  @Test
+  void directExpenseFormulasRecalculateAndPreserveLegacyRows() throws Exception {
+    var s = login(pm);
+    var doc = contractDoc();
+    doc.put("manpowerPlans", List.of(Map.of("id", "review-plan", "employeeId", pm.getId(), "type", "당사", "months", Collections.nCopies(12, 0.5), "unitPrice", 1000)));
+    var product = expenseRow("PRODUCT", "OUR_MM", Map.of("multiplier", 2), 999, 10);
+    var travel = expenseRow("TRAVEL", "MANUAL", Map.of("trips", 3, "days", 2, "dailyCost", 20, "nights", 1, "lodgingCost", 50, "transportCost", 30), 2, 999);
+    var rate = expenseRow("RATE", "SUPPLY", Map.of("rate", 0.3), 999, 999);
+    doc.put("directExpenses", List.of(product, travel, rate, Map.of("id", "legacy-review", "account", "기존 합성 내역", "qty", 2, "unitPrice", 7, "basis", "preserved", "note", "synthetic")));
+    var response = mutate(s, Map.of("module", "approvals", "action", "save_contract", "sync_project", false, "data", Map.of("title", "Review expenses", "approver_id", exec.getId(), "items_json", mapper.writeValueAsString(doc))))
+        .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+    var saved = mapper.readTree(mapper.readTree(response).at("/record/items_json").asText());
+    assertThat(saved.at("/directExpenseTotal").decimalValue()).isEqualByComparingTo("869");
+    assertThat(saved.at("/directExpenses/0/calculation/base").decimalValue()).isEqualByComparingTo("6");
+    assertThat(saved.at("/directExpenses/1/amount").decimalValue()).isEqualByComparingTo("720");
+    assertThat(saved.at("/directExpenses/2/amount").decimalValue()).isEqualByComparingTo("15");
+    assertThat(saved.at("/directExpenses/3/basis").asText()).isEqualTo("preserved");
+    assertThat(saved.at("/directExpenses/3/note").asText()).isEqualTo("synthetic");
+    // 재저장 시 변경된 공수를 기준으로 다시 계산한다.
+    var record = mapper.readTree(response).get("record");
+    var zeroMonths = (com.fasterxml.jackson.databind.node.ArrayNode) saved.at("/manpowerPlans/0/months");
+    zeroMonths.removeAll();
+    for (int month = 0; month < 12; month++) zeroMonths.add(0);
+    var updated = mutate(s, Map.of("module", "approvals", "action", "save_contract", "id", record.get("id").asLong(), "version", record.get("version").asLong(), "sync_project", false, "data", Map.of("title", "Review expenses", "items_json", mapper.writeValueAsString(saved))))
+        .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+    assertThat(mapper.readTree(mapper.readTree(updated).at("/record/items_json").asText()).at("/directExpenseTotal").decimalValue()).isEqualByComparingTo("749");
+  }
+
+  @Test
+  void invalidDirectExpenseInputsAreRejected() throws Exception {
+    var s = login(pm);
+    for (var row : List.of(
+        expenseRow("PRODUCT", "MANUAL", Map.of("multiplier", -1), 1, 10),
+        expenseRow("RATE", "SUPPLY", Map.of("rate", 101), 1, 0),
+        expenseRow("TRAVEL", "MANUAL", Map.of("nights", -1), 1, 0),
+        expenseRow("PRODUCT", "UNKNOWN", Map.of(), 1, 0))) {
+      var doc = contractDoc();
+      doc.put("directExpenses", List.of(row));
+      mutate(s, Map.of("module", "approvals", "action", "save_contract", "sync_project", false, "data", Map.of("title", "Review invalid expense", "items_json", mapper.writeValueAsString(doc))))
+          .andExpect(status().isBadRequest());
+    }
+  }
+
 }

@@ -418,6 +418,13 @@ export interface DirectExpenseItem {
   basis: string; // 산출근거 식
   amount: number; // 천원 (qty * unitPrice)
   note: string;
+  calculation?: {
+    categoryCode: string;
+    method: 'PRODUCT' | 'TRAVEL' | 'RATE';
+    source: 'MANUAL' | 'TOTAL_MM' | 'OUR_MM' | 'HEADCOUNT' | 'MONTHS' | 'SUPPLY';
+    base: number;
+    inputs: Record<string, number>;
+  };
 }
 
 // Sheet 7: 리스크 노출도 평가 기반 예비비
