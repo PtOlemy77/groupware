@@ -691,15 +691,29 @@ export default function ProjectsView({
                       {/* 4. 부가 속성 (예산, 수행기간, 기간 기준 진행율) */}
                       <div className="space-y-1.5 pt-2 border-t border-slate-100 text-xs">
                         <div className="flex items-center justify-between text-slate-500">
-                          <span>사업 예산</span>
+                          <span>{isMultiYear ? `올해(${new Date().getFullYear()}년) 매출` : '사업 예산'}</span>
                           <div className="text-right">
-                            <span className="font-extrabold text-slate-900">
-                              {formatCurrencyManwon(prj.budget)}
-                            </span>
-                            {getProjectShareRate(prj) < 100 && (
-                              <span className="text-[11px] font-bold text-indigo-700 ml-1.5">
-                                (당사: {formatCurrencyManwon(getProjectOurBudget(prj))})
-                              </span>
+                            {isMultiYear ? (
+                              <div>
+                                <span className="font-black text-indigo-700 text-sm">
+                                  {formatCurrencyManwon(getMultiYearRevenueForYear(prj, new Date().getFullYear()))}
+                                </span>
+                                <span className="text-[10px] text-slate-400 block font-normal">
+                                  (총 {formatCurrencyManwon(prj.budget)}
+                                  {getProjectShareRate(prj) < 100 ? ` / 당사지분 ${getProjectShareRate(prj)}%` : ''})
+                                </span>
+                              </div>
+                            ) : (
+                              <div>
+                                <span className="font-extrabold text-slate-900">
+                                  {formatCurrencyManwon(prj.budget)}
+                                </span>
+                                {getProjectShareRate(prj) < 100 && (
+                                  <span className="text-[11px] font-bold text-indigo-700 ml-1.5">
+                                    (당사: {formatCurrencyManwon(getProjectOurBudget(prj))})
+                                  </span>
+                                )}
+                              </div>
                             )}
                           </div>
                         </div>
@@ -1182,12 +1196,19 @@ export default function ProjectsView({
               </div>
 
               {/* 다년도 사업 연차별 안분 계산기 */}
-              <div className="p-3.5 rounded-xl bg-indigo-50/70 border border-indigo-200 space-y-2">
+              <div className="p-3.5 rounded-xl bg-indigo-50/70 border border-indigo-200 space-y-2.5">
                 <div className="flex items-center justify-between">
-                  <span className="font-bold text-indigo-950 flex items-center gap-1.5">
+                  <div className="flex items-center gap-1.5">
                     <Calculator className="w-4 h-4 text-indigo-600" />
-                    다년도 사업 연차별 매출 자동 안분
-                  </span>
+                    <span className="font-bold text-indigo-950">
+                      다년도 사업 연차별 매출 자동 안분
+                    </span>
+                    {(formData.share_rate ?? 100) < 100 && (
+                      <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-md bg-indigo-100 text-indigo-800 border border-indigo-200">
+                        당사 지분율 {formData.share_rate}% 자동 반영
+                      </span>
+                    )}
+                  </div>
                   <button
                     type="button"
                     onClick={() => recalculateBreakdown()}
@@ -1197,26 +1218,68 @@ export default function ProjectsView({
                   </button>
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                  {Object.entries(multiYearBreakdown).map(([yr, val]) => (
-                    <div key={yr} className="bg-white p-2 rounded-lg border border-indigo-100">
-                      <div className="text-[10px] text-slate-500 font-bold mb-0.5">{yr}년 매출 (만원)</div>
-                      <input
-                        type="number"
-                        step="100"
-                        value={val}
-                        onChange={(e) => {
-                          const updated = {
-                            ...multiYearBreakdown,
-                            [Number(yr)]: Number(e.target.value) || 0,
-                          };
-                          setMultiYearBreakdown(updated);
-                        }}
-                        className="w-full text-right font-extrabold text-indigo-700 text-xs border border-slate-200 rounded px-1.5 py-0.5"
-                      />
-                    </div>
-                  ))}
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                  {Object.entries(multiYearBreakdown).map(([yr, val]) => {
+                    const shareRate = formData.share_rate ?? 100;
+                    const ourYearRevenue = Math.round(val * (shareRate / 100));
+                    return (
+                      <div
+                        key={yr}
+                        className="bg-white p-2.5 rounded-xl border border-indigo-100/90 shadow-2xs space-y-1"
+                      >
+                        <div className="flex items-center justify-between text-[10px] text-slate-500 font-bold">
+                          <span>{yr}년 전체 예산</span>
+                          {shareRate < 100 && (
+                            <span className="text-indigo-600">지분 {shareRate}%</span>
+                          )}
+                        </div>
+                        <div className="flex items-center">
+                          <input
+                            type="number"
+                            step="100"
+                            value={val}
+                            onChange={(e) => {
+                              const updated = {
+                                ...multiYearBreakdown,
+                                [Number(yr)]: Number(e.target.value) || 0,
+                              };
+                              setMultiYearBreakdown(updated);
+                            }}
+                            className="w-full text-right font-bold text-slate-800 text-xs border border-slate-200 rounded px-1.5 py-0.5"
+                          />
+                          <span className="ml-1 text-[11px] text-slate-400 shrink-0">만원</span>
+                        </div>
+                        {shareRate < 100 && (
+                          <div className="flex items-center justify-between pt-1 border-t border-slate-100 text-[11px]">
+                            <span className="text-slate-500 font-medium">당사 배정액:</span>
+                            <span className="font-black text-indigo-700">
+                              {formatCurrencyManwon(ourYearRevenue)}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
+
+                {/* 전체 합계 및 당사 배정 매출 합계 요약 */}
+                {Object.keys(multiYearBreakdown).length > 0 && (() => {
+                  const shareRate = formData.share_rate ?? 100;
+                  const totalSum = Object.values(multiYearBreakdown).reduce((a, b) => a + b, 0);
+                  const ourTotalSum = Math.round(totalSum * (shareRate / 100));
+                  return (
+                    <div className="flex items-center justify-between pt-2 border-t border-indigo-200/60 text-xs px-1">
+                      <span className="text-slate-600 font-medium">
+                        연차별 총 예산 합계: <strong className="text-slate-900 font-bold">{formatCurrencyManwon(totalSum)}</strong>
+                      </span>
+                      {shareRate < 100 && (
+                        <span className="text-indigo-900 font-bold">
+                          당사 총 매출액: <strong className="text-indigo-600 font-black">{formatCurrencyManwon(ourTotalSum)}</strong>
+                        </span>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
             </div>
 
