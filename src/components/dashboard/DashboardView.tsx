@@ -12,6 +12,7 @@ import {
   Approval,
   TabKey,
   Holiday,
+  CommonCode,
   formatCurrencyManwon,
   getMultiYearRevenueForYear,
   getProjectYearlyScope,
@@ -41,6 +42,7 @@ interface Props {
   evaluations: Evaluation[];
   approvals: Approval[];
   holidays?: Holiday[];
+  commonCodes?: CommonCode[];
   onNavigateTab: (tab: TabKey) => void;
   onQuickApprove?: (ap: Approval) => void;
   onQuickReject?: (ap: Approval) => void;
@@ -61,18 +63,22 @@ export default function DashboardView({
   deals,
   approvals,
   holidays = [],
+  commonCodes = [],
   onNavigateTab,
 }: Props) {
   const [dashboardTab, setDashboardTab] = useState<'overview' | 'calendar'>('overview');
   const currentYear = new Date().getFullYear();
 
-  // 1. 기준정보 관리에서 연동되는 연도별 전사 사업 목표매출 (기본값: 2026년 25억원 = 250,000만원)
+  // 1. 기준정보 관리에서 연동되는 연도별 전사 사업 목표매출
   const [targetRevenue, setTargetRevenue] = useState<number>(() => {
     try {
       if (typeof window !== 'undefined') {
-        const saved = readMaster('spatialt_master_target_revenues');
+        const targetRow = commonCodes?.find(
+          (c) => c.group_code === 'MASTER_TARGETS' && c.code === 'DATA'
+        );
+        const saved = targetRow?.extra_value || readMaster('spatialt_master_target_revenues');
         if (saved) {
-          const parsed = JSON.parse(saved);
+          const parsed = typeof saved === 'string' ? JSON.parse(saved) : saved;
           if (parsed[currentYear]?.targetAmount) return Number(parsed[currentYear].targetAmount);
           if (typeof parsed[currentYear] === 'number') return Number(parsed[currentYear]);
         }
@@ -84,25 +90,36 @@ export default function DashboardView({
   useEffect(() => {
     const loadTargetRevenue = () => {
       try {
-        const saved = readMaster('spatialt_master_target_revenues');
+        const targetRow = commonCodes?.find(
+          (c) => c.group_code === 'MASTER_TARGETS' && c.code === 'DATA'
+        );
+        const saved = targetRow?.extra_value || readMaster('spatialt_master_target_revenues');
         if (saved) {
-          const parsed = JSON.parse(saved);
+          const parsed = typeof saved === 'string' ? JSON.parse(saved) : saved;
           if (parsed[currentYear]?.targetAmount) {
             setTargetRevenue(Number(parsed[currentYear].targetAmount));
-          } else if (typeof parsed[currentYear] === 'number') {
+            return;
+          }
+          if (typeof parsed[currentYear] === 'number') {
             setTargetRevenue(Number(parsed[currentYear]));
+            return;
           }
         }
       } catch (e) {}
     };
 
+    // 마운트 시 즉시 한 번 로드
+    loadTargetRevenue();
+
     window.addEventListener('target-revenues-updated', loadTargetRevenue);
+    window.addEventListener('master-data-updated', loadTargetRevenue);
     window.addEventListener('storage', loadTargetRevenue);
     return () => {
       window.removeEventListener('target-revenues-updated', loadTargetRevenue);
+      window.removeEventListener('master-data-updated', loadTargetRevenue);
       window.removeEventListener('storage', loadTargetRevenue);
     };
-  }, [currentYear]);
+  }, [currentYear, commonCodes]);
 
   // 2. 프로젝트 상태별 집계 및 올해(currentYear) 기간 귀속 당사 지분율 매출 계산
   const {

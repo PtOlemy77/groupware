@@ -109,7 +109,13 @@ async function performFetch(
       if (method === 'GET') {
         for (const [module, rows] of Object.entries(data))
           if (Array.isArray(rows)) rows.forEach((row) => remember(module, row));
-        masterRows = data.common_codes || [];
+        if (data.common_codes && Array.isArray(data.common_codes)) {
+          masterRows = data.common_codes;
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new Event('target-revenues-updated'));
+            window.dispatchEvent(new Event('master-data-updated'));
+          }
+        }
       } else if (data.record) {
         remember(data.module, data.record);
         window.dispatchEvent(new Event('data-change-saved'));
@@ -164,7 +170,20 @@ export async function saveMaster(key: string, value: unknown) {
     ...masterRows.filter((r) => r.id !== result.record.id),
     result.record,
   ];
-  window.dispatchEvent(new Event('target-revenues-updated'));
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event('target-revenues-updated'));
+    window.dispatchEvent(new Event('master-data-updated'));
+  }
+}
+
+export function syncMasterRows(rows: any[]) {
+  if (Array.isArray(rows)) {
+    masterRows = rows;
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('target-revenues-updated'));
+      window.dispatchEvent(new Event('master-data-updated'));
+    }
+  }
 }
 const DEFAULT_STANDARD_PRICES: Record<string, number> = {
   사장: 15450,

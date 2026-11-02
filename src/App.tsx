@@ -1,4 +1,4 @@
-import { apiFetch } from '@/lib/api';
+import { apiFetch, syncMasterRows } from '@/lib/api';
 
 import React, { useState, useEffect, useCallback } from 'react';
 import {
@@ -91,6 +91,7 @@ export default function App() {
       setEvaluations(data.evaluations);
       setApprovals(data.approvals);
       setCommonCodes(data.common_codes);
+      if (data.common_codes) syncMasterRows(data.common_codes);
       if (data.holidays) setHolidays(data.holidays);
       setCounts(data.counts);
       setPageTotal(data.page_total || 0);
@@ -321,6 +322,7 @@ export default function App() {
               evaluations={evaluations}
               approvals={approvals}
               holidays={holidays}
+              commonCodes={commonCodes}
               onNavigateTab={navigateToTab}
             />
           )}

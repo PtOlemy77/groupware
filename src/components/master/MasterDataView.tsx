@@ -2,7 +2,7 @@
 import { readMaster, saveMaster, apiFetch } from '@/lib/api';
 import { useModal } from '@/contexts/ModalContext';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   AuthUser,
   CommonCode,
@@ -100,6 +100,37 @@ export default function MasterDataView({
   const [savingPrices, setSavingPrices] = useState(false);
   const [saveMessage, setSaveMessage] = useState('');
 
+  // DB에서 commonCodes가 로드되거나 갱신될 때 실시간 동기화
+  useEffect(() => {
+    // 1. 목표매출 동기화
+    const targetRow = commonCodes.find(
+      (c) => c.group_code === 'MASTER_TARGETS' && c.code === 'DATA'
+    );
+    const targetSaved = targetRow?.extra_value || readMaster(STORAGE_KEY_TARGET_REVENUES);
+    if (targetSaved) {
+      try {
+        const parsed = typeof targetSaved === 'string' ? JSON.parse(targetSaved) : targetSaved;
+        if (parsed && typeof parsed === 'object') {
+          setTargetRevenues(parsed);
+        }
+      } catch (e) {}
+    }
+
+    // 2. 노임단가 동기화
+    const priceRow = commonCodes.find(
+      (c) => c.group_code === 'MASTER_PRICES' && c.code === 'DATA'
+    );
+    const priceSaved = priceRow?.extra_value || readMaster(STORAGE_KEY_UNIT_PRICES);
+    if (priceSaved) {
+      try {
+        const parsed = typeof priceSaved === 'string' ? JSON.parse(priceSaved) : priceSaved;
+        if (parsed && typeof parsed === 'object') {
+          setYearlyPrices(parsed);
+        }
+      } catch (e) {}
+    }
+  }, [commonCodes]);
+
   // 현재 연도의 단가 목록
   const currentPrices = useMemo(() => {
     return yearlyPrices[selectedYear] || DEFAULT_YEARLY_PRICES[new Date().getFullYear()] || [];
@@ -134,6 +165,7 @@ export default function MasterDataView({
     try {
       setSavingPrices(true);
       await saveMaster(STORAGE_KEY_UNIT_PRICES, yearlyPrices);
+      await onRefresh?.();
       setSaveMessage(`${selectedYear}년도 SW 기술자 노임단가 기준정보가 저장되었습니다.`);
       setTimeout(() => setSaveMessage(''), 4000);
     } catch (e) {
@@ -163,8 +195,10 @@ export default function MasterDataView({
     try {
       setSavingRevenues(true);
       await saveMaster(STORAGE_KEY_TARGET_REVENUES, targetRevenues);
+      await onRefresh?.();
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new Event('target-revenues-updated'));
+        window.dispatchEvent(new Event('master-data-updated'));
       }
       setSaveMessage('연도별 사업 목표매출이 성공적으로 저장되었습니다. (대시보드 실시간 반영)');
       setTimeout(() => setSaveMessage(''), 4000);
