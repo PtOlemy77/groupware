@@ -7,7 +7,7 @@
 ## 1. 프로젝트 개요 및 아키텍처
 
 - **프로젝트명**: (주)스패셜티(SPATIAL T) 통합 그룹웨어
-- **프론트엔드**: Next.js 15 (App Router), TypeScript, Tailwind CSS, Lucide React
+- **프론트엔드**: React 19 (Vite), TypeScript, Tailwind CSS v4, Lucide React
 - **백엔드**: Spring Boot 3.4.5, Java 21/25, Spring Security, Spring Data JPA
 - **데이터베이스**: PostgreSQL 16 (포트 5433, DB명 `groupware_db`)
 - **저장소**: `https://github.com/PtOlemy77/groupware.git` (`main` 브랜치)

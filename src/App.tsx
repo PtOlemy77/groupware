@@ -1,5 +1,3 @@
-'use client';
-
 import { apiFetch } from '@/lib/api';
 
 import React, { useState, useEffect } from 'react';
@@ -31,7 +29,7 @@ import PasswordChange from '@/components/PasswordChange';
 import InteractionGuard from '@/components/InteractionGuard';
 import WeeklyMonthlyReportView from '@/components/projects/WeeklyMonthlyReportView';
 
-export default function GroupwareApp() {
+export default function App() {
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
   const [activeTab, setActiveTab] = useState<TabKey>('dashboard');
   const [selectedReportProjectId, setSelectedReportProjectId] = useState<

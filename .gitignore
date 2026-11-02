@@ -6,12 +6,11 @@
 # Testing
 /coverage
 
-# Next.js
+# Production & Build outputs
+/dist/
 /.next/
 /out/
-
-# Production
-/build
+/build/
 
 # Misc
 .DS_Store

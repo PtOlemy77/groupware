@@ -66,3 +66,4 @@ flowchart LR
    - [`DataInitializer.java`](file:///Users/ugwang-il/study/groupware/backend/src/main/java/com/nexus/groupware/config/DataInitializer.java)는 DB에 레코드가 존재할 경우 절대 기존 데이터를 덮어쓰지 않아야 함.
 3. **작업 완료 전 하네스 셀프 체크 필수**:
    - 커밋 전 반드시 프론트엔드 타입 체크 및 백엔드 컴파일을 수행하고 이상 없을 때만 커밋/푸시를 수행함.
+
