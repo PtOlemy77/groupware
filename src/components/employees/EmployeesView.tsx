@@ -2,6 +2,8 @@
 
 import { apiFetch } from '@/lib/api';
 import { useModal } from '@/contexts/ModalContext';
+import EmployeeOrgTree from './EmployeeOrgTree';
+import { initialDirectoryFilters, selectDirectoryEmployees, activeDirectoryProject, employeeStatus, projectEmployeeIds, type DirectoryFilters, type AvailabilityFilter } from '@/lib/employee-directory';
 
 import React, { useState, useMemo, useEffect } from 'react';
 import {
@@ -201,101 +203,14 @@ export default function EmployeesView({
   commonCodes = [],
   onRefresh,
 }: Props) {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [deptFilter, setDeptFilter] = useState('ALL');
-  const [availabilityFilter, setAvailabilityFilter] = useState<'전체' | '인재풀' | '휴직' | '퇴사'>('전체');
-  const [positionFilter, setPositionFilter] = useState('ALL');
-
-  // 프로젝트가 조직도 및 투입현황에 표시될 활성 상태인지 판별 ('프로젝트 수행', '제안준비중', '진행중', '검토중' 또는 계약품의서가 등록된 과제)
-  const isActiveProject = (prj: Project): boolean => {
-    const st = (prj.status || '').trim();
-    if (
-      st === '프로젝트 수행' ||
-      st === '진행중' ||
-      st === '제안준비중' ||
-      st === '검토중'
-    ) {
-      return true;
-    }
-    // 계약품의서에 등록된 프로젝트인 경우에도 표시 (단, 완료 제외)
-    if (st !== '완료') {
-      const hasContract = approvals.some(
-        (ap) =>
-          (ap.category === '계약품의' || ap.category === '계약품의서') &&
-          (ap.project_name === prj.name || ap.title === prj.name)
-      );
-      if (hasContract) return true;
-    }
-    return false;
-  };
-
-  const getProjectMemberIds = (prj: Project): number[] => [...new Set([prj.pm_id, ...(prj.member_ids || [])].filter((id): id is number => !!id))];
-  const getProjectMemberNames = (prj: Project): string[] => getProjectMemberIds(prj).map(id => employees.find(e => e.id === id)?.name || '미등록 직원');
-  const isUserProject = (prj: Project) => getProjectMemberIds(prj).includes(currentUser.id);
-
-  // 현재 로그인 사용자의 부서 코드
-  const myDeptCode = useMemo(() => {
-    if (!currentUser) return '';
-    const found = DEPARTMENT_CODES.find(
-      (d) => cleanDeptName(d.label) === cleanDeptName(currentUser.department)
-    );
-    return found?.code || currentUser.department_code || '';
-  }, [currentUser]);
-
-  // 내가 속한 프로젝트 목록
-  const myProjects = useMemo(() => {
-    return projects.filter((p) => isActiveProject(p) && isUserProject(p));
-  }, [projects, approvals, currentUser]);
-
-  // 조직도 패널 표시 여부
+  const [filters, setFilters] = useState<DirectoryFilters>({ ...initialDirectoryFilters });
+  const { query: searchQuery, department: deptFilter, position: positionFilter, availability: availabilityFilter } = filters;
   const [showOrgTree, setShowOrgTree] = useState(true);
-
-  // 조직도 부서 접힘/펼침: 내 부서 및 프로젝트가 있는 사업본부(DEPT_BIZ) 기본 펼침
-  const [expandedDepts, setExpandedDepts] = useState<Record<string, boolean>>(() => {
-    const init: Record<string, boolean> = { DEPT_BIZ: true };
-    if (myDeptCode) init[myDeptCode] = true;
-    return init;
-  });
-
-  // 사업본부 하위 프로젝트 접힘/펼침
-  const [showBizProjects, setShowBizProjects] = useState<boolean>(true);
-
-  // 개별 프로젝트 세부 펼침 (내가 속한 프로젝트가 먼저 펼쳐지고, 없으면 수행중인 프로젝트 기본 펼침)
-  const [expandedProjects, setExpandedProjects] = useState<Record<string | number, boolean>>(() => {
-    const init: Record<string | number, boolean> = { pool: true };
-    if (myProjects.length > 0) {
-      myProjects.forEach((p) => {
-        init[p.id] = true;
-      });
-    } else {
-      projects.filter(isActiveProject).forEach((p) => {
-        init[p.id] = true;
-      });
-    }
-    return init;
-  });
-
-  // 사용자 또는 프로젝트 변경 시 내 부서/프로젝트 자동 펼침 동기화
-  useEffect(() => {
-    if (!currentUser) return;
-    const nextDepts: Record<string, boolean> = { DEPT_BIZ: true };
-    if (myDeptCode) nextDepts[myDeptCode] = true;
-    setExpandedDepts(nextDepts);
-    setShowBizProjects(true);
-
-    const nextPrjs: Record<string | number, boolean> = { pool: true };
-    if (myProjects.length > 0) {
-      myProjects.forEach((p) => {
-        nextPrjs[p.id] = true;
-      });
-    } else {
-      projects.filter(isActiveProject).forEach((p) => {
-        nextPrjs[p.id] = true;
-      });
-    }
-    setExpandedProjects(nextPrjs);
-  }, [currentUser?.emp_no, myDeptCode, projects.length, approvals.length]);
-
+  const updateFilters = (patch: Partial<DirectoryFilters>) => { setFilters(previous => ({ ...previous, ...patch })); setCurrentPage(1); };
+  const resetFilters = () => { setFilters({ ...initialDirectoryFilters }); setCurrentPage(1); };
+  const selectAvailability = (availability: AvailabilityFilter) => { setFilters({ ...initialDirectoryFilters, availability }); setCurrentPage(1); };
+  const activeProjects = useMemo(() => projects.filter(project => activeDirectoryProject(project, approvals)), [projects, approvals]);
+  const getProjectMemberIds = projectEmployeeIds;
   const { showAlert, showConfirm } = useModal();
 
   // 페이지네이션 상태 (사용자 요청: 5/10/15/20명 단위로 축소하여 스크롤 최적화)
@@ -318,8 +233,7 @@ export default function EmployeesView({
   // (삭제된 프로젝트나 과거 계약품의서의 유령 프로젝트가 노출되지 않도록 실제 projects 테이블만 기준)
   const assignedProjectsMap = useMemo(() => {
     const map: Record<string, string[]> = {};
-    projects
-      .filter(isActiveProject)
+    activeProjects
       .forEach((prj) => {
         const names = getProjectMemberIds(prj);
         names.forEach((name) => {
@@ -331,7 +245,7 @@ export default function EmployeesView({
       });
 
     return map;
-  }, [projects]);
+  }, [activeProjects]);
 
   // 직원의 실질적 가용 상태 판별
   // 1. 퇴사 -> 퇴사
@@ -340,25 +254,24 @@ export default function EmployeesView({
   // 4. 사업본부 미투입 인력 -> '투입대기' (회사에서 신규 프로젝트에 즉시 투입 가능한 실질적 가용인원!)
   // 5. 기타 부서 미투입 인력 -> '부서고유업무' (연구개발, 경영지원 등 본연의 업무 수행)
   const getEmployeeAvailability = (emp: Employee): {
-    status: '투입대기' | '투입중' | '부서고유업무' | '휴직' | '퇴사';
+    status: 'POOL' | 'ASSIGNED' | 'DEPARTMENT' | 'LEAVE' | 'RETIRED';
     label: string;
     isBizDept: boolean;
     projects: string[];
   } => {
-    if (emp.status === '퇴사') {
-      return { status: '퇴사', label: '퇴사', isBizDept: false, projects: [] };
+    if (employeeStatus(emp) === 'STATUS_RETIRED') {
+      return { status: 'RETIRED', label: '퇴사', isBizDept: false, projects: [] };
     }
-    if (emp.status === '휴직') {
-      return { status: '휴직', label: '휴직', isBizDept: false, projects: [] };
+    if (employeeStatus(emp) === 'STATUS_LEAVE') {
+      return { status: 'LEAVE', label: '휴직', isBizDept: false, projects: [] };
     }
     const currentPrjs = assignedProjectsMap[emp.id] || [];
     const isBiz =
-      cleanDeptName(emp.department) === '사업본부' ||
       emp.department_code === 'DEPT_BIZ';
 
     if (currentPrjs.length > 0) {
       return {
-        status: '투입중',
+        status: 'ASSIGNED',
         label: '프로젝트 투입중',
         isBizDept: isBiz,
         projects: currentPrjs,
@@ -367,7 +280,7 @@ export default function EmployeesView({
 
     if (isBiz) {
       return {
-        status: '투입대기',
+        status: 'POOL',
         label: '사업본부 가용 (대기)',
         isBizDept: true,
         projects: [],
@@ -375,7 +288,7 @@ export default function EmployeesView({
     }
 
     return {
-      status: '부서고유업무',
+      status: 'DEPARTMENT',
       label: '부서 고유업무',
       isBizDept: false,
       projects: [],
@@ -395,18 +308,17 @@ export default function EmployeesView({
     employees.forEach((emp) => {
       const avail = getEmployeeAvailability(emp);
       const isBiz =
-        cleanDeptName(emp.department) === '사업본부' ||
         emp.department_code === 'DEPT_BIZ';
 
-      if (isBiz) bizTotal++;
+      if (isBiz && employeeStatus(emp) === 'STATUS_ACTIVE') bizTotal++;
 
-      if (avail.status === '퇴사') {
+      if (avail.status === 'RETIRED') {
         retired++;
-      } else if (avail.status === '휴직') {
+      } else if (avail.status === 'LEAVE') {
         suspended++;
-      } else if (avail.status === '투입중') {
+      } else if (avail.status === 'ASSIGNED') {
         activeAssigned++;
-      } else if (avail.status === '투입대기') {
+      } else if (avail.status === 'POOL') {
         bizAvailable++;
       } else {
         otherDeptCount++;
@@ -433,58 +345,7 @@ export default function EmployeesView({
 
   // 필터링 및 정렬
   const filteredEmployees = useMemo(() => {
-    const q = searchQuery.toLowerCase().trim();
-
-    const list = employees.filter((emp) => {
-      // 규칙: 퇴사자는 오직 availabilityFilter === '퇴사' 일 때만 조회됨
-      if (availabilityFilter === '퇴사') {
-        if (emp.status !== '퇴사') return false;
-      } else {
-        // 그 외 모든 탭(전체, 인재풀, 휴직) 및 조직도 부서 클릭, 검색 등에서는 퇴사자 원천 차단
-        if (emp.status === '퇴사') return false;
-      }
-
-      const avail = getEmployeeAvailability(emp);
-      const isAssignedToProject = avail.status === '투입중';
-      const isBiz =
-        cleanDeptName(emp.department) === '사업본부' ||
-        emp.department_code === 'DEPT_BIZ';
-
-      // 4대 조건 탭 필터: 전체 / 인재풀 / 휴직 / 퇴사
-      if (availabilityFilter === '인재풀') {
-        // 사용자 요청: 인재 풀은 프로젝트에 투입되지 않은 인력만 조회되어야 함!
-        if (isAssignedToProject) return false;
-        if (emp.status === '퇴사' || emp.status === '휴직') return false;
-        if (!isBiz) return false;
-      } else if (availabilityFilter === '휴직') {
-        if (emp.status !== '휴직') return false;
-      }
-      // '전체'일 때는 퇴사자를 제외한 전체 임직원 노출
-
-      // 조직도 부서 필터
-      const matchDept =
-        deptFilter === 'ALL' ||
-        (deptFilter === 'DEPT_POOL'
-          ? (!isAssignedToProject && isBiz && emp.status !== '퇴사' && emp.status !== '휴직')
-          : emp.department_code === deptFilter);
-
-      const matchPosition =
-        positionFilter === 'ALL' || emp.position_code === positionFilter;
-
-      const empNo = getEmpNoFromHireDate(emp.hire_date, emp.emp_no);
-      const matchSearch =
-        !q ||
-        emp.name.toLowerCase().includes(q) ||
-        empNo.toLowerCase().includes(q) ||
-        emp.position.toLowerCase().includes(q) ||
-        emp.department.toLowerCase().includes(q) ||
-        (emp.email || '').toLowerCase().includes(q) ||
-        (emp.phone || '').toLowerCase().includes(q) ||
-        avail.projects.some((p) => p.toLowerCase().includes(q));
-
-      return matchDept && matchPosition && matchSearch;
-    });
-
+    const list = selectDirectoryEmployees(employees, projects, approvals, filters);
     return list.sort((a, b) => {
       if (
         sortBy === 'position' ||
@@ -513,24 +374,21 @@ export default function EmployeesView({
       const cmp = valA.localeCompare(valB, 'ko');
       return sortOrder === 'asc' ? cmp : -cmp;
     });
-  }, [
-    employees,
-    deptFilter,
-    availabilityFilter,
-    positionFilter,
-    searchQuery,
-    sortBy,
-    sortOrder,
-    assignedProjectsMap,
-  ]);
+  }, [employees, projects, approvals, filters, sortBy, sortOrder]);
+
+  const treeEmployees = useMemo(() => selectDirectoryEmployees(employees, projects, approvals, {
+    ...filters, department: 'ALL', employeeId: null, projectId: null,
+  }), [employees, projects, approvals, filters]);
 
   // 페이지네이션
   const totalPages = Math.max(1, Math.ceil(filteredEmployees.length / (pageSize || 1)));
+  const safePage = Math.min(currentPage, totalPages);
+  useEffect(() => { if (currentPage > totalPages) setCurrentPage(totalPages); }, [currentPage, totalPages]);
   const paginatedEmployees = useMemo(() => {
     if (pageSize === 0) return filteredEmployees;
-    const start = (currentPage - 1) * pageSize;
+    const start = (safePage - 1) * pageSize;
     return filteredEmployees.slice(start, start + pageSize);
-  }, [filteredEmployees, currentPage, pageSize]);
+  }, [filteredEmployees, safePage, pageSize]);
 
   const handleSort = (field: 'emp_no' | 'name' | 'position' | 'hire_date') => {
     if (sortBy === field) {
@@ -674,46 +532,35 @@ export default function EmployeesView({
     }
   };
 
-  const handleDelete = async (id: number) => {
-    if (!isExecutiveOrAbove(currentUser)) {
-      await showAlert('직원 삭제는 시스템 관리자 또는 임원 권한(이사급 이상)만 가능합니다.', {
-        type: 'warning',
-      });
-      return;
-    }
-    const confirmed = await showConfirm('정말 해당 직원을 삭제하시겠습니까?', {
-      isDanger: true,
-      confirmText: '삭제',
-    });
+  const handleRetire = async (employee: Employee) => {
+    if (!canEdit || employee.id === currentUser.id) return;
+    const confirmed = await showConfirm(`${employee.name} 직원을 퇴사 처리하고 계정을 비활성화할까요? 기존 업무 이력은 보존됩니다.`, { title: '직원 퇴사 처리', isDanger: true, confirmText: '퇴사 처리' });
     if (!confirmed) return;
-
-    await apiFetch('/api/groupware', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ module: 'employees', action: 'delete', id }),
-    });
-    await onRefresh();
-    await showAlert('직원 정보가 삭제되었습니다.', { type: 'success' });
+    try {
+      await apiFetch('/api/groupware', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ module: 'employees', action: 'update', id: employee.id, version: employee.version, data: { status_code: 'STATUS_RETIRED', account_enabled: false } }) });
+      await onRefresh();
+      void showAlert('퇴사 처리했습니다. 직원 이력은 퇴사 탭에서 확인할 수 있습니다.', { type: 'success' });
+    } catch (error) { void showAlert(error instanceof Error ? error.message : '퇴사 처리에 실패했습니다.', { type: 'error', autoClose: false }); }
   };
 
   return (
     <div className="space-y-4">
-      {/* 1. 상단 회사의 가용인원 파악 대시보드 */}
+      {/* 1. 현재 회사 인력 현황 */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {/* 전체 임직원 */}
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs flex items-center justify-between">
+        <button type="button" onClick={resetFilters} className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs flex items-center justify-between text-left hover:border-indigo-300">
           <div>
-            <div className="text-[11px] font-semibold text-slate-500">전체 임직원</div>
-            <div className="text-2xl font-extrabold text-slate-900 mt-1">{stats.total}명</div>
-            <div className="text-[11px] text-slate-400 mt-0.5">상시 정규인력</div>
+            <div className="text-[11px] font-semibold text-slate-500">재직·휴직 인원</div>
+            <div className="text-2xl font-extrabold text-slate-900 mt-1">{stats.activeTotal}명</div>
+            <div className="text-[11px] text-slate-400 mt-0.5">퇴사자 제외 · 클릭하여 전체 보기</div>
           </div>
           <div className="w-10 h-10 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center font-bold">
             <Users className="w-5 h-5" />
           </div>
-        </div>
+        </button>
 
         {/* 프로젝트 투입 인력 */}
-        <div className="bg-white p-4 rounded-xl border border-indigo-200 bg-indigo-50/20 shadow-2xs flex items-center justify-between">
+        <button type="button" onClick={() => selectAvailability('ASSIGNED')} className="bg-white p-4 rounded-xl border border-indigo-200 bg-indigo-50/20 shadow-2xs flex items-center justify-between text-left hover:border-indigo-400">
           <div>
             <div className="text-[11px] font-semibold text-indigo-700">프로젝트 투입 인력</div>
             <div className="text-2xl font-extrabold text-indigo-700 mt-1">{stats.activeAssigned}명</div>
@@ -724,16 +571,11 @@ export default function EmployeesView({
           <div className="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center">
             <Briefcase className="w-5 h-5" />
           </div>
-        </div>
+        </button>
 
         {/* 인재Pool (프로젝트 미투입 가용인력) */}
-        <div
-          onClick={() => {
-            setDeptFilter('ALL');
-            setAvailabilityFilter('인재풀');
-            setSearchQuery('');
-            setCurrentPage(1);
-          }}
+        <button type="button"
+          onClick={() => selectAvailability('POOL')}
           className="bg-white p-4 rounded-xl border border-emerald-200 bg-emerald-50/20 shadow-2xs flex items-center justify-between cursor-pointer hover:border-emerald-300 transition"
           title="클릭하여 인재Pool (가용 인력)만 조회"
         >
@@ -747,10 +589,10 @@ export default function EmployeesView({
           <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center">
             <UserCheck className="w-5 h-5" />
           </div>
-        </div>
+        </button>
 
         {/* 휴직 (비가용) */}
-        <div className="bg-white p-4 rounded-xl border border-amber-200 bg-amber-50/20 shadow-2xs flex items-center justify-between">
+        <button type="button" onClick={() => selectAvailability('LEAVE')} className="bg-white p-4 rounded-xl border border-amber-200 bg-amber-50/20 shadow-2xs flex items-center justify-between text-left hover:border-amber-400">
           <div>
             <div className="text-[11px] font-semibold text-amber-800">휴직 (비가용)</div>
             <div className="text-2xl font-extrabold text-amber-600 mt-1">{stats.suspended}명</div>
@@ -759,652 +601,74 @@ export default function EmployeesView({
           <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center">
             <UserX className="w-5 h-5" />
           </div>
-        </div>
+        </button>
       </div>
 
-      {/* 2. 가용상태 탭 & 검색 / 필터 툴바 */}
-      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-2">
-          {/* 가용인원 상태 탭 필터: 전체 / 인재풀 / 휴직 / 퇴사 */}
-          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg text-xs font-semibold mr-2">
-            {[
-              { key: '전체', label: `전체 (${stats.activeTotal})` },
-              { key: '인재풀', label: `인재풀 (${stats.bizAvailable})` },
-              { key: '휴직', label: `휴직 (${stats.suspended})` },
-              { key: '퇴사', label: `퇴사 (${stats.retired})` },
-            ].map((tab) => (
-              <button
-                key={tab.key}
-                onClick={() => {
-                  setAvailabilityFilter(tab.key as any);
-                  if (tab.key === '인재풀') {
-                    setDeptFilter('ALL');
-                  }
-                  setCurrentPage(1);
-                }}
-                className={`px-3 py-1.5 rounded-md transition ${
-                  availabilityFilter === tab.key
-                    ? 'bg-white text-indigo-600 shadow-2xs font-bold'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
-
-          {/* 검색 필드 (사번=입사일, 성명, 직급, 부서, 이메일, 연락처) */}
-          <div className="relative">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
-            <input
-              type="text"
-              placeholder="성명, 사번(입사일), 직급, 부서 검색..."
-              value={searchQuery}
-              onChange={(e) => {
-                setSearchQuery(e.target.value);
-                setCurrentPage(1);
-              }}
-              className="pl-9 pr-3 py-1.5 text-xs rounded-lg border border-slate-300 w-60 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
-            />
-          </div>
-
-          {/* 부서 필터 (코드 기반 관리) */}
-          <select
-            value={deptFilter}
-            onChange={(e) => {
-              setDeptFilter(e.target.value);
-              setCurrentPage(1);
-            }}
-            className="px-2.5 py-1.5 text-xs rounded-lg border border-slate-300 bg-white font-medium"
-          >
-            <option value="ALL">전체 부서 (기본 목록)</option>
-            <option value="DEPT_POOL">인재Pool (프로젝트 투입 {stats.activeAssigned}명)</option>
-            {DEPARTMENT_CODES.map((d) => (
-              <option key={d.code} value={d.code}>
-                {d.label}
-              </option>
-            ))}
-          </select>
-
-          {/* 직급 필터 (코드 기반 관리) */}
-          <select
-            value={positionFilter}
-            onChange={(e) => {
-              setPositionFilter(e.target.value);
-              setCurrentPage(1);
-            }}
-            className="px-2.5 py-1.5 text-xs rounded-lg border border-slate-300 bg-white font-medium"
-          >
-            <option value="ALL">전체 직급</option>
-            {POSITION_CODES.map((p) => (
-              <option key={p.code} value={p.code}>
-                {p.label}
-              </option>
-            ))}
-          </select>
-
-          {/* 조직도 토글 버튼 */}
-          <button
-            onClick={() => setShowOrgTree(!showOrgTree)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition cursor-pointer ${
-              showOrgTree
-                ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
-                : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'
-            }`}
-          >
-            <Network className="w-3.5 h-3.5" />
-            <span>조직도 {showOrgTree ? '접기' : '펼치기'}</span>
-          </button>
+      <section aria-label="직원 검색 및 필터" className="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs space-y-4">
+        <div className="flex flex-wrap items-center gap-2" role="group" aria-label="직원 상태">
+          {([
+            ['ALL', `전체 (${stats.activeTotal})`], ['ASSIGNED', `프로젝트 투입 (${stats.activeAssigned})`],
+            ['POOL', `인재풀 (${stats.bizAvailable})`], ['LEAVE', `휴직 (${stats.suspended})`], ['RETIRED', `퇴사 (${stats.retired})`],
+          ] as [AvailabilityFilter, string][]).map(([value, label]) => <button key={value} type="button" aria-pressed={availabilityFilter === value} onClick={() => selectAvailability(value)} className={`rounded-lg px-3 py-2 text-sm font-semibold ${availabilityFilter === value ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>{label}</button>)}
         </div>
-
-        <div className="flex items-center gap-3">
-          {/* 페이지당 표시 개수 */}
-          <div className="flex items-center gap-1.5 text-xs text-slate-500">
-            <span>표시:</span>
-            <select
-              value={pageSize}
-              onChange={(e) => {
-                setPageSize(Number(e.target.value));
-                setCurrentPage(1);
-              }}
-              className="px-2 py-1 text-xs rounded-lg border border-slate-300 bg-white font-semibold text-slate-800"
-            >
-              <option value={5}>5명씩 보기</option>
-              <option value={10}>10명씩 보기</option>
-              <option value={15}>15명씩 보기</option>
-              <option value={20}>20명씩 보기</option>
-            </select>
-          </div>
-
-          {canEdit && (
-            <button
-              onClick={openCreateModal}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs transition"
-            >
-              <Plus className="w-3.5 h-3.5" /> 신규 직원 등록
-            </button>
-          )}
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="min-w-0 flex-1 basis-64"><label htmlFor="employee-directory-search" className="mb-1.5 block text-xs font-semibold text-slate-600">직원·프로젝트 검색</label><div className="relative"><Search className="absolute left-3 top-3 text-slate-400" size={17} /><input id="employee-directory-search" value={searchQuery} onChange={event => updateFilters({ query: event.target.value, employeeId: null })} placeholder="이름, 사번, 부서, 직급, 연락처, 프로젝트" className="w-full rounded-lg border border-slate-300 py-2.5 pl-10 pr-10 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-100" />{searchQuery && <button type="button" aria-label="검색어 지우기" onClick={() => updateFilters({ query: '', employeeId: null })} className="absolute right-2 top-2 rounded p-1 text-slate-400 hover:bg-slate-100"><X size={17} /></button>}</div></div>
+          <div><label htmlFor="employee-department-filter" className="mb-1.5 block text-xs font-semibold text-slate-600">소속 부서</label><select id="employee-department-filter" value={deptFilter} onChange={event => updateFilters({ department: event.target.value, employeeId: null, projectId: null })} className="max-w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm"><option value="ALL">전체 부서</option><option value="DEPT_POOL">인재풀 · 가용 {stats.bizAvailable}명</option>{DEPARTMENT_CODES.map(department => <option key={department.code} value={department.code}>{department.label}</option>)}</select></div>
+          <div><label htmlFor="employee-position-filter" className="mb-1.5 block text-xs font-semibold text-slate-600">직급</label><select id="employee-position-filter" value={positionFilter} onChange={event => updateFilters({ position: event.target.value, employeeId: null })} className="rounded-lg border border-slate-300 px-3 py-2.5 text-sm"><option value="ALL">전체 직급</option>{POSITION_CODES.map(position => <option key={position.code} value={position.code}>{position.label}</option>)}</select></div>
+          <button type="button" onClick={resetFilters} className="rounded-lg border border-slate-300 px-3 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50">조건 초기화</button>
         </div>
-      </div>
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-3">
+          <button type="button" aria-expanded={showOrgTree} onClick={() => setShowOrgTree(!showOrgTree)} className="flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-600 hover:bg-slate-50"><Network size={16} />조직도 {showOrgTree ? '접기' : '펼치기'}</button>
+          <div className="flex flex-wrap items-center gap-3"><label htmlFor="employee-page-size" className="text-xs text-slate-500">페이지당 인원</label><select id="employee-page-size" value={pageSize} onChange={event => { setPageSize(Number(event.target.value)); setCurrentPage(1); }} className="rounded-lg border border-slate-300 px-2 py-2 text-sm">{[5, 10, 15, 20].map(size => <option key={size} value={size}>{size}명씩 보기</option>)}</select>{canEdit && <button type="button" onClick={openCreateModal} className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700"><Plus size={17} />신규 직원 등록</button>}</div>
+        </div>
+      </section>
 
-      {/* 3. 본문 영역: 조직도(선택적 토글) + 컴팩트 목록형 테이블 */}
-      <div className="flex gap-4 items-start">
-        {/* 사내 조직도 사이드 패널 (첨부 이미지 스타일) */}
-        {showOrgTree && (
-          <div className="w-80 shrink-0 bg-white rounded-xl border border-slate-200 p-3 shadow-2xs space-y-2 select-none">
-            {/* 상단 검색 입력창 (이름/아이디/부서/직위/직책/전화) */}
-            <div className="relative">
-              <div className="flex items-center border border-slate-300 rounded px-2.5 py-1.5 bg-white shadow-2xs focus-within:border-indigo-500">
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => {
-                    setSearchQuery(e.target.value);
-                    setCurrentPage(1);
-                  }}
-                  placeholder="이름/아이디/부서/직위/직책/전화"
-                  className="w-full text-xs text-slate-800 placeholder-slate-400 bg-transparent outline-hidden pr-2"
-                />
-                {searchQuery ? (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSearchQuery('');
-                      setDeptFilter('전체');
-                      setCurrentPage(1);
-                    }}
-                    className="text-slate-400 hover:text-slate-700 p-0.5"
-                    title="검색어 초기화"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                ) : (
-                  <Search className="w-3.5 h-3.5 text-slate-400" />
-                )}
-              </div>
-            </div>
-
-            {/* 트리 뷰 본체 (계층 트리 가이드라인 & 사각 [-]/[+] 토글 버튼) */}
-            <div className="max-h-[750px] overflow-y-auto pr-1 text-[12px] font-sans text-slate-700 space-y-1">
-              {DEPARTMENT_CODES.map((dept) => {
-                const isDeptSelected = deptFilter === dept.code && !searchQuery;
-                const deptEmps = employees.filter(
-                  (e) => e.department_code === dept.code && e.status !== '퇴사'
-                );
-                const isExpanded = !!expandedDepts[dept.code];
-                // 프로젝트는 오직 '사업본부' 밑에만 생길 수 있음
-                const isBizDept = dept.code === 'DEPT_BIZ';
-                const deptProjects = isBizDept
-                  ? projects
-                      .filter(isActiveProject)
-                      .sort((a, b) => {
-                        const aMine = isUserProject(a) ? 1 : 0;
-                        const bMine = isUserProject(b) ? 1 : 0;
-                        if (bMine !== aMine) return bMine - aMine;
-                        return a.name.localeCompare(b.name);
-                      })
-                  : [];
-
-                // 사용자 요청: 프로젝트에 소속한 사람이면 기본 부서 목록에서 제외하고 인재Pool로 이동
-                const directDeptEmps = deptEmps.filter(
-                  (e) => !(assignedProjectsMap[e.id]?.length)
-                );
-
-                // 사업본부 정렬은 직급, 입사일 순으로 정렬
-                const sortedDirectDeptEmps = [...directDeptEmps].sort(
-                  compareEmployeesByPositionAndHireDate
-                );
-
-                // 인재Pool: 사업본부(DEPT_BIZ) 소속 중 활성 프로젝트에 투입되지 않은 가용 인력만 추출
-                const poolEmployees = isBizDept
-                  ? deptEmps
-                      .filter((e) => !(assignedProjectsMap[e.id]?.length))
-                      .sort(compareEmployeesByPositionAndHireDate)
-                  : [];
-
-                return (
-                  <div key={dept.code} className="relative">
-                    {/* 부서 헤더 노드 */}
-                    <div
-                      className={`flex items-center gap-1.5 py-1 px-1 rounded cursor-pointer transition ${
-                        isDeptSelected
-                          ? 'bg-indigo-50 text-indigo-900 font-bold'
-                          : 'hover:bg-slate-50 text-slate-900 font-bold'
-                      }`}
-                      onClick={() => {
-                        setDeptFilter(dept.code);
-                        setSearchQuery('');
-                        setCurrentPage(1);
-                      }}
-                    >
-                      {/* 사각형 [-] / [+] 토글 버튼 */}
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setExpandedDepts((prev) => ({
-                            ...prev,
-                            [dept.code]: !prev[dept.code],
-                          }));
-                        }}
-                        className="w-3.5 h-3.5 shrink-0 bg-[#64748b] text-white flex items-center justify-center text-[10px] font-mono font-bold leading-none rounded-xs hover:bg-[#475569] shadow-2xs"
-                      >
-                        {isExpanded ? '−' : '+'}
-                      </button>
-                      <span className="text-[12px]">{dept.label}</span>
-                      <span className="text-[10px] text-slate-400 font-normal font-mono ml-auto">
-                        ({isBizDept ? deptEmps.length : directDeptEmps.length}명)
-                      </span>
-                    </div>
-
-                    {/* 부서 하위 트리 가지 */}
-                    {isExpanded && (
-                      <div className="ml-2 pl-3 border-l border-slate-300 space-y-0.5 py-0.5">
-                        {/* 1) 부서 소속 직원 목록 (사업본부는 인재Pool 프로젝트 노드로 일원화) */}
-                        {!isBizDept &&
-                          sortedDirectDeptEmps.map((emp) => {
-                            const isEmpActive = searchQuery === emp.name;
-                            return (
-                              <div
-                                key={emp.id}
-                                onClick={() => {
-                                  setSearchQuery(emp.name);
-                                  setDeptFilter(dept.code);
-                                  setCurrentPage(1);
-                                }}
-                                onDoubleClick={() => canEdit && openEditModal(emp)}
-                                className={`relative flex items-center justify-between py-1 px-1.5 rounded cursor-pointer transition border border-transparent before:absolute before:-left-3 before:top-3 before:w-3 before:border-t before:border-slate-300 ${
-                                  isEmpActive
-                                    ? 'bg-indigo-50 border-indigo-200 text-indigo-900 font-bold'
-                                    : 'hover:bg-slate-50 text-slate-700'
-                                }`}
-                                title={canEdit ? '클릭 시 우측 조회 / 더블클릭 시 정보 수정' : '클릭 시 우측 조회'}
-                              >
-                                <div className="flex items-center gap-1.5 truncate">
-                                  <User className="w-3.5 h-3.5 text-slate-400 shrink-0 fill-slate-200" />
-                                  <span className="text-[12px] font-medium text-slate-800 truncate">
-                                    {emp.name} <span className="text-slate-500 font-normal">{emp.position}</span>
-                                  </span>
-                                </div>
-                                {canEdit && (
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      openEditModal(emp);
-                                    }}
-                                    className="text-slate-400 hover:text-indigo-600 p-0.5 shrink-0"
-                                    title="직원 정보 수정"
-                                  >
-                                    <Edit3 className="w-3 h-3" />
-                                  </button>
-                                )}
-                              </div>
-                            );
-                          })}
-
-                        {/* 2) 부서 관할 프로젝트 목록 (트리 하위) */}
-                        {deptProjects.map((prj) => {
-                          const isMine = isUserProject(prj);
-                          const isPrjExpanded = !!expandedProjects[prj.id];
-                          const isPrjSelected = searchQuery === prj.name;
-                          const memberNames = getProjectMemberNames(prj);
-
-                          // PM 인력 정보 추출 (퇴사자 제외)
-                          const pmEmp = employees.find((e) => e.id === prj.pm_id && e.status !== '퇴사');
-                          const pmName = pmEmp ? (prj.pm_name || pmEmp.name) : '';
-                          const pmPosition = pmEmp ? pmEmp.position : '';
-
-                          return (
-                            <div key={prj.id} className="relative mt-1">
-                              {/* 프로젝트 노드 헤더 */}
-                              <div
-                                onClick={() => {
-                                  setSearchQuery(prj.name);
-                                  setDeptFilter('전체');
-                                  setCurrentPage(1);
-                                }}
-                                className={`relative flex items-center gap-1.5 py-0.5 px-1 rounded cursor-pointer transition before:absolute before:-left-3 before:top-2.5 before:w-3 before:border-t before:border-slate-300 ${
-                                  isPrjSelected
-                                    ? 'bg-indigo-600 text-white font-bold'
-                                    : isMine
-                                    ? 'bg-indigo-50/70 text-indigo-950 font-semibold hover:bg-indigo-100/60'
-                                    : 'hover:bg-slate-50 text-slate-800 font-medium'
-                                }`}
-                              >
-                                {/* 사각형 [-] / [+] 토글 버튼 */}
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setExpandedProjects((prev) => ({
-                                      ...prev,
-                                      [prj.id]: !prev[prj.id],
-                                    }));
-                                  }}
-                                  className={`w-3.5 h-3.5 shrink-0 flex items-center justify-center text-[10px] font-mono font-bold leading-none rounded-xs shadow-2xs ${
-                                    isPrjSelected
-                                      ? 'bg-white text-indigo-700'
-                                      : 'bg-[#64748b] text-white hover:bg-[#475569]'
-                                  }`}
-                                >
-                                  {isPrjExpanded ? '−' : '+'}
-                                </button>
-                                <span className="text-[12px] truncate flex-1" title={prj.name}>
-                                  {prj.name}
-                                </span>
-                                {isMine && (
-                                  <span
-                                    className={`text-[9px] px-1 py-0.2 rounded font-bold shrink-0 ${
-                                      isPrjSelected ? 'bg-white text-indigo-700' : 'bg-indigo-600 text-white'
-                                    }`}
-                                  >
-                                    내Pjt
-                                  </span>
-                                )}
-                              </div>
-
-                              {/* 프로젝트 하위 투입 인원 트리 (첨부 이미지와 일치: PM [M] + 팀원들) */}
-                              {isPrjExpanded && (
-                                <div className="ml-2 pl-3 border-l border-slate-300 space-y-0.5 py-0.5">
-                                  {/* PM (책임자) - [M] 배지 및 연락처/이메일 */}
-                                  {pmName && (
-                                    <div
-                                      onClick={() => {
-                                        setSearchQuery(pmName);
-                                        setCurrentPage(1);
-                                      }}
-                                      onDoubleClick={() => {
-                                        if (pmEmp && canEdit) openEditModal(pmEmp);
-                                      }}
-                                      className={`relative flex flex-col py-1 px-1.5 rounded cursor-pointer transition border border-transparent before:absolute before:-left-3 before:top-3 before:w-3 before:border-t before:border-slate-300 ${
-                                        searchQuery === pmName
-                                          ? 'bg-indigo-50 border-indigo-200 text-indigo-900 font-bold'
-                                          : 'hover:bg-slate-50 text-slate-800'
-                                      }`}
-                                      title={canEdit ? '더블클릭 시 정보 수정' : '클릭 시 검색'}
-                                    >
-                                      <div className="flex items-center justify-between gap-1">
-                                        <div className="flex items-center gap-1.5 truncate">
-                                          {/* [M] 배지가 붙은 유저 아이콘 */}
-                                          <div className="relative inline-flex items-center shrink-0">
-                                            <User className="w-3.5 h-3.5 text-slate-500 fill-slate-300" />
-                                            <span className="absolute -top-1 -right-1 text-[7px] font-black bg-[#1e3a8a] text-white rounded-[1px] px-0.5 leading-tight">
-                                              M
-                                            </span>
-                                          </div>
-                                          <span className="text-[12px] font-bold truncate">
-                                            {pmName} {pmPosition}
-                                          </span>
-                                        </div>
-                                        {pmEmp && canEdit && (
-                                          <button
-                                            type="button"
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              openEditModal(pmEmp);
-                                            }}
-                                            className="text-slate-400 hover:text-indigo-600 p-0.5 shrink-0"
-                                            title="정보 수정"
-                                          >
-                                            <Edit3 className="w-3 h-3" />
-                                          </button>
-                                        )}
-                                      </div>
-                                    </div>
-                                  )}
-
-                                  {/* 투입 팀원들 (퇴사자 제외, 직급 및 입사일 순 정렬) */}
-                                  {getProjectMemberIds(prj)
-                                    .filter((id) => id !== prj.pm_id)
-                                    .map((memberId) => employees.find((e) => e.id === memberId && e.status !== '퇴사'))
-                                    .filter((e): e is Employee => Boolean(e))
-                                    .sort(compareEmployeesByPositionAndHireDate)
-                                    .map((memberEmp) => {
-                                      const memberName = memberEmp.name;
-                                      const memberPos = memberEmp.position;
-                                      const isMemberActive = searchQuery === memberName;
-
-                                      return (
-                                        <div
-                                          key={memberEmp.id}
-                                          onClick={() => {
-                                            setSearchQuery(memberName);
-                                            setCurrentPage(1);
-                                          }}
-                                          onDoubleClick={() => {
-                                            if (canEdit) openEditModal(memberEmp);
-                                          }}
-                                          className={`relative flex items-center justify-between py-1 px-1.5 rounded cursor-pointer transition border border-transparent before:absolute before:-left-3 before:top-3 before:w-3 before:border-t before:border-slate-300 ${
-                                            isMemberActive
-                                              ? 'bg-indigo-50 border-indigo-200 text-indigo-900 font-bold'
-                                              : 'hover:bg-slate-50 text-slate-700'
-                                          }`}
-                                          title={canEdit ? '클릭 시 우측 조회 / 더블클릭 시 정보 수정' : '클릭 시 우측 조회'}
-                                        >
-                                          <div className="flex items-center gap-1.5 truncate">
-                                            <User className="w-3.5 h-3.5 text-slate-400 shrink-0 fill-slate-200" />
-                                            <span className="text-[12px] font-medium text-slate-800 truncate">
-                                              {memberName} <span className="text-slate-500 font-normal">{memberPos}</span>
-                                            </span>
-                                          </div>
-                                          {canEdit && (
-                                            <button
-                                              type="button"
-                                              onClick={(e) => {
-                                                e.stopPropagation();
-                                                openEditModal(memberEmp);
-                                              }}
-                                              className="text-slate-400 hover:text-indigo-600 p-0.5 shrink-0"
-                                              title="정보 수정"
-                                            >
-                                              <Edit3 className="w-3 h-3" />
-                                            </button>
-                                          )}
-                                        </div>
-                                      );
-                                    })}
-
-                                  {memberNames.length === 0 && !prj.pm_name && (
-                                    <div className="text-[11px] text-slate-400 italic py-0.5 pl-1">
-                                      투입 인원 정보 없음
-                                    </div>
-                                  )}
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })}
-
-                        {/* 3) 사업본부 하위: 인재Pool (프로젝트처럼 표현, 프로젝트 미투입 인력만 표시) */}
-                        {isBizDept && (
-                          <div key="pool" className="relative mt-1">
-                            {/* 인재Pool 노드 헤더 (하나의 프로젝트처럼 표현) */}
-                            <div
-                              onClick={() => {
-                                setDeptFilter('DEPT_POOL');
-                                setAvailabilityFilter('전체');
-                                setSearchQuery('');
-                                setCurrentPage(1);
-                              }}
-                              className={`relative flex items-center gap-1.5 py-0.5 px-1 rounded cursor-pointer transition before:absolute before:-left-3 before:top-2.5 before:w-3 before:border-t before:border-slate-300 ${
-                                deptFilter === 'DEPT_POOL' && !searchQuery
-                                  ? 'bg-indigo-600 text-white font-bold'
-                                  : 'hover:bg-slate-50 text-slate-800 font-medium'
-                              }`}
-                              title="클릭 시 우측 인재Pool 인원 조회"
-                            >
-                              {/* 사각형 [-] / [+] 토글 버튼 */}
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setExpandedProjects((prev) => ({
-                                    ...prev,
-                                    pool: !prev['pool'],
-                                  }));
-                                }}
-                                className={`w-3.5 h-3.5 shrink-0 flex items-center justify-center text-[10px] font-mono font-bold leading-none rounded-xs shadow-2xs ${
-                                  deptFilter === 'DEPT_POOL' && !searchQuery
-                                    ? 'bg-white text-indigo-700'
-                                    : 'bg-[#64748b] text-white hover:bg-[#475569]'
-                                }`}
-                              >
-                                {expandedProjects['pool'] ? '−' : '+'}
-                              </button>
-                              <span className="text-[12px] truncate flex-1 font-semibold">
-                                인재Pool
-                              </span>
-                              <span
-                                className={`text-[10px] font-mono ml-auto ${
-                                  deptFilter === 'DEPT_POOL' && !searchQuery
-                                    ? 'text-white/90'
-                                    : 'text-slate-400 font-normal'
-                                }`}
-                              >
-                                ({poolEmployees.length}명)
-                              </span>
-                            </div>
-
-                            {/* 인재Pool 하위: 프로젝트에 투입되지 않은 인력만 표시 (이름/직함만 표시) */}
-                            {expandedProjects['pool'] && (
-                              <div className="ml-2 pl-3 border-l border-slate-300 space-y-0.5 py-0.5">
-                                {poolEmployees.map((emp) => {
-                                  const isEmpActive = searchQuery === emp.name;
-                                  return (
-                                    <div
-                                      key={emp.id}
-                                      onClick={() => {
-                                        setSearchQuery(emp.name);
-                                        setDeptFilter('DEPT_POOL');
-                                        setCurrentPage(1);
-                                      }}
-                                      onDoubleClick={() => canEdit && openEditModal(emp)}
-                                      className={`relative flex items-center justify-between py-1 px-1.5 rounded cursor-pointer transition border border-transparent before:absolute before:-left-3 before:top-3 before:w-3 before:border-t before:border-slate-300 ${
-                                        isEmpActive
-                                          ? 'bg-indigo-50 border-indigo-200 text-indigo-900 font-bold'
-                                          : 'hover:bg-slate-50 text-slate-700'
-                                      }`}
-                                      title={canEdit ? '클릭 시 우측 조회 / 더블클릭 시 정보 수정' : '클릭 시 우측 조회'}
-                                    >
-                                      <div className="flex items-center gap-1.5 truncate">
-                                        <User className="w-3.5 h-3.5 text-slate-400 shrink-0 fill-slate-200" />
-                                        <span className="text-[12px] font-medium text-slate-800 truncate">
-                                          {emp.name}{' '}
-                                          <span className="text-slate-500 font-normal">{emp.position}</span>
-                                        </span>
-                                      </div>
-                                      {canEdit && (
-                                        <button
-                                          type="button"
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            openEditModal(emp);
-                                          }}
-                                          className="text-slate-400 hover:text-indigo-600 p-0.5 shrink-0"
-                                          title="직원 정보 수정"
-                                        >
-                                          <Edit3 className="w-3 h-3" />
-                                        </button>
-                                      )}
-                                    </div>
-                                  );
-                                })}
-
-                                {poolEmployees.length === 0 && (
-                                  <div className="text-[11px] text-slate-400 italic py-0.5 pl-1">
-                                    가용 인력 없음
-                                  </div>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
+      <div className="flex min-w-0 flex-col items-stretch gap-4 xl:flex-row xl:items-start">
+        {showOrgTree && <EmployeeOrgTree employees={treeEmployees} projects={activeProjects} filters={filters} defaultDepartment={currentUser.department_code} onSelect={updateFilters} onReset={resetFilters} onEdit={canEdit ? openEditModal : undefined} />}
         {/* 메인 목록 테이블 (담당업무/기술스택 제외, 사번=입사일, 가용인원 명확 표시) */}
-        <div className="flex-1 bg-white rounded-2xl border border-slate-200 shadow-2xs overflow-hidden flex flex-col">
-          <div className="px-5 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between text-xs text-slate-500">
-            <div className="flex items-center gap-2">
-              <span>
-                조회 인원: <strong className="text-slate-900">{filteredEmployees.length}</strong>명
-              </span>
-              {deptFilter === 'DEPT_POOL' || availabilityFilter === '인재풀' ? (
-                <span className="text-emerald-700 font-bold bg-emerald-100 px-2 py-0.5 rounded-full">
-                  [인재Pool (프로젝트 미투입 인력)]
-                </span>
-              ) : (
-                <>
-                  {availabilityFilter !== '전체' && (
-                    <span className="text-indigo-600 font-semibold">[{availabilityFilter}]</span>
-                  )}
-                  {deptFilter !== 'ALL' && (
-                    <span className="text-slate-700 font-semibold">
-                      [{DEPARTMENT_CODES.find((d) => d.code === deptFilter)?.label || deptFilter}]
-                    </span>
-                  )}
-                  {deptFilter === 'ALL' && availabilityFilter === '전체' && !searchQuery && (
-                    <span className="text-slate-500 font-medium text-[11px] bg-slate-200/80 px-2 py-0.5 rounded-full">
-                      전체 임직원 (퇴사자 제외)
-                    </span>
-                  )}
-                  {availabilityFilter === '퇴사' && (
-                    <span className="text-rose-700 font-bold text-[11px] bg-rose-100 px-2 py-0.5 rounded-full">
-                      퇴사자 전용 조회
-                    </span>
-                  )}
-                </>
-              )}
-              {positionFilter !== 'ALL' && (
-                <span className="text-slate-700 font-semibold">
-                  [{POSITION_CODES.find((p) => p.code === positionFilter)?.label || positionFilter}]
-                </span>
-              )}
-            </div>
-            <div className="text-[11px] text-slate-400">
-              {pageSize > 0 ? `${currentPage} / ${totalPages} 페이지` : '전체 목록'}
-            </div>
+        <div className="min-w-0 flex-1 bg-white rounded-2xl border border-slate-200 shadow-2xs overflow-hidden flex flex-col">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3 text-sm">
+            <div role="status" aria-live="polite" className="flex min-w-0 flex-wrap items-center gap-2"><span>조회 인원: <strong data-testid="employee-result-count">{filteredEmployees.length}</strong>명</span>
+              {filters.projectId !== null && <button type="button" aria-label="프로젝트 선택 해제" onClick={() => updateFilters({ projectId: null })} className="flex items-center gap-1 rounded bg-indigo-100 px-2 py-1 text-xs text-indigo-700">{projects.find(project => project.id === filters.projectId)?.name || '선택한 프로젝트'}<X size={12} /></button>}
+              {filters.employeeId !== null && <button type="button" aria-label="직원 선택 해제" onClick={() => updateFilters({ employeeId: null })} className="flex items-center gap-1 rounded bg-indigo-100 px-2 py-1 text-xs text-indigo-700">{employees.find(employee => employee.id === filters.employeeId)?.name || '선택한 직원'}<X size={12} /></button>}
+              {deptFilter !== 'ALL' && <span className="rounded bg-slate-200 px-2 py-1 text-xs">{deptFilter === 'DEPT_POOL' ? '인재풀 · 프로젝트 미투입' : DEPARTMENT_CODES.find(department => department.code === deptFilter)?.label}</span>}
+              {positionFilter !== 'ALL' && <span className="text-xs text-slate-500">{POSITION_CODES.find(position => position.code === positionFilter)?.label}</span>}
+              {searchQuery && <span className="break-all text-xs text-slate-500">검색: {searchQuery}</span>}
+            </div><span className="text-xs text-slate-400">{safePage} / {totalPages} 페이지</span>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs text-slate-700">
+          <div className="overflow-x-auto" role="region" aria-label="직원 목록 가로 스크롤" tabIndex={0}>
+            <table aria-label="직원 목록" className="w-full min-w-[720px] text-left text-sm text-slate-700">
               <thead className="bg-slate-100/70 border-b border-slate-200 text-slate-600 font-bold uppercase tracking-wider select-none">
                 <tr>
                   <th
-                    onClick={() => handleSort('name')}
+                    aria-sort={sortBy === 'name' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'}
                     className="px-4 py-3 cursor-pointer hover:bg-slate-200/60 transition w-32"
                   >
-                    <div className="flex items-center gap-1">
+                    <button type="button" aria-label="성명 정렬" onClick={() => handleSort('name')} className="flex w-full items-center gap-1 text-left">
                       <span>성명</span>
                       {sortBy === 'name' && (sortOrder === 'asc' ? '▲' : '▼')}
-                    </div>
+                    </button>
                   </th>
                   <th
-                    onClick={() => handleSort('position')}
+                    aria-sort={sortBy === 'position' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'}
                     className="px-3 py-3 cursor-pointer hover:bg-slate-200/60 transition w-32"
                   >
-                    <div className="flex items-center gap-1">
+                    <button type="button" aria-label="직급 정렬" onClick={() => handleSort('position')} className="flex w-full items-center gap-1 text-left">
                       <span>직급 / 권한</span>
                       {sortBy === 'position' && (sortOrder === 'asc' ? '▲' : '▼')}
-                    </div>
+                    </button>
                   </th>
                   <th className="px-4 py-3 min-w-[200px]">프로젝트명</th>
                   <th className="px-4 py-3 min-w-[220px]">연락처 / 이메일</th>
                   <th
-                    onClick={() => handleSort('hire_date')}
+                    aria-sort={sortBy === 'hire_date' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'}
                     className="px-3 py-3 cursor-pointer hover:bg-slate-200/60 transition w-32"
                   >
-                    <div className="flex items-center gap-1">
+                    <button type="button" aria-label="입사일 정렬" onClick={() => handleSort('hire_date')} className="flex w-full items-center gap-1 text-left">
                       <span>입사일</span>
                       {sortBy === 'hire_date' && (sortOrder === 'asc' ? '▲' : '▼')}
-                    </div>
+                    </button>
                   </th>
                   {canEdit && <th className="px-3 py-3 text-center w-20">관리</th>}
                 </tr>
@@ -1441,7 +705,7 @@ export default function EmployeesView({
                         <div className="flex items-center gap-2">
                           <div
                             className={`w-7 h-7 rounded-full font-bold text-xs flex items-center justify-center shrink-0 ${
-                              emp.status === '퇴사'
+                              employeeStatus(emp) === 'STATUS_RETIRED'
                                 ? 'bg-slate-200 text-slate-500'
                                 : 'bg-indigo-100 text-indigo-700'
                             }`}
@@ -1450,19 +714,19 @@ export default function EmployeesView({
                           </div>
                           <span
                             className={`font-bold ${
-                              emp.status === '퇴사'
+                              employeeStatus(emp) === 'STATUS_RETIRED'
                                 ? 'text-slate-400 line-through'
                                 : 'text-slate-900'
                             }`}
                           >
                             {emp.name}
                           </span>
-                          {emp.status === '퇴사' && (
+                          {employeeStatus(emp) === 'STATUS_RETIRED' && (
                             <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-slate-200 text-slate-700">
                               퇴사
                             </span>
                           )}
-                          {emp.status === '휴직' && (
+                          {employeeStatus(emp) === 'STATUS_LEAVE' && (
                             <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-amber-100 text-amber-800">
                               휴직
                             </span>
@@ -1527,11 +791,13 @@ export default function EmployeesView({
                               <Edit3 className="w-3.5 h-3.5" />
                             </button>
                             <button
-                              onClick={() => handleDelete(emp.id)}
+                              onClick={() => void handleRetire(emp)}
                               className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-slate-100 transition"
-                              title="직원 삭제"
+                              title="직원 퇴사 처리"
+                              aria-label={`${emp.name} 퇴사 처리`}
+                              disabled={emp.id === currentUser.id || employeeStatus(emp) === 'STATUS_RETIRED'}
                             >
-                              <Trash2 className="w-3.5 h-3.5" />
+                              <UserX className="w-3.5 h-3.5" />
                             </button>
                           </div>
                         </td>
@@ -1542,9 +808,7 @@ export default function EmployeesView({
 
                 {filteredEmployees.length === 0 && (
                   <tr>
-                    <td colSpan={canEdit ? 6 : 5} className="text-center py-16 text-slate-400">
-                      검색 조건에 일치하는 직원이 없습니다.
-                    </td>
+                    <td colSpan={canEdit ? 6 : 5} className="px-4 py-12 text-center text-slate-500"><p>검색 조건에 일치하는 직원이 없습니다.</p><button type="button" onClick={resetFilters} className="mt-3 rounded-lg border border-indigo-200 px-3 py-2 text-sm text-indigo-600">전체 직원 보기</button></td>
                   </tr>
                 )}
               </tbody>
@@ -1561,7 +825,8 @@ export default function EmployeesView({
 
               <div className="flex items-center gap-1">
                 <button
-                  disabled={currentPage === 1}
+                  aria-label="직원 이전 페이지"
+                  disabled={safePage === 1}
                   onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
                   className="p-1.5 rounded-lg border border-slate-200 hover:bg-white disabled:opacity-30 disabled:hover:bg-transparent"
                 >
@@ -1571,6 +836,8 @@ export default function EmployeesView({
                 {Array.from({ length: totalPages }, (_, i) => i + 1).map((pg) => (
                   <button
                     key={pg}
+                    aria-label={`직원 ${pg}페이지`}
+                    aria-current={safePage === pg ? 'page' : undefined}
                     onClick={() => setCurrentPage(pg)}
                     className={`w-7 h-7 rounded-lg text-xs font-semibold transition ${
                       currentPage === pg
@@ -1583,7 +850,8 @@ export default function EmployeesView({
                 ))}
 
                 <button
-                  disabled={currentPage === totalPages}
+                  aria-label="직원 다음 페이지"
+                  disabled={safePage === totalPages}
                   onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
                   className="p-1.5 rounded-lg border border-slate-200 hover:bg-white disabled:opacity-30 disabled:hover:bg-transparent"
                 >
@@ -1598,7 +866,7 @@ export default function EmployeesView({
       {/* 신규 직원 등록 / 수정 모달 (입사일이 사번이 되고, 기술스택 제외) */}
       {modalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
-          <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full p-6 border border-slate-200">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full max-h-[90dvh] overflow-y-auto p-6 border border-slate-200">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
               <h3 className="font-bold text-base text-slate-900">
                 {editingEmp ? '직원 정보 수정' : '신규 직원 등록'}

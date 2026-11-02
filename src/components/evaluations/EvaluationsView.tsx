@@ -215,12 +215,16 @@ export default function EvaluationsView({ evaluations, currentUser, employees = 
                     <td className="px-5 py-3.5 text-center">
                       <div className="flex items-center justify-center gap-1">
                         <button
+                          title="평가 수정"
+                          aria-label="평가 수정"
                           onClick={() => openEditModal(ev)}
                           className="p-1 text-slate-400 hover:text-indigo-600 rounded"
                         >
                           <Edit3 className="w-3.5 h-3.5" />
                         </button>
                         <button
+                          title="평가 삭제"
+                          aria-label="평가 삭제"
                           onClick={() => handleDelete(ev.id)}
                           className="p-1 text-slate-400 hover:text-rose-600 rounded"
                         >
@@ -239,7 +243,7 @@ export default function EvaluationsView({ evaluations, currentUser, employees = 
       {/* Modal */}
       {modalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
-          <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full p-6 border border-slate-200">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full max-h-[90dvh] overflow-y-auto p-6 border border-slate-200">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
               <h3 className="font-bold text-base text-slate-900">
                 {editingEv ? '인사평가 수정' : '인사평가 작성'}

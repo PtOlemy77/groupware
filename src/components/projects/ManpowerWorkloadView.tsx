@@ -100,12 +100,26 @@ export default function ManpowerWorkloadView({
               (ap.title && p.name === ap.title)
           );
 
+          let periodStart = '';
+          let periodEnd = '';
+          if (fullDoc.contractPeriod) {
+            const m = fullDoc.contractPeriod.match(
+              /(\d{4}[.-]\d{2}[.-]\d{2})\s*~\s*(\d{4}[.-]\d{2}[.-]\d{2})/
+            );
+            if (m) {
+              periodStart = m[1].replace(/\./g, '-');
+              periodEnd = m[2].replace(/\./g, '-');
+            }
+          }
+
           const rawStart =
+            periodStart ||
             fullDoc.startDate ||
             linkedPrj?.start_date ||
             ap.created_at?.slice(0, 10) ||
             `${targetYear}-01-01`;
-          const rawEnd = fullDoc.endDate || linkedPrj?.end_date || rawStart;
+          const rawEnd =
+            periodEnd || fullDoc.endDate || linkedPrj?.end_date || rawStart;
 
           const startDate = normalizeDateStr(rawStart, '01');
           const endDate = normalizeDateStr(rawEnd, '28');
@@ -138,29 +152,43 @@ export default function ManpowerWorkloadView({
         const { ap, fullDoc, linkedPrj, startDate, endDate } = item;
         const plans = fullDoc.manpowerPlans || [];
 
-        // 해당 직원의 투입 계획 찾기 (ID 매칭 우선, 이름 매칭 보완)
+        // 해당 직원의 투입 계획 찾기 (ID 매칭 우선, 공백 제거 이름 매칭 보완)
         const myPlans = plans.filter((p) => {
-          if (p.employeeId && (p.employeeId === emp.id || Number(p.employeeId) === emp.id)) return true;
-          if (p.name && emp.name && p.name.trim() === emp.name.trim()) return true;
+          if (p.employeeId && Number(p.employeeId) === emp.id) return true;
+          if (
+            p.name &&
+            emp.name &&
+            p.name.replace(/\s+/g, '') === emp.name.replace(/\s+/g, '')
+          )
+            return true;
           return false;
         });
 
         myPlans.forEach((plan) => {
           let planMonths = plan.months || [];
-          if (planMonths.length === 0 && (plan.totalMM || 0) > 0) {
-            const s = new Date(startDate);
-            const e = new Date(endDate);
-            const totalMonthsCount =
-              !isNaN(s.getTime()) && !isNaN(e.getTime())
-                ? Math.max(
-                    1,
-                    (e.getFullYear() - s.getFullYear()) * 12 +
-                      (e.getMonth() - s.getMonth()) +
-                      1
-                  )
-                : 1;
+          const s = new Date(startDate);
+          const e = new Date(endDate);
+          const totalMonthsCount =
+            !isNaN(s.getTime()) && !isNaN(e.getTime())
+              ? Math.max(
+                  1,
+                  (e.getFullYear() - s.getFullYear()) * 12 +
+                    (e.getMonth() - s.getMonth()) +
+                    1
+                )
+              : 1;
+
+          if (
+            (planMonths.length === 0 || planMonths.every((v) => Number(v) === 0)) &&
+            (plan.totalMM || 0) > 0
+          ) {
             const avg = Number(((plan.totalMM || 0) / totalMonthsCount).toFixed(2));
             planMonths = Array(totalMonthsCount).fill(avg);
+          } else if (planMonths.length < totalMonthsCount) {
+            planMonths = [
+              ...planMonths,
+              ...Array(totalMonthsCount - planMonths.length).fill(0),
+            ];
           }
 
           const monthlyMM = monthlyAllocations(

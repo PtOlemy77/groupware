@@ -279,11 +279,12 @@ public class GroupwareService {
           "approvals",
           approvals.findByCategoryInOrderByIdDesc(categories).stream()
               .filter(a ->
-                  exec
-                      || (AuthService.pm(actor)
-                          && (reports
-                              || Objects.equals(a.getRequesterId(), actor.getId())
-                              || projectIds.contains(a.getProjectId()))))
+                  reports
+                      ? (exec
+                          || (AuthService.pm(actor)
+                              && (Objects.equals(a.getRequesterId(), actor.getId())
+                                  || projectIds.contains(a.getProjectId()))))
+                      : (!"반려".equals(a.getStatus())))
               .map(a -> {
                 var dto = map(a);
                 Map<String, Object> doc = safeDocument(a.getItemsJson());
@@ -300,7 +301,7 @@ public class GroupwareService {
                   var small = new HashMap<String, Object>();
                   for (String key :
                       List.of(
-                          "title", "startDate", "endDate", "linkedProjectId", "linkedProjectCode"))
+                          "title", "contractPeriod", "startDate", "endDate", "linkedProjectId", "linkedProjectCode"))
                     if (doc.containsKey(key)) small.put(key, doc.get(key));
                   small.put(
                       "manpowerPlans",
@@ -308,8 +309,12 @@ public class GroupwareService {
                           .stream()
                               .map(plan -> {
                                 var p = new HashMap<>(plan);
+                                if (!exec) {
+                                  p.remove("unitPrice");
+                                  p.remove("laborCost");
+                                }
                                 if (p.get("employeeId") == null && p.get("name") != null) {
-                                  var matches = employees.findAllByName(p.get("name").toString());
+                                  var matches = employees.findAllByName(p.get("name").toString().trim());
                                   if (matches.size() == 1)
                                     p.put("employeeId", matches.getFirst().getId());
                                 }

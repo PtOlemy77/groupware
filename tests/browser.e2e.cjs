@@ -110,6 +110,7 @@ async function stop(child) {
     page.off('request', trackReportWrite);
     await page.getByRole('button', { name: /^직원 관리/ }).first().click();
     await page.getByText('Review Executive', { exact: true }).first().waitFor();
+    await require('./ui-screens.e2e.cjs')({ page, browser, mutate, base, artifacts });
     await page.setViewportSize({ width: 390, height: 844 });
     await page.getByRole('button', { name: '메뉴 열기', exact: true }).click();
     await page.getByRole('button', { name: /^프로젝트 관리/ }).first().click();
@@ -117,7 +118,7 @@ async function stop(child) {
     await page.screenshot({ path: path.join(artifacts, 'mobile.png'), fullPage: true });
     await page.reload(); await page.getByRole('heading', { name: '프로젝트 관리', exact: true }).waitFor();
     await page.setViewportSize({ width: 1440, height: 1000 });
-    await page.getByRole('link', { name: '스패셜티 포털' }).click();
+    await page.getByRole('link', { name: '스패셜티 포털', exact: true }).click();
     await page.getByRole('button', { name: '공지 관리', exact: true }).click();
     await page.getByRole('button', { name: '공지 작성', exact: true }).click();
     await page.getByLabel('제목', { exact: false }).last().fill('격리 검증 공지');

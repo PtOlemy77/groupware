@@ -690,6 +690,17 @@ class GroupwareIntegrationTest {
   void contractListsOmitFinancialSheetsAndDetailRequiresPermission() throws Exception {
     var session = login(pm);
     var doc = contractDoc();
+    doc.put(
+        "manpowerPlans",
+        List.of(
+            Map.of(
+                "employeeId", staff.getId(),
+                "name", staff.getName(),
+                "role", "Developer",
+                "months", java.util.Collections.nCopies(12, 1),
+                "totalMM", 12,
+                "unitPrice", 5000,
+                "laborCost", 60000)));
     var body =
         mutate(
                 session,
@@ -720,6 +731,20 @@ class GroupwareIntegrationTest {
         .andExpect(jsonPath("$.items_json").isNotEmpty());
     mvc.perform(get("/api/groupware/approvals/" + id).session(login(staff)))
         .andExpect(status().isForbidden());
+
+    var projectScopedList =
+        mvc.perform(get("/api/groupware").param("scope", "projects").session(login(staff)))
+            .andExpect(status().isOk())
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+    var projectApprovals = mapper.readTree(projectScopedList).at("/approvals");
+    assertThat(projectApprovals.isArray()).isTrue();
+    assertThat(projectApprovals.size()).isGreaterThanOrEqualTo(1);
+    var firstDoc = mapper.readTree(projectApprovals.get(0).at("/items_json").asText());
+    assertThat(firstDoc.has("manpowerPlans")).isTrue();
+    assertThat(firstDoc.has("supplyAmount")).isFalse();
+    assertThat(firstDoc.at("/manpowerPlans/0").has("unitPrice")).isFalse();
   }
 
   @Test
