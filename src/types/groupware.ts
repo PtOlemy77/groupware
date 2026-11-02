@@ -635,6 +635,8 @@ export function getProjectYearlyScope(
   const startYear = isNaN(start.getTime()) ? currentYear : start.getFullYear();
   const endYear = isNaN(end.getTime()) ? currentYear : end.getFullYear();
   const isMultiYear = startYear !== endYear;
+  const inPeriod = !isNaN(start.getTime()) && !isNaN(end.getTime()) && start <= end
+    && currentYear >= startYear && currentYear <= endYear;
 
   // 올해 기간 산정 (연차사업의 경우 올해 기간으로만)
   let yearStartDate = project.start_date;
@@ -664,7 +666,7 @@ export function getProjectYearlyScope(
   if (project.yearly_revenue_json) {
     try {
       const breakdown = JSON.parse(project.yearly_revenue_json) as Record<string, number>;
-      if (breakdown && breakdown[String(currentYear)] !== undefined) {
+      if (breakdown && typeof breakdown === 'object' && !Array.isArray(breakdown) && Object.keys(breakdown).length > 0) {
         yearTotalBudget = Number(breakdown[String(currentYear)]) || 0;
       } else if (isMultiYear) {
         const calculated = calculateMultiYearRevenues(
@@ -689,6 +691,13 @@ export function getProjectYearlyScope(
       project.budget
     );
     yearTotalBudget = calculated[currentYear] ?? 0;
+  }
+
+  if (!inPeriod) {
+    yearTotalBudget = 0;
+    yearMonths = 0;
+    yearStartDate = '';
+    yearEndDate = '';
   }
 
   // 올해 당사 안분 매출 (지분율 적용)

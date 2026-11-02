@@ -1,55 +1,40 @@
-# AI 에이전트 지침서 (AGENTS.md)
+# AI 에이전트 작업 규칙
 
-이 파일은 본 저장소에서 작업을 수행하는 모든 AI 코딩 에이전트(Cursor, Claude Code, Gemini Antigravity, GitHub Copilot, OpenAI Codex 등)가 반드시 준수해야 하는 최우선 엔지니어링 규칙입니다.
+이 저장소의 구현·문서·검증 작업에 적용한다. 작업 전에 이 파일과 [하네스 기준](harness/HARNESS_ENGINEERING.md)을 읽는다.
 
----
+## 프로젝트와 기준 문서
 
-## 1. 프로젝트 개요 및 아키텍처
+- 공개 포털 및 임직원 그룹웨어: React 19, Vite, TypeScript, Tailwind CSS v4, Lucide React.
+- 백엔드: Spring Boot 3.4.5, Java 21 이상. CI 기준 JDK는 21이며 개발 환경에서 25를 사용할 수 있다.
+- DB: PostgreSQL 16, 개발 기본 포트 5433, DB명 `groupware_db`.
+- 요구사항: [PRD](harness/prd.md). UI 범위별 규칙: [디자인 가이드](harness/design.md).
+- 현재 DB 구조의 기준은 [Flyway 마이그레이션](backend/src/main/resources/db/migration)이다. [DB 구조 안내](export/DATABASE_SPECIFICATION.md)는 이를 설명한다. 과거 추출본은 최신 스키마의 기준이 아니다.
 
-- **프로젝트명**: (주)스패셜티(SPATIAL T) 통합 그룹웨어
-- **프론트엔드**: React 19 (Vite), TypeScript, Tailwind CSS v4, Lucide React
-- **백엔드**: Spring Boot 3.4.5, Java 21/25, Spring Security, Spring Data JPA
-- **데이터베이스**: PostgreSQL 16 (포트 5433, DB명 `groupware_db`)
-- **저장소**: `https://github.com/PtOlemy77/groupware.git` (`main` 브랜치)
+## 필수 불변식
 
----
+1. **기존 데이터 보존**: 직원 행이 있으면 `DataInitializer`는 즉시 반환하며 비밀번호·권한·계정 상태·직원 정보를 포함해 아무 값도 변경하지 않는다. 최초 관리자 생성은 직원 테이블이 비어 있고 부트스트랩 설정이 제공된 경우에만 허용한다. 기존 계정 복구나 평문 비밀번호 전환은 서버 재기동에 묶지 않는다. 별도 백업·대상 확인·명시적 유지보수 절차로 수행한다.
+2. **코드 기반 판정**: 권한은 `RoleCode`, 직급은 `PositionCode`, 부서는 `DepartmentCode`, 재직 상태는 `StatusCode`, 프로젝트 단계는 `ProjectStageCode`를 사용한다. 표시용 한글 라벨로 권한·업무 분기를 추가하지 않는다. 레거시 입력 정규화와 표시용 라벨은 구분한다. DB 관리 코드와 고정 시스템 코드는 [PRD](harness/prd.md)의 구분을 따른다.
+3. **전역 알림·확인**: `useModal()`의 `showAlert`·`showConfirm`만 사용한다. `window.alert/confirm`, 전역 함수 치환, 네이티브 함수로의 fallback은 금지한다. 확인 결과를 `await`한 뒤 작업한다. 브라우저가 직접 제공하는 미저장 페이지 이탈 보호(`beforeunload`)는 별도 기능이며 앱 확인창 대용으로 사용하지 않는다.
+4. **PK/FK 관계**: 직원·프로젝트 관계는 ID로 연결한다. 이름은 표시·이력 스냅샷에만 쓴다. 모호한 과거 자료를 이름으로 임의 매핑하지 않는다.
+5. **충돌 방지**: 기존 업무 데이터의 수정·삭제·결재 전이는 조회 당시 `version`이 필수다. 누락은 400, 오래된 버전은 409로 거절한다. 연동 저장은 관련 프로젝트 버전도 검사한다. `@Version`만으로 클라이언트의 오래된 편집을 검출한다고 가정하지 않는다.
+6. **민감 데이터 분리**: 실제 직원·평가·계약 데이터, 계정 비밀, 비밀번호 해시를 문서·테스트 픽스처·스크린샷·로그에 넣지 않는다. 테스트는 식별 가능한 합성 자료를 사용한다. 개인용 CSV·전체 덤프는 Git 추적에서 제외한다. Git 추적 제외가 과거 커밋의 삭제를 의미하지는 않는다.
 
-## 2. 하네스 엔지니어링 4대 절대 규칙 (Invariants)
+## 검증 게이트: 저장소 루트에서 실행
 
-1. **초기화 데이터 임의 덮어쓰기 금지 (Data Preservation)**:
-   - `DataInitializer.java`는 DB에 기존 행이 1개라도 존재하는 경우 절대 비밀번호, 권한, 직원 정보 등을 임의로 갱신하거나 덮어써서는 안 됩니다.
-2. **구분값 코드 기반 관리 (Code-based Discrimination)**:
-   - 권한(`RoleCode`: `ROLE_ADMIN`, `ROLE_EXEC`, `ROLE_PM`, `ROLE_STAFF`), 직급(`PositionCode`), 부서(`DepartmentCode`), 상태(`CommonCode`)를 한글 문자열로 하드코딩 비교하지 말고 정의된 코드 상수로만 판정해야 합니다.
-3. **네이티브 알림 금지 및 전역 모달 사용 (No window.alert / window.confirm)**:
-   - 모든 사용자 알림 및 확인창은 `@/contexts/ModalContext`의 `useModal()` (`showAlert`, `showConfirm`)을 사용해야 합니다.
-4. **엄격한 PK/FK 관계 유지**:
-   - 직원명이나 부서명 문자열로 조인하지 않고, `id` (PK) 및 `_id` (FK)를 기준으로 데이터를 관계 맺어야 합니다.
-
----
-
-## 3. 작업 전/후 하네스 검증 명령 (Verification Gates)
-
-코드를 수정한 후 다음 검증 게이트를 반드시 통과해야 합니다:
-
-```bash
-# 1. 프론트엔드 타입 안전성 검증 (0 errors 필수)
-npx tsc --noEmit
-
-# 2. 백엔드 컴파일 및 빌드 검증 (BUILD SUCCESS 필수)
-JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-25.jdk/Contents/Home ./backend/mvnw -f backend/pom.xml compile -DskipTests
-
-# 3. 백엔드 패키징 (JAR 재생성 시)
-JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-25.jdk/Contents/Home ./backend/mvnw -f backend/pom.xml package -DskipTests
-
-# 4. 프론트엔드 빌드 검증
-npm run build
+```sh
+npm run verify
+# UI·탐색·인증·브라우저 동작 변경, 또는 전체 회귀 확인
+npm run verify:full
 ```
 
----
+명령의 단일 정의는 [scripts/verify.mjs](scripts/verify.mjs)다. `verify`는 정적 하네스 검사, TypeScript, Node/SQL 테스트, Maven `verify`(Java 테스트·JAR 패키징), 프론트엔드 빌드를 순서대로 실행한다. `verify:full`은 여기에 Vite 프로덕션 빌드 기반 브라우저 검증을 추가한다. CI는 전체 게이트와 의존성 감사를 실행한다.
 
-## 4. 다중 AI 협업 워크플로우
+Java 21 이상을 기본 Java로 선택하거나 호출 환경의 `JAVA_HOME`을 지정한다. 개인 PC의 절대 JDK 경로를 공통 문서·스크립트에 고정하지 않는다. 브라우저는 최초 1회 `npx playwright install chromium`으로 준비하거나 `BROWSER_EXECUTABLE`을 지정한다. 실패·미실행 항목은 완료 보고에 명시하며 전체 통과로 표현하지 않는다.
 
-1. **기능 명세(Spec)**: 사용자의 요청을 분석하고, 수정 대상 파일과 영향 범위를 명시합니다.
-2. **설계(Design)**: DB 컬럼, TypeScript 인터페이스 변경 사항을 사전 점검합니다.
-3. **구현(Implement)**: 요청된 범위 외의 다른 파일(인접 컴포넌트)을 임의로 건드리지 않습니다.
-4. **테스트(Test)**: 위의 하네스 검증 명령을 직접 실행하여 이상이 없음을 확인한 후 커밋 및 푸시합니다.
+## 작업 흐름
+
+1. 변경 전 `git status`를 확인하고 다른 작업자의 수정은 보존한다. 요청 범위, 영향 파일, 완료 기준을 정한다.
+2. DB·API·TypeScript 계약과 기존 데이터 보존 범위를 확인한다. 새 스키마는 새 Flyway 파일로 추가하고 적용 이력이 있는 파일은 수정하지 않는다.
+3. 필요한 범위만 구현한다. 공통 코드 변경은 호출부 영향을 확인한다. 인접 기능 리팩토링·전체 포맷 변경은 섞지 않는다.
+4. 동작·권한·데이터 보존을 검증하는 테스트를 추가하고 해당 게이트를 실행한다. 운영 DB를 테스트 대상으로 쓰지 않는다.
+5. 검증 결과와 제한을 기록하고 대상 파일만 명시적으로 커밋·푸시한다. 작업 완료는 운영 배포 완료와 구분한다. 공유 브랜치 강제 푸시·Git 이력 재작성·운영 데이터 변경은 일반 코드 정비에 포함하지 않는다.

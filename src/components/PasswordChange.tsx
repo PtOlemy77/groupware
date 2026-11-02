@@ -76,11 +76,12 @@ export default function PasswordChange({
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1.5">
-              현재 비밀번호 (초기: spatialt2019!!)
+            <label htmlFor="password-current" className="block text-xs font-bold text-slate-700 mb-1.5">
+              현재 비밀번호
             </label>
             <div className="relative flex items-center">
               <input
+                id="password-current"
                 type="password"
                 required
                 autoComplete="current-password"
@@ -93,10 +94,11 @@ export default function PasswordChange({
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1.5">
+            <label htmlFor="password-next" className="block text-xs font-bold text-slate-700 mb-1.5">
               새 비밀번호 (12자 이상)
             </label>
             <input
+              id="password-next"
               type="password"
               required
               autoComplete="new-password"
@@ -109,10 +111,11 @@ export default function PasswordChange({
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1.5">
+            <label htmlFor="password-confirm" className="block text-xs font-bold text-slate-700 mb-1.5">
               새 비밀번호 확인
             </label>
             <input
+              id="password-confirm"
               type="password"
               required
               autoComplete="new-password"

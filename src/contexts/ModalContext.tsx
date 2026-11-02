@@ -57,14 +57,13 @@ export const notify = {
     if (globalModalBridge) {
       return globalModalBridge.showAlert(message, options);
     }
-    window.alert(message);
-    return Promise.resolve();
+    return Promise.reject(new Error('ModalProvider가 준비되지 않았습니다.'));
   },
   confirm: (message: string, options?: Partial<Omit<ModalOptions, 'message'>>) => {
     if (globalModalBridge) {
       return globalModalBridge.showConfirm(message, options);
     }
-    return Promise.resolve(window.confirm(message));
+    return Promise.reject(new Error('ModalProvider가 준비되지 않았습니다.'));
   },
 };
 
@@ -76,6 +75,7 @@ export function ModalProvider({ children }: { children: ReactNode }) {
   });
 
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
 
   const clearTimer = useCallback(() => {
     if (timerRef.current) {
@@ -129,12 +129,12 @@ export function ModalProvider({ children }: { children: ReactNode }) {
           isOpen: true,
           message,
           title: options?.title,
-          type: options?.type || 'confirm',
+          type: 'confirm',
           confirmText: options?.confirmText || '확인',
           cancelText: options?.cancelText || '취소',
           isDanger: options?.isDanger ?? false,
-          autoClose: options?.autoClose ?? false, // confirm은 기본 수동 선택 유지
-          autoCloseDuration: options?.autoCloseDuration ?? 0,
+          autoClose: false, // 확인은 반드시 사용자 선택으로만 완료
+          autoCloseDuration: 0,
           resolve: (result: boolean) => {
             resolve(result);
           },
@@ -160,22 +160,37 @@ export function ModalProvider({ children }: { children: ReactNode }) {
   // 브리지 등록
   useEffect(() => {
     globalModalBridge = { showAlert, showConfirm };
-    const originalAlert = window.alert;
-    const originalConfirm = window.confirm;
-    window.alert = (msg) => {
-      void showAlert(String(msg));
-    };
-    window.confirm = (msg) => {
-      void showConfirm(String(msg));
-      return originalConfirm(msg);
-    };
-
     return () => {
-      window.alert = originalAlert;
-      window.confirm = originalConfirm;
       globalModalBridge = null;
     };
   }, [showAlert, showConfirm]);
+
+  useEffect(() => {
+    if (!modal.isOpen) return;
+    const previous = document.activeElement as HTMLElement | null;
+    const dialog = dialogRef.current;
+    dialog?.querySelector<HTMLButtonElement>('button')?.focus();
+    const keydown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        closeModal(false);
+      }
+      if (event.key !== 'Tab' || !dialog) return;
+      const buttons = [...dialog.querySelectorAll<HTMLButtonElement>('button:not(:disabled)')];
+      const first = buttons[0], last = buttons.at(-1);
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault(); last?.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault(); first?.focus();
+      }
+    };
+    document.addEventListener('keydown', keydown, true);
+    return () => {
+      document.removeEventListener('keydown', keydown, true);
+      if (previous?.isConnected) previous.focus();
+    };
+  }, [modal.isOpen, closeModal]);
 
   const handleConfirm = () => {
     closeModal(true);
@@ -242,6 +257,7 @@ export function ModalProvider({ children }: { children: ReactNode }) {
       {/* Global Dialog Modal */}
       {modal.isOpen && (
         <div
+          data-global-modal
           className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-in fade-in duration-150"
           onClick={() => {
             // 알림 모달은 백드롭 클릭 시에도 편안하게 닫힘
@@ -250,8 +266,11 @@ export function ModalProvider({ children }: { children: ReactNode }) {
         >
           <div
             className="w-full max-w-sm bg-white rounded-3xl shadow-2xl border border-slate-100 overflow-hidden transform transition-all animate-in zoom-in-95 duration-150 relative"
+            ref={dialogRef}
             role="dialog"
             aria-modal="true"
+            aria-labelledby="global-modal-title"
+            aria-describedby="global-modal-message"
             onClick={(e) => e.stopPropagation()}
             onMouseEnter={clearTimer}
             onMouseLeave={() => {
@@ -271,10 +290,10 @@ export function ModalProvider({ children }: { children: ReactNode }) {
                   {getIcon()}
                 </div>
                 <div className="flex-1 pt-1 min-w-0">
-                  <h3 className="text-base font-bold text-slate-900 mb-1 leading-snug">
+                  <h3 id="global-modal-title" className="text-base font-bold text-slate-900 mb-1 leading-snug">
                     {getDefaultTitle()}
                   </h3>
-                  <p className="text-xs text-slate-600 font-medium leading-relaxed whitespace-pre-line break-words">
+                  <p id="global-modal-message" className="text-xs text-slate-600 font-medium leading-relaxed whitespace-pre-line break-words">
                     {modal.message}
                   </p>
                 </div>
@@ -300,7 +319,6 @@ export function ModalProvider({ children }: { children: ReactNode }) {
                 )}
                 <button
                   type="button"
-                  autoFocus
                   onClick={handleConfirm}
                   className={`px-5 py-2 text-xs font-bold text-white rounded-xl shadow-xs transition cursor-pointer ${
                     modal.isDanger || modal.type === 'error'
@@ -341,11 +359,6 @@ export function ModalProvider({ children }: { children: ReactNode }) {
 
 export function useModal() {
   const context = useContext(ModalContext);
-  if (!context) {
-    return {
-      showAlert: notify.alert,
-      showConfirm: notify.confirm,
-    };
-  }
+  if (!context) throw new Error('useModal은 ModalProvider 안에서 사용해야 합니다.');
   return context;
 }

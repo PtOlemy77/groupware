@@ -9,10 +9,11 @@ import {
   isPmOrAbove,
   isExecutiveOrAbove,
   isSystemAdmin,
-  normalizeUserRole,
 } from '@/types/groupware';
 import { normalizeProjectStatus } from '@/components/dashboard/DashboardView';
 import { useModal } from '@/contexts/ModalContext';
+import { apiFetch } from '@/lib/api';
+import { reportPeriods } from '@/lib/calendar';
 import {
   FileText,
   Calendar,
@@ -49,7 +50,7 @@ export interface ProjectReportItem {
   pmName: string;
   projectStage: string;
   progress: number;
-  healthStatus: '정상' | '주의' | '지연';
+  healthStatus: '미작성' | '정상' | '주의' | '지연';
   thisPeriodWork: string; // 금주 수행실적 (또는 당월 수행실적)
   nextPeriodPlan: string; // 차주 수행계획 (또는 차월 수행계획)
   issueAndSupport: string; // 주요 이슈 및 이사/경영진 지원요청
@@ -71,129 +72,18 @@ export interface ConsolidatedReportPayload {
   items: ProjectReportItem[];
 }
 
-const WEEKLY_PERIODS = [
-  { key: '2026-10-W5', label: '2026년 10월 5주차 (10.26 ~ 10.30)' },
-  { key: '2026-10-W4', label: '2026년 10월 4주차 (10.19 ~ 10.23)' },
-  { key: '2026-11-W1', label: '2026년 11월 1주차 (11.02 ~ 11.06)' },
-];
-
-const MONTHLY_PERIODS = [
-  { key: '2026-10-M', label: '2026년 10월 월간보고' },
-  { key: '2026-09-M', label: '2026년 9월 월간보고' },
-  { key: '2026-11-M', label: '2026년 11월 월간보고' },
-];
-
-// 프로젝트별 기본 초기 금주/차주 내용 생성기
-function buildDefaultItemForProject(prj: Project, reportType: ReportType): ProjectReportItem {
-  const isWeekly = reportType === '주간보고';
-  const stage = normalizeProjectStatus(prj.status);
-
-  if (prj.name.includes('LX주요 업무시스템')) {
-    return {
-      projectId: prj.id,
-      projectCode: prj.code,
-      projectName: prj.name,
-      pmName: prj.pm_name || '김성철',
-      projectStage: stage,
-      progress: prj.progress || 82,
-      healthStatus: '정상',
-      thisPeriodWork: isWeekly
-        ? '• 지적측량·국토정보 연계 API 응답속도 튜닝 완료\n• 10월 정기 보안패치 및 DB 백업 무결성 점검 완료'
-        : '• 10월 정기 유지관리 SLA 100% 달성 (장애 0건)\n• 하반기 공간정보 레이어 갱신 및 웹취약점 조치 완료',
-      nextPeriodPlan: isWeekly
-        ? '• 11월분 공간정보 통계 배치 스케줄러 사전 점검\n• 현업 부서 기능개선 요청사항(SR) 4건 반영 배포'
-        : '• 11월 대용량 공간DB 인덱스 리빌딩 및 연말 산출물 초안 점검\n• 차년도 유지관리 연장 계약 사전 협의',
-      issueAndSupport: '특이사항 없음 (안정적 운영 중)',
-      directorNote: '연말 성과보고회 대비 운영 성과지표(SLA) 정리 병행 요망',
-      pmSubmitted: true,
-      updatedAt: '2026-10-30 14:20',
-    };
-  }
-
-  if (prj.name.includes('스마트 충북')) {
-    return {
-      projectId: prj.id,
-      projectCode: prj.code,
-      projectName: prj.name,
-      pmName: prj.pm_name || '박용묵',
-      projectStage: stage,
-      progress: prj.progress || 75,
-      healthStatus: '정상',
-      thisPeriodWork: isWeekly
-        ? '• 충북도청 공간정보 플랫폼 항공영상 타일 캐시 고도화\n• 시·군 담당자 권한관리 모듈 개선 반영'
-        : '• 충북 11개 시·군 공간데이터 정합성 일괄 정비 완료\n• 3분기 정기점검 보고서 제출 및 검수 승인',
-      nextPeriodPlan: isWeekly
-        ? '• 충북도청 정보화담당관실 월례 운영보고 진행\n• 모바일 현장조사 지도 레이어 속도 개선'
-        : '• 동절기 제설·재난안전 주제도 레이어 신규 탑재\n• 하반기 만족도 조사 실시',
-      issueAndSupport: '시·군 연계 서버 방화벽 정책 변경 협조 공문 발송 완료',
-      directorNote: '충북도청 내년 신규 고도화 예산 편성 동향 파악 완료',
-      pmSubmitted: true,
-      updatedAt: '2026-10-30 15:10',
-    };
-  }
-
-  if (prj.name.includes('디지털트윈 기반 지적공간정보')) {
-    return {
-      projectId: prj.id,
-      projectCode: prj.code,
-      projectName: prj.name,
-      pmName: prj.pm_name || '우광일',
-      projectStage: stage,
-      progress: prj.progress || 60,
-      healthStatus: '정상',
-      thisPeriodWork: isWeekly
-        ? '• 3차원 입체지적 공간객체(3D Tiles) 경량화 변환 모듈 구현 완료\n• WebGL 기반 디지털트윈 가시화 뷰어 중간 시연 완료'
-        : '• 디지털트윈 공간분석 엔진 프로토타입 구축 및 중간보고회 완료\n• 지적-건축물 통합 공간DB 스키마 확정',
-      nextPeriodPlan: isWeekly
-        ? '• 드론 정사영상 및 지하시설물 3D 중첩 정밀도 테스트\n• 공간분석 시뮬레이션(일조권·가시권) UI 연동'
-        : '• 시범지역 대용량 3D 데이터 적재 및 성능 부하테스트\n• 감리 대비 단계별 산출물 현행화',
-      issueAndSupport: '기술연구소 3D 렌더링 셰이더 최적화 기술지원 협업 중',
-      directorNote: '중간보고 시 발주처(LX) 호평, 11월 감리 일정에 맞춰 품질검수팀 사전 점검 배정',
-      pmSubmitted: true,
-      updatedAt: '2026-10-30 16:05',
-    };
-  }
-
-  if (prj.name.includes('행정안전부 차세대 주소기반')) {
-    return {
-      projectId: prj.id,
-      projectCode: prj.code,
-      projectName: prj.name,
-      pmName: prj.pm_name || '박용묵',
-      projectStage: stage,
-      progress: prj.progress || 30,
-      healthStatus: '주의',
-      thisPeriodWork: isWeekly
-        ? '• 제안요청서(RFP) 요구사항 상세 분석 및 기술제안서 핵심 아키텍처 작성\n• 계약품의서 사전 원가 및 투입인력(4명) 편성 검토'
-        : '• 행안부 사물주소·입체주소 데이터 모델링 사전 PoC 검증\n• 컨소시엄 지분율 및 역할 분담 합의',
-      nextPeriodPlan: isWeekly
-        ? '• 제안서 정량/정성 평가 항목별 증빙자료 마감\n• 발표자료(PPT) 스토리보드 리뷰 및 모의 발표'
-        : '• 입찰 제안서 최종 제출 및 기술평가 발표 수행\n• 우선협상 선정 후 기술협상 착수',
-      issueAndSupport: '제안서 디자인 및 인쇄 일정(11월 초) 경영지원팀 협조 요청',
-      directorNote: '수주 핵심 전략과제이므로 대표이사님 모의발표 참관 일정 조율 완료',
-      pmSubmitted: true,
-      updatedAt: '2026-10-30 16:40',
-    };
-  }
-
+// Drafts contain no invented accomplishments, feedback, submission flags or timestamps.
+function buildDefaultItemForProject(prj: Project): ProjectReportItem {
   return {
     projectId: prj.id,
     projectCode: prj.code,
     projectName: prj.name,
-    pmName: prj.pm_name || '담당PM',
-    projectStage: stage,
-    progress: prj.progress || 10,
-    healthStatus: '정상',
-    thisPeriodWork: isWeekly
-      ? `• ${prj.name} 주간 공정 점검 및 요구사항 정의 진행`
-      : `• ${prj.name} 당월 계획 공정 수행 및 산출물 작성`,
-    nextPeriodPlan: isWeekly
-      ? `• 차주 핵심 모듈 설계 및 발주처 정기 공정 회의`
-      : `• 차월 주요 마일스톤 이행 및 품질 점검`,
-    issueAndSupport: '특이사항 없음',
-    directorNote: '',
-    pmSubmitted: false,
-    updatedAt: '2026-10-30 10:00',
+    pmName: prj.pm_name || '',
+    projectStage: normalizeProjectStatus(prj.status),
+    progress: prj.progress ?? 0,
+    healthStatus: '미작성',
+    thisPeriodWork: '', nextPeriodPlan: '', issueAndSupport: '', directorNote: '',
+    pmSubmitted: false, updatedAt: '',
   };
 }
 
@@ -206,26 +96,20 @@ export default function WeeklyMonthlyReportView({
   onRefresh,
 }: Props) {
   const { showAlert } = useModal();
+  const WEEKLY_PERIODS = useMemo(() => reportPeriods('weekly'), []);
+  const MONTHLY_PERIODS = useMemo(() => reportPeriods('monthly'), []);
   const [reportType, setReportType] = useState<ReportType>('주간보고');
-  const [selectedPeriodKey, setSelectedPeriodKey] = useState<string>('2026-10-W5');
+  const [selectedPeriodKey, setSelectedPeriodKey] = useState<string>(WEEKLY_PERIODS[0].key);
 
-  const userRole = normalizeUserRole(currentUser);
   const canWritePmReport = isPmOrAbove(currentUser);
   const canConsolidateAsDirector = isExecutiveOrAbove(currentUser);
-  const isCeo =
-    currentUser.position === '사장' ||
-    currentUser.position === '대표이사' ||
-    currentUser.name === '권우석';
+  const isCeo = currentUser.position_code === 'POS_CEO';
 
   // 로그인한 사용자가 담당하는 프로젝트 찾기 (우선 매핑)
   const myDefaultProject = useMemo(() => {
-    const trimmedName = currentUser.name?.trim();
-    return (
-      projects.find((p) => p.pm_name?.trim() === trimmedName) ||
-      projects.find((p) => p.members?.includes(trimmedName)) ||
-      projects[0]
-    );
-  }, [projects, currentUser.name]);
+    return projects.find(p => p.pm_id === currentUser.id)
+      || projects.find(p => p.member_ids?.includes(currentUser.id)) || projects[0];
+  }, [projects, currentUser.id]);
 
   // 뷰 모드: 메뉴 진입 시 즉시 작성할 수 있도록 PM 및 이사는 'pm_edit'를 기본으로 활성화
   // (대표이사 사장님은 전체 종합 보고서 승인용 'consolidated'로 진입)
@@ -277,9 +161,7 @@ export default function WeeklyMonthlyReportView({
     }
 
     const mergedItems: ProjectReportItem[] = projects.map((prj) => {
-      const saved =
-        savedItemsMap.get(prj.id) ||
-        (parsed.items || []).find((it) => it.projectName === prj.name);
+      const saved = savedItemsMap.get(prj.id);
       if (saved) {
         return {
           ...saved,
@@ -290,24 +172,18 @@ export default function WeeklyMonthlyReportView({
           projectStage: normalizeProjectStatus(prj.status),
         };
       }
-      return buildDefaultItemForProject(prj, reportType);
+      return buildDefaultItemForProject(prj);
     });
 
     return {
       reportType,
       periodKey: currentPeriodObj.key,
       periodLabel: currentPeriodObj.label,
-      overallStage: parsed.overallStage || '이사취합보완중',
-      directorName: parsed.directorName || '박용묵 이사',
-      directorSummary:
-        parsed.directorSummary ??
-        (reportType === '주간보고'
-          ? '1. 수행 중인 3개 본사업(LX 유지관리, 스마트 충북, LX 디지털트윈) 모두 계획 공정 대비 정상 순항 중입니다.\n2. 행안부 차세대 주소기반 DB 구축 사업은 제안서 마감 단계로 본부장 직접 점검 체제로 전환하여 수주 총력 대응 중입니다.'
-          : '1. 10월 당월 사업본부 전체 매출 집행 및 수행 공정률 목표치(100%) 정상 달성하였습니다.\n2. 11월 감리(LX 디지털트윈) 및 신규 입찰(행안부 주소DB) 집중 지원을 위해 연구소·품질팀 협업 체계를 가동합니다.'),
-      ceoFeedback:
-        parsed.ceoFeedback ??
-        '수행 과제 품질관리에 만전을 기해주고, 행안부 제안 발표 준비에 전사 역량을 집중해 주기 바랍니다.',
-      submittedToCeoAt: parsed.submittedToCeoAt || '2026-10-30 17:30',
+      overallStage: parsed.overallStage || 'PM작성중',
+      directorName: parsed.directorName || '',
+      directorSummary: parsed.directorSummary ?? '',
+      ceoFeedback: parsed.ceoFeedback ?? '',
+      submittedToCeoAt: parsed.submittedToCeoAt || '',
       confirmedByCeoAt: parsed.confirmedByCeoAt || '',
       items: mergedItems,
     };
@@ -332,46 +208,6 @@ export default function WeeklyMonthlyReportView({
     setTimeout(() => setToastMsg(null), 3000);
   };
 
-  // DB에 현재 주간/월간 보고서 레코드가 아직 없으면 최초 1회 자동 동기화 저장
-  useEffect(() => {
-    if (!matchedApproval && projects.length > 0 && selectedPeriodKey === '2026-10-W5') {
-      const autoSeed = async () => {
-        try {
-          await fetch('http://localhost:8080/api/groupware', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              module: 'approvals',
-              action: 'create',
-              data: {
-                doc_no: `RPT-${ currentReport.periodKey }`,
-                category: currentReport.reportType,
-                title: `[${currentReport.reportType}] ${currentReport.periodLabel}`,
-                requester: '박용묵',
-                requester_position: '이사',
-                department: '사업본부',
-                created_at: '2026-10-30',
-                status: '이사취합보완중',
-                amount: 0,
-                project_name: currentReport.periodKey,
-                vendor: '사업본부 전체 프로젝트',
-                payment_method: currentReport.reportType,
-                purpose: currentReport.directorSummary,
-                items_json: JSON.stringify(currentReport),
-                reviewer_comment: currentReport.ceoFeedback,
-                approved_by: '권우석 사장',
-              },
-            }),
-          });
-          await onRefresh();
-        } catch (e) {
-          console.error('Failed to seed report:', e);
-        }
-      };
-      autoSeed();
-    }
-  }, [matchedApproval, projects.length, selectedPeriodKey]);
-
   // DB 저장 공통 함수
   const saveReportToDb = async (
     updatedPayload: ConsolidatedReportPayload,
@@ -380,20 +216,21 @@ export default function WeeklyMonthlyReportView({
     setSaving(true);
     try {
       const docNo = `RPT-${updatedPayload.periodKey}`;
-      await fetch('http://localhost:8080/api/groupware', {
+      await apiFetch('/api/groupware', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           module: 'approvals',
           action: matchedApproval ? 'update' : 'create',
           id: matchedApproval?.id,
+          version: matchedApproval?.version,
           data: {
             doc_no: docNo,
             category: updatedPayload.reportType,
             title: `[${updatedPayload.reportType}] ${updatedPayload.periodLabel}`,
-            requester: updatedPayload.directorName.split(' ')[0] || '박용묵',
-            requester_position: '이사',
-            department: '사업본부',
+            requester: currentUser.name,
+            requester_position: currentUser.position,
+            department: currentUser.department,
             created_at: new Date().toISOString().slice(0, 10),
             status: updatedPayload.overallStage,
             amount: 0,
@@ -404,7 +241,7 @@ export default function WeeklyMonthlyReportView({
             items_json: JSON.stringify(updatedPayload),
             reviewer_comment: updatedPayload.ceoFeedback,
             approved_by:
-              updatedPayload.overallStage === '사장님확인완료' ? '권우석 사장' : '',
+              updatedPayload.overallStage === '사장님확인완료' ? currentUser.name : '',
           },
         }),
       });
@@ -610,7 +447,7 @@ export default function WeeklyMonthlyReportView({
                   </>
                 )}
 
-                {(isCeo || userRole === '시스템 관리자') && (
+                {(isCeo || isSystemAdmin(currentUser)) && (
                   <button
                     onClick={() =>
                       saveReportToDb(
@@ -636,12 +473,12 @@ export default function WeeklyMonthlyReportView({
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-              {/* 좌측 7칸: 이사(박용묵 이사) 취합·보완 총괄 요약 */}
+              {/* 좌측 7칸: 사업본부장 취합·보완 총괄 요약 */}
               <div className="lg:col-span-7 bg-white/10 rounded-xl p-3.5 border border-white/15">
                 <div className="flex items-center justify-between mb-1.5">
                   <span className="text-xs font-bold text-indigo-200 flex items-center gap-1.5">
                     <UserCheck className="w-3.5 h-3.5 text-indigo-300" />
-                    사업본부장(박용묵 이사) 취합 총괄 요약 및 보완 보고
+                    사업본부장 취합 총괄 요약 및 보완 보고
                   </span>
                   <span className="text-[11px] text-slate-300">
                     {canConsolidateAsDirector ? '직접 수정 가능' : '이사 작성란'}
@@ -662,12 +499,12 @@ export default function WeeklyMonthlyReportView({
                 />
               </div>
 
-              {/* 우측 5칸: 대표이사(권우석 사장) 당부사항 / 피드백 */}
+              {/* 우측 5칸: 대표이사 당부사항 / 피드백 */}
               <div className="lg:col-span-5 bg-white/10 rounded-xl p-3.5 border border-white/15">
                 <div className="flex items-center justify-between mb-1.5">
                   <span className="text-xs font-bold text-amber-300 flex items-center gap-1.5">
                     <Crown className="w-3.5 h-3.5 text-amber-300" />
-                    대표이사(권우석 사장님) 확인 및 당부사항
+                    대표이사 확인 및 당부사항
                   </span>
                   {draftReport.overallStage === '사장님확인완료' ? (
                     <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/30 text-emerald-200 border border-emerald-400/40">
@@ -716,7 +553,7 @@ export default function WeeklyMonthlyReportView({
             <div className="divide-y divide-slate-200">
               {draftReport.items.map((item) => {
                 const isThisItemPm =
-                  currentUser.name?.trim() === item.pmName?.trim() ||
+                  projects.find(p => p.id === item.projectId)?.pm_id === currentUser.id ||
                   isSystemAdmin(currentUser);
 
                 return (
@@ -899,7 +736,7 @@ export default function WeeklyMonthlyReportView({
 
             {draftReport.items.map((it) => {
               const active = it.projectId === selectedItem.projectId;
-              const isMine = it.pmName === currentUser.name;
+              const isMine = projects.find(p => p.id === it.projectId)?.pm_id === currentUser.id;
               return (
                 <div
                   key={it.projectId}
@@ -948,7 +785,7 @@ export default function WeeklyMonthlyReportView({
             {/* 담당 PM 권한 체크 (담당 PM 본인 또는 사업본부장(이사)/관리자는 작성 가능) */}
             {(() => {
               const isSelectedPm =
-                currentUser.name?.trim() === selectedItem.pmName?.trim() ||
+                projects.find(p => p.id === selectedItem.projectId)?.pm_id === currentUser.id ||
                 canConsolidateAsDirector ||
                 isSystemAdmin(currentUser);
 
@@ -977,11 +814,12 @@ export default function WeeklyMonthlyReportView({
                         value={selectedItem.healthStatus}
                         onChange={(e) =>
                           updateProjectItem(selectedItem.projectId, {
-                            healthStatus: e.target.value as '정상' | '주의' | '지연',
+                            healthStatus: e.target.value as ProjectReportItem['healthStatus'],
                           })
                         }
                         className="px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs font-bold disabled:bg-slate-100 disabled:cursor-not-allowed"
                       >
+                        <option value="미작성">미작성</option>
                         <option value="정상">● 정상 추진</option>
                         <option value="주의">▲ 주의 (이슈관리)</option>
                         <option value="지연">■ 지연 (집중지원)</option>

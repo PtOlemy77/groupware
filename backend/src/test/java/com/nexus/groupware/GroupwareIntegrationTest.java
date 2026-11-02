@@ -471,19 +471,54 @@ class GroupwareIntegrationTest {
   }
 
   @Test
-  void initializerPreservesBusinessRowsAndHashesLegacyPasswords() throws Exception {
+  void initializerPreservesAllExistingCredentialsAndBusinessRows() throws Exception {
     var s = login(pm);
     createProject(s);
     staff.setPassword("1234");
     staff.setAccountEnabled(true);
     employees.saveAndFlush(staff);
     long count = employees.count();
+    Long oldVersion = employees.findById(staff.getId()).orElseThrow().getVersion();
+    initializer.run();
     initializer.run();
     assertThat(employees.count()).isEqualTo(count);
     assertThat(projects.count()).isEqualTo(1);
     var migrated = employees.findById(staff.getId()).orElseThrow();
-    assertThat(migrated.getPassword()).startsWith("$2");
-    assertThat(migrated.getAccountEnabled()).isFalse();
+    assertThat(migrated.getPassword()).isEqualTo("1234");
+    assertThat(migrated.getAccountEnabled()).isTrue();
+    assertThat(migrated.getVersion()).isEqualTo(oldVersion);
+    assertThat(migrated.getRoleCode()).isEqualTo(staff.getRoleCode());
+  }
+
+  @Test
+  void freshBootstrapRequiresPasswordChangeAndNeverResetsAnExistingAccount() {
+    employees.deleteAll();
+    var isolated = new DataInitializer(employees, passwords);
+    org.springframework.test.util.ReflectionTestUtils.setField(isolated, "email", "fresh@spatialt.co.kr");
+    org.springframework.test.util.ReflectionTestUtils.setField(isolated, "password", PW);
+    isolated.run();
+    var created = employees.findByEmailIgnoreCase("fresh@spatialt.co.kr").orElseThrow();
+    assertThat(created.getPasswordChangeRequired()).isTrue();
+    assertThat(created.getRoleCode()).isEqualTo("ROLE_ADMIN");
+    assertThat(passwords.matches(PW, created.getPassword())).isTrue();
+    String hash = created.getPassword();
+    org.springframework.test.util.ReflectionTestUtils.setField(isolated, "password", "Different-password-2026!");
+    isolated.run();
+    assertThat(employees.count()).isEqualTo(1);
+    assertThat(employees.findById(created.getId()).orElseThrow().getPassword()).isEqualTo(hash);
+  }
+
+  @Test
+  void missingVersionsRejectUpdateAndDeleteWithoutChangingBusinessData() throws Exception {
+    var session = login(admin);
+    var project = createProject(session);
+    Long id = project.get("id").asLong();
+    mutate(session, Map.of("module", "projects", "action", "update", "id", id,
+        "data", Map.of("name", "Must not overwrite"))).andExpect(status().isBadRequest());
+    mutate(session, Map.of("module", "projects", "action", "delete", "id", id))
+        .andExpect(status().isBadRequest());
+    assertThat(projects.findById(id).orElseThrow().getName()).isEqualTo("Review project");
+    assertThat(projects.findById(id).orElseThrow().getVersion()).isEqualTo(project.get("version").asLong());
   }
 
   @Test

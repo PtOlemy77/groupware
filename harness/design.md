@@ -3,7 +3,7 @@
 - **문서 버전**: v1.0.0
 - **최종 수정일**: 2026-11-02
 - **적용 프레임워크**: React 19, Tailwind CSS v4, Lucide React
-- **적용 범위**: 본 그룹웨어의 모든 화면 컴포넌트, 모달, 테이블, 입력 폼 및 네비게이션
+- **적용 범위**: 내부 그룹웨어의 화면·입력 폼·테이블. 공개 포털에는 아래 별도 포털 규칙을 적용하며, 알림·접근성 원칙은 공통 적용
 
 ---
 
@@ -14,7 +14,7 @@
 1. **정돈된 시각적 위계 (Visual Hierarchy)**: 
    - 사용자가 한눈에 데이터 현황, 작업 상태, 액션 버튼을 구분할 수 있도록 폰트 크기, 명도, 여백을 규칙화합니다.
 2. **반드시 일관된 모달 시스템 (Global Modal Invariant)**:
-   - 브라우저 기본 `window.alert()` / `window.confirm()`은 절대 사용하지 않으며, 일관된 UX를 위해 [`ModalContext`](file:///Users/ugwang-il/study/groupware/src/contexts/ModalContext.tsx)의 `showAlert`와 `showConfirm`만을 사용합니다.
+   - 브라우저 기본 `window.alert()` / `window.confirm()`은 절대 사용하지 않으며, 일관된 UX를 위해 [`ModalContext`](../src/contexts/ModalContext.tsx)의 `showAlert`와 `showConfirm`만을 사용합니다.
 3. **가독성 높은 듀얼 톤 레이아웃 (Dual-Tone Contrast)**:
    - 좌측 네비게이션은 안정감 있는 다크 테마(`slate-900`), 메인 작업 영역은 가독성과 눈의 피로를 최소화하는 소프트 라이트 테마(`slate-50`)를 엄격히 유지합니다.
 4. **군더더기 없는 모던 UI (Subtle & Clean)**:
@@ -100,10 +100,11 @@
 ```tsx
 // 1. Label + Input 세트
 <div className="space-y-1.5">
-  <label className="block text-xs font-semibold text-slate-700">
+  <label htmlFor="project-name" className="block text-xs font-semibold text-slate-700">
     프로젝트명 <span className="text-rose-500">*</span>
   </label>
   <input
+    id="project-name"
     type="text"
     placeholder="프로젝트명을 입력하세요"
     className="w-full px-3.5 py-2.5 bg-white rounded-xl border border-slate-200 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition"
@@ -148,7 +149,7 @@
 ```tsx
 const confirmed = await showConfirm(
   '선택한 직원을 퇴직 처리하시겠습니까?\n이 작업은 즉시 반영됩니다.',
-  '직원 상태 변경 확인'
+  { title: '직원 상태 변경 확인' }
 );
 if (!confirmed) return;
 ```
@@ -182,8 +183,21 @@ if (!confirmed) return;
 새로운 화면이나 컴포넌트를 추가할 때 아래 항목을 반드시 자가 점검합니다:
 
 - [ ] `window.alert` 또는 `window.confirm` 코드가 1개도 없는가? (`useModal()` 사용 여부)
-- [ ] 버튼이나 카드 테두리에 하드코딩된 어색한 색상 대신 본 가이드의 `slate`, `indigo` 팔레트를 사용했는가?
+- [ ] 버튼이나 카드 테두리에 하드코딩된 어색한 색상 대신 화면 범위에 맞는 그룹웨어 또는 공개 포털 팔레트를 사용했는가?
 - [ ] 테이블 헤더와 셀 폰트 크기 및 패딩이 통일되어 있는가? (`text-xs font-semibold py-3 px-4`)
 - [ ] 모든 입력창에 포커스 링(`focus:ring-2 focus:ring-indigo-500/20`)이 적용되어 있는가?
 - [ ] 상태 표시에 하드코딩 한글 비교 대신 시맨틱 뱃지 컬러 규칙을 따랐는가?
 
+
+## 8. 공개 포털의 별도 시각 규칙
+
+공개 포털·공지·처리방침은 내부 그룹웨어의 고정 사이드바·indigo 버튼 규칙을 강제하지 않는다. [portal.css](../src/components/portal.css)의 네이비·그린·밝은 배경 토큰을 사용하고 `.spatial-portal` 아래로 스타일을 제한한다. 공지 작성 화면도 같은 포털 영역을 따른다. 그룹웨어의 입력·알림과 시각적으로 다르더라도 확인 결과·오류 처리·접근성은 동일하게 보장한다.
+
+- 아이콘 전용 버튼의 접근 가능한 이름, label과 input ID 연결을 명시한다.
+- 입력·표는 좁은 화면에서 잘리지 않도록 재배치하거나 가로 스크롤을 제공한다.
+- 알림·확인은 `ModalProvider` 안에서 `useModal()`로 호출한다. 동기식 네이티브 확인 결과를 비동기 모달로 흉내 내지 않는다.
+- 전역 확인 모달은 사용자 선택으로만 닫는다. Escape는 취소, Tab은 모달 안에서 순환하며 닫힌 뒤 기존 포커스로 돌아간다.
+- 성공 알림은 기본 2초 자동 닫힘이며, 오류·긴 안내는 `autoClose: false`를 명시할 수 있다. 마우스를 올리면 일시 중지하고 나가면 1초 뒤 닫는 현재 동작은 정확한 남은 시간 재개와 구분한다.
+- 미정인 운영정보를 가상의 실적·연락처·정식 개인정보 방침으로 표시하지 않는다.
+
+검증 명령은 [하네스 기준](HARNESS_ENGINEERING.md)을 따른다. 이 문서의 예시는 스타일/API 사용 예이며 테스트 실행 결과를 대체하지 않는다.

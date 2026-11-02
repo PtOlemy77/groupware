@@ -1,7 +1,9 @@
 'use client';
 import { useEffect } from 'react';
+import { useModal } from '@/contexts/ModalContext';
 /** Keyboard/focus and unsaved-edit handling shared by the existing modal forms. */
 export default function InteractionGuard() {
+  const { showConfirm } = useModal();
   useEffect(() => {
     const seen = new WeakSet<HTMLElement>();
     const previous = new Map<HTMLElement, HTMLElement | null>();
@@ -41,7 +43,7 @@ export default function InteractionGuard() {
       for (const node of document.querySelectorAll<HTMLElement>(
         '.fixed.inset-0',
       )) {
-        if (seen.has(node)) continue;
+        if (seen.has(node) || node.hasAttribute('data-global-modal')) continue;
         seen.add(node);
         previous.set(node, document.activeElement as HTMLElement);
         node.setAttribute('role', 'dialog');
@@ -119,20 +121,29 @@ export default function InteractionGuard() {
         }
       }
     };
+    let confirming = false;
+    const replaying = new WeakSet<HTMLButtonElement>();
     const click = (e: MouseEvent) => {
       const button = (e.target as HTMLElement).closest('button');
-      if (!button) return;
+      if (!button || button.closest('[data-global-modal]')) return;
+      if (replaying.has(button)) { replaying.delete(button); return; }
       const leaving =
         /^(닫기|취소|✕|×)$/.test(button.textContent?.trim() || '') ||
+        button.getAttribute('aria-label') === '닫기' ||
         !!button.closest('nav');
-      if (
-        leaving &&
-        dirty() &&
-        !window.confirm('저장하지 않은 변경 내용이 있습니다. 나가시겠습니까?')
-      ) {
-        e.preventDefault();
-        e.stopPropagation();
-      } else if (leaving) saved();
+      if (!leaving || !dirty()) return;
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      if (confirming) return;
+      confirming = true;
+      void showConfirm('저장하지 않은 변경 내용이 있습니다. 나가시겠습니까?', { title: '변경 내용 확인' })
+        .then(confirmed => {
+          if (confirmed && button.isConnected) {
+            saved();
+            replaying.add(button);
+            button.click();
+          }
+        }).finally(() => { confirming = false; });
     };
     document.addEventListener('input', input);
     document.addEventListener('change', input);
@@ -149,6 +160,6 @@ export default function InteractionGuard() {
       window.removeEventListener('beforeunload', before);
       window.removeEventListener('data-change-saved', saved);
     };
-  }, []);
+  }, [showConfirm]);
   return null;
 }

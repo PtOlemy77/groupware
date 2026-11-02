@@ -51,3 +51,7 @@ backend/.mvn/wrapper/maven-wrapper.jar
 !.env.example
 /backups/
 /test-results/
+
+# Private data exports must stay local; schema-only documentation may be tracked.
+/export/csv/
+/export/groupware_full_dump.sql

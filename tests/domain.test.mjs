@@ -45,3 +45,11 @@ test('invalid periods never fabricate revenue in a default year',()=>{
  assert.deepEqual(domain.calculateMultiYearRevenues('','',1000),{});
  assert.deepEqual(domain.calculateMultiYearRevenues('2027-01-01','2026-01-01',1000),{});
 });
+test('report periods follow the Korean business date across year boundaries', () => {
+ const weekly=calendar.reportPeriods('weekly',new Date('2026-11-01T15:30:00Z'));
+ assert.equal(weekly[0].key,'2026-11-W1');
+ assert.equal(new Set(weekly.map(p=>p.key)).size,weekly.length);
+ const monthly=calendar.reportPeriods('monthly',new Date('2026-12-31T15:30:00Z'));
+ assert.equal(monthly[0].key,'2027-01-M');
+ assert.equal(monthly[1].key,'2026-12-M');
+});

@@ -37,18 +37,6 @@ public class DataInitializer implements CommandLineRunner {
     // 사용자가 수정한 데이터와 비밀번호를 매 서버 기동 시 덮어쓰지 않습니다.
     long count = employees.count();
     if (count > 0) {
-      // 보안상 평문 비밀번호($2로 시작하지 않음)가 남아있는 레거시 계정만 BCrypt로 안전하게 해시합니다.
-      java.util.List<Employee> legacyList = employees.findAll().stream()
-          .filter(e -> e.getPassword() != null && !e.getPassword().startsWith("$2"))
-          .toList();
-      if (!legacyList.isEmpty()) {
-        for (Employee e : legacyList) {
-          e.setPassword(encoder.encode(e.getPassword()));
-          e.setAccountEnabled(false);
-        }
-        employees.saveAll(legacyList);
-        employees.flush();
-      }
       log.info("기존 DB 데이터({}건)가 존재하므로 초기화 덮어쓰기를 생략합니다.", count);
       return;
     }
@@ -73,7 +61,7 @@ public class DataInitializer implements CommandLineRunner {
     admin.setRoleCode("ROLE_ADMIN");
     admin.setPassword(encoder.encode(password));
     admin.setAccountEnabled(true);
-    admin.setPasswordChangeRequired(false);
+    admin.setPasswordChangeRequired(true);
     admin.setSessionVersion(1L);
     employees.save(admin);
     log.info("최초 부트스트랩 시스템 관리자 계정이 생성되었습니다: {}", email);

@@ -66,7 +66,8 @@ public class PortalNoticeService {
     requireAdmin();
     var notice = notices.findById(id).orElseThrow(() ->
         new ResponseStatusException(HttpStatus.NOT_FOUND, "공지사항을 찾을 수 없습니다."));
-    if (version == null || !Objects.equals(notice.getVersion(), version))
+    if (version == null) throw new IllegalArgumentException("조회 당시 version이 필요합니다.");
+    if (!Objects.equals(notice.getVersion(), version))
       throw new ResponseStatusException(HttpStatus.CONFLICT, "다른 관리자가 변경했습니다. 최신 공지를 확인한 후 다시 시도하세요.");
     return notice;
   }

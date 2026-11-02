@@ -88,6 +88,9 @@ class PortalNoticeIntegrationTest {
     var created = create(admin, "Original", true);
     long id = created.get("id").asLong();
     long version = created.get("version").asLong();
+    mvc.perform(put("/api/portal/admin/notices/" + id).session(admin).with(csrf())
+        .contentType("application/json").content(payload("No version", "Must not replace", false, null)))
+        .andExpect(status().isBadRequest());
     var edited = mapper.readTree(mvc.perform(put("/api/portal/admin/notices/" + id).session(admin).with(csrf())
         .contentType("application/json").content(payload("Edited", "Changed", false, version)))
         .andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
