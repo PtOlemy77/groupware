@@ -1217,83 +1217,74 @@ export default function ProjectsView({
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <label className="block font-bold text-slate-700">
-                    참여 인력 명단 <span className="text-[11px] text-indigo-600 font-normal">(DB 직원 풀에서 선택)</span>
+                    프로젝트 참여 인력 명단 <span className="text-[11px] text-indigo-600 font-normal">(계약품의서 연동)</span>
                   </label>
                   <span className="text-[11px] text-slate-500 font-bold">
-                    선택된 인원: {(formData.member_ids || []).length}명
+                    총 {[...new Set([formData.pm_id, ...(formData.member_ids || [])].filter(Boolean))].length}명 편성
                   </span>
                 </div>
 
-                {/* 현재 선택된 참여 인력 태그들 */}
-                <div className="p-2.5 rounded-xl border border-slate-300 bg-slate-50 min-h-[46px] flex flex-wrap gap-1.5 items-center mb-2">
-                  {(formData.member_ids || []).map((employeeId) => {
-                      const empObj = employees.find((e) => e.id === employeeId);
-                      const name = empObj?.name || '알 수 없는 직원';
-                      return (
-                        <span
-                          key={employeeId}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white border border-indigo-200 text-xs font-bold text-indigo-900 shadow-2xs"
-                        >
-                          <User className="w-3 h-3 text-indigo-500" />
-                          <span>{name}</span>
-                          {empObj && (
-                            <span className="text-[10px] text-slate-400 font-normal">
-                              ({empObj.position})
-                            </span>
-                          )}
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const ids = (formData.member_ids || []).filter(id => id !== employeeId);
-                              setFormData({ ...formData, member_ids: ids, members: ids.map(id => employees.find(e => e.id === id)?.name || '').join(', ') });
-                            }}
-                            className="ml-0.5 text-slate-400 hover:text-rose-600 font-bold px-1"
-                            title="제외"
-                          >
-                            ×
-                          </button>
-                        </span>
-                      );
-                    })}
-                  {!(formData.member_ids || []).length && (
-                    <span className="text-xs text-slate-400">
-                      아래 직원 풀에서 클릭하여 참여 인력을 편성하세요.
-                    </span>
-                  )}
-                </div>
-
-                {/* DB 실제 직원 목록 빠른 추가 풀 */}
-                <div className="p-3 rounded-xl border border-slate-200 bg-white space-y-1.5 max-h-36 overflow-y-auto">
-                  <div className="text-[11px] font-bold text-slate-500 mb-1">
-                    사내 임직원 풀 ({employees.length}명) — 클릭하여 추가/제외:
+                <div className="p-3 rounded-xl border border-slate-200 bg-slate-50/70 space-y-2.5">
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="text-[11px] text-slate-500 leading-relaxed">
+                      참여인력 명단은 <span className="font-semibold text-indigo-700">계약품의서의 [투입인력 및 인건비]</span>에서 입력·편성되며, 품의서 저장 시 프로젝트 정보와 직원 조직도 투입정보가 실시간으로 자동 업데이트됩니다.
+                    </p>
+                    {editingPrj && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const targetPrj = editingPrj;
+                          setModalOpen(false);
+                          handleOpenContractForProject(targetPrj);
+                        }}
+                        className="shrink-0 flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white transition shadow-2xs"
+                      >
+                        <FileSpreadsheet className="w-3.5 h-3.5" />
+                        <span>계약품의서에서 인력 편성</span>
+                      </button>
+                    )}
                   </div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {employees.map((emp) => {
-                      const currentIds = formData.member_ids || [];
-                      const isSelected = currentIds.includes(emp.id);
 
-                      return (
-                        <button
-                          key={emp.id}
-                          type="button"
-                          onClick={() => {
-                            const ids = isSelected ? currentIds.filter(id => id !== emp.id) : [...currentIds, emp.id];
-                            setFormData({ ...formData, member_ids: ids, members: ids.map(id => employees.find(e => e.id === id)?.name || '').join(', ') });
-                          }}
-                          className={`px-2 py-0.5 rounded text-[11px] font-semibold transition border ${
-                            isSelected
-                              ? 'bg-indigo-600 text-white border-indigo-600 shadow-2xs'
-                              : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-indigo-50 hover:text-indigo-700'
-                          }`}
-                        >
-                          {isSelected ? '✓ ' : '+ '}
-                          {emp.name} {emp.position}
-                          <span className="opacity-70 text-[9px] ml-1">
-                            ({emp.department.slice(0, 4)})
+                  {/* 현재 편성된 참여 인력 목록 (PM + 팀원) */}
+                  <div className="p-2 rounded-lg bg-white border border-slate-200 min-h-[46px] flex flex-wrap gap-1.5 items-center">
+                    {/* 총괄 PM */}
+                    {formData.pm_name && (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-100 border border-indigo-300 text-xs font-bold text-indigo-950">
+                        <User className="w-3 h-3 text-indigo-600" />
+                        <span className="text-[10px] bg-indigo-600 text-white px-1 rounded font-semibold">PM</span>
+                        <span>{formData.pm_name}</span>
+                      </span>
+                    )}
+
+                    {/* 투입 팀원들 */}
+                    {(formData.member_ids || [])
+                      .filter((id) => id !== formData.pm_id)
+                      .map((employeeId) => {
+                        const empObj = employees.find((e) => e.id === employeeId);
+                        const name = empObj?.name || '알 수 없는 직원';
+                        return (
+                          <span
+                            key={employeeId}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-50 border border-slate-200 text-xs font-medium text-slate-800"
+                          >
+                            <User className="w-3 h-3 text-slate-400" />
+                            <span>{name}</span>
+                            {empObj && (
+                              <span className="text-[10px] text-slate-400">
+                                ({empObj.position})
+                              </span>
+                            )}
                           </span>
-                        </button>
-                      );
-                    })}
+                        );
+                      })}
+
+                    {![...new Set([formData.pm_id, ...(formData.member_ids || [])].filter(Boolean))].length && (
+                      <span className="text-xs text-slate-400 py-1">
+                        {editingPrj
+                          ? '현재 편성된 투입인력이 없습니다. 우측 버튼을 눌러 계약품의서에서 인력을 등록하세요.'
+                          : '프로젝트 등록 저장 후 [계약품의서]에서 참여인력을 등록하시면 조직도와 자동 연동됩니다.'}
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>

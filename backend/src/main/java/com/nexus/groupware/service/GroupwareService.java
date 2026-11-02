@@ -1203,6 +1203,45 @@ public class GroupwareService {
                 a.getReviewerComment()));
       doc.put("approvalLine", line);
       a.setItemsJson(encode(doc));
+      if ("approve".equals(action) && a.getProjectId() != null) {
+        projects.findById(a.getProjectId()).ifPresent(p -> {
+          Set<Long> members = new HashSet<>();
+          Long pmEmployeeId = null;
+          String pmEmployeeName = null;
+          for (var plan : items(doc, "manpowerPlans")) {
+            Long empId = null;
+            if (plan.get("employeeId") != null) {
+              empId = id(plan.get("employeeId"));
+            } else if (plan.get("name") != null && !Objects.toString(plan.get("name")).isBlank()) {
+              try {
+                Employee matched = employeeByName(Objects.toString(plan.get("name")).trim());
+                if (matched != null) empId = matched.getId();
+              } catch (Exception ignored) {}
+            }
+            if (empId != null) {
+              members.add(empId);
+              String role = Objects.toString(plan.get("role"), "");
+              if ((role.contains("PM") || role.contains("총괄")) && pmEmployeeId == null) {
+                pmEmployeeId = empId;
+                pmEmployeeName = Objects.toString(plan.get("name"), employee(empId).getName());
+              }
+            }
+          }
+          if (pmEmployeeId != null) {
+            p.setPmId(pmEmployeeId);
+            p.setPmName(pmEmployeeName);
+          }
+          if (!members.isEmpty()) {
+            p.setMemberIds(members);
+            p.setMembers(
+                members.stream()
+                    .sorted()
+                    .map(id -> employee(id).getName())
+                    .collect(java.util.stream.Collectors.joining(", ")));
+          }
+          projects.saveAndFlush(p);
+        });
+      }
     }
   }
 
@@ -1328,8 +1367,34 @@ public class GroupwareService {
         p.setYearlyRevenueJson("{}");
       }
       Set<Long> members = new HashSet<>();
-      for (var plan : items(doc, "manpowerPlans"))
-        if (plan.get("employeeId") != null) members.add(id(plan.get("employeeId")));
+      Long pmEmployeeId = null;
+      String pmEmployeeName = null;
+      for (var plan : items(doc, "manpowerPlans")) {
+        Long empId = null;
+        if (plan.get("employeeId") != null) {
+          empId = id(plan.get("employeeId"));
+        } else if (plan.get("name") != null && !Objects.toString(plan.get("name")).isBlank()) {
+          try {
+            Employee matched = employeeByName(Objects.toString(plan.get("name")).trim());
+            if (matched != null) {
+              empId = matched.getId();
+              plan.put("employeeId", empId);
+            }
+          } catch (Exception ignored) {}
+        }
+        if (empId != null) {
+          members.add(empId);
+          String role = Objects.toString(plan.get("role"), "");
+          if ((role.contains("PM") || role.contains("총괄")) && pmEmployeeId == null) {
+            pmEmployeeId = empId;
+            pmEmployeeName = Objects.toString(plan.get("name"), employee(empId).getName());
+          }
+        }
+      }
+      if (pmEmployeeId != null) {
+        p.setPmId(pmEmployeeId);
+        p.setPmName(pmEmployeeName);
+      }
       p.setMemberIds(members);
       p.setMembers(
           members.stream()
