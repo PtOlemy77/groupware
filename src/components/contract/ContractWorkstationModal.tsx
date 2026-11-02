@@ -125,8 +125,12 @@ export default function ContractWorkstationModal({
   };
 
   const { showAlert } = useModal();
-  const readOnly = !isPmOrAbove(currentUser.role) || (!isExecutiveOrAbove(currentUser.role) && !!doc.linkedProjectId && projects.find(p => p.id === doc.linkedProjectId)?.pm_id !== currentUser.id) || !!(approvalRecord && !['작성중', '반려'].includes(approvalRecord.status));
-  const [approverId, setApproverId] = useState<number | undefined>(approvalRecord?.approver_id);
+  // 각 담당 PM, 문서 기안자, 임원/관리자는 결재 상태와 무관하게 품의서 수정 가능
+  const isLinkedPm = !!doc.linkedProjectId && projects.find((p) => p.id === doc.linkedProjectId)?.pm_id === currentUser.id;
+  const isRequester = !!approvalRecord && approvalRecord.requester_id === currentUser.id;
+  const canEdit = isExecutiveOrAbove(currentUser) || isLinkedPm || isRequester || isPmOrAbove(currentUser);
+  const readOnly = !canEdit;
+
   const handleSaveDocument = async () => {
     if (readOnly) return;
     if (!doc.title.trim() || !doc.clientName.trim()) {
@@ -136,20 +140,37 @@ export default function ContractWorkstationModal({
     try {
       setSaving(true);
       await apiFetch('/api/groupware', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ module: 'approvals', action: 'save_contract', id: approvalRecord?.id,
-          version: approvalRecord?.version, sync_project: syncWithProject, project_id: doc.linkedProjectId,
-          project_version: projects.find(p => p.id === doc.linkedProjectId)?.version,
-          data: { title: doc.title, category: '계약품의서', project_id: doc.linkedProjectId,
-            approver_id: approverId, amount: Math.round(doc.supplyAmount), vendor: doc.clientName,
-            project_name: doc.title, items_json: JSON.stringify(doc) } }),
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          module: 'approvals',
+          action: 'save_contract',
+          id: approvalRecord?.id,
+          version: approvalRecord?.version,
+          sync_project: syncWithProject,
+          project_id: doc.linkedProjectId,
+          project_version: projects.find((p) => p.id === doc.linkedProjectId)?.version,
+          data: {
+            title: doc.title,
+            category: '계약품의서',
+            project_id: doc.linkedProjectId,
+            approver_id: approvalRecord?.approver_id,
+            amount: Math.round(doc.supplyAmount),
+            vendor: doc.clientName,
+            project_name: doc.title,
+            items_json: JSON.stringify(doc),
+          },
+        }),
       });
-      await onSaved(); onClose();
+      await onSaved();
+      onClose();
     } catch (error) {
       await showAlert(error instanceof Error ? error.message : '저장하지 못했습니다.', {
         type: 'error',
       });
-    } finally { setSaving(false); }
+    } finally {
+      setSaving(false);
+    }
   };
 
   const totalMM = doc.manpowerPlans.reduce((s, m) => s + m.totalMM, 0);
@@ -240,12 +261,6 @@ export default function ContractWorkstationModal({
 
         {/* 3. 본문 워크스페이스 영역 (상단 탭은 고정되어 있고, 오직 이 영역만 내부 스크롤) */}
         <div className="flex-1 p-6 overflow-y-auto bg-slate-50/70 min-h-0">
-          <label className="block mb-4 text-sm">최종 결재자
-            <select aria-label="최종 결재자" disabled={readOnly} value={approverId || ''} onChange={e => setApproverId(Number(e.target.value) || undefined)} className="ml-3 border rounded p-2">
-              <option value="">결재자 선택</option>
-              {employees.filter(e => isExecutiveOrAbove(e.role) && e.id !== (approvalRecord?.requester_id || currentUser.id)).map(e => <option key={e.id} value={e.id}>{e.name} {e.position}</option>)}
-            </select>
-          </label>
           {activeSheet === 'summary' && (
             <SummarySheet
               readOnly={readOnly}

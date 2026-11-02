@@ -1,7 +1,7 @@
 'use client';
 import { unitPrice as configuredPrice } from '@/lib/api';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   FullContractDocument,
   getProjectOurBudget,
@@ -77,6 +77,11 @@ export default function SummarySheet({
   const [endDate, setEndDate] = useState<string>(doc.endDate || new Date().toLocaleDateString('en-CA'));
   const [syncNotice, setSyncNotice] = useState<string>('');
 
+  useEffect(() => {
+    if (doc.startDate) setStartDate(doc.startDate);
+    if (doc.endDate) setEndDate(doc.endDate);
+  }, [doc.startDate, doc.endDate]);
+
   // 금액 변경 헬퍼
   const handleSupplyAmountChange = (newSup: number) => {
     const sup = Math.max(0, newSup);
@@ -102,14 +107,15 @@ export default function SummarySheet({
 
   // 기간 프리셋 적용 (3개월, 6개월, 8개월, 12개월)
   const applyDurationPreset = (months: number) => {
-    const s = new Date(startDate || new Date().toLocaleDateString('en-CA'));
+    const sStr = startDate || doc.startDate || new Date().toLocaleDateString('en-CA');
+    const s = new Date(sStr);
     if (isNaN(s.getTime())) return;
     const e = new Date(s.getFullYear(), s.getMonth() + months, 0); // 해당 월 말일
     const eStr = e.toISOString().split('T')[0];
     setEndDate(eStr);
-    const periodText = formatPeriodText(startDate, eStr);
+    const periodText = formatPeriodText(sStr, eStr);
     onChangeDoc({
-      startDate,
+      startDate: sStr,
       endDate: eStr,
       contractPeriod: periodText,
     });
@@ -393,29 +399,29 @@ export default function SummarySheet({
                       <span className="text-[10px] text-slate-400 font-semibold">착수:</span>
                       <input
                         type="date"
-                        value={startDate}
+                        value={startDate || doc.startDate || ''}
                         onChange={(e) => {
                           const s = e.target.value;
                           setStartDate(s);
                           onChangeDoc({
                             startDate: s,
-                            contractPeriod: formatPeriodText(s, endDate),
+                            contractPeriod: formatPeriodText(s, endDate || doc.endDate || s),
                           });
                         }}
                         className="flex-1 text-xs font-semibold text-slate-800 outline-none"
                       />
                     </div>
                     <div className="flex items-center gap-1.5 bg-white border border-slate-300 rounded-xl px-2.5 py-1.5">
-                      <span className="text-[10px] text-slate-400 font-semibold">완료:</span>
+                       <span className="text-[10px] text-slate-400 font-semibold">완료:</span>
                       <input
                         type="date"
-                        value={endDate}
+                        value={endDate || doc.endDate || ''}
                         onChange={(e) => {
                           const end = e.target.value;
                           setEndDate(end);
                           onChangeDoc({
                             endDate: end,
-                            contractPeriod: formatPeriodText(startDate, end),
+                            contractPeriod: formatPeriodText(startDate || doc.startDate || end, end),
                           });
                         }}
                         className="flex-1 text-xs font-semibold text-slate-800 outline-none"

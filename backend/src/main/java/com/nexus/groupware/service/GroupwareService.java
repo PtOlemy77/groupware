@@ -1356,9 +1356,6 @@ public class GroupwareService {
     if (key != null) {
       authorize("approvals", a, actor, false, false);
       version(a, payload.get("version"));
-      require(
-          Set.of("작성중", "반려").contains(Objects.toString(a.getStatus(), "")),
-          "상신·승인 문서는 수정할 수 없습니다.");
     } else {
       a.setDocNo(number("CONTRACT"));
       a.setRequesterId(actor.getId());
