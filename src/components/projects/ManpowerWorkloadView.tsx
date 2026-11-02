@@ -57,6 +57,14 @@ interface EmployeeWorkload {
   hasOverloadingMonth: boolean;
 }
 
+function normalizeDateStr(dateStr?: string, defaultDay = '01'): string {
+  if (!dateStr) return '';
+  const clean = dateStr.trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(clean)) return clean;
+  if (/^\d{4}-\d{2}$/.test(clean)) return `${clean}-${defaultDay}`;
+  return clean;
+}
+
 export default function ManpowerWorkloadView({
   employees,
   approvals,
@@ -69,69 +77,124 @@ export default function ManpowerWorkloadView({
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [expandedRows, setExpandedRows] = useState<Record<number, boolean>>({});
 
-  // 1. 계약품의서(Approvals) 중 실제 JSON 데이터가 저장된 계약품의서만 파싱 (더미 데이터 배제)
+  // 1. 계약품의서(Approvals) 중 실제 JSON 데이터가 저장된 계약품의서 파싱 (반려 제외)
   const parsedApprovals = useMemo(() => {
     return approvals
       .filter(
         (ap) =>
           (ap.category === '계약품의' || ap.category === '계약품의서') &&
+          ap.status !== '반려' &&
           ap.items_json &&
           ap.items_json.trim().startsWith('{')
       )
       .map((ap) => {
         try {
           const fullDoc = JSON.parse(ap.items_json!) as import('@/types/groupware').FullContractDocument;
+          // 연동된 프로젝트 찾기 (날짜 및 발주처 보완)
+          const linkedPrj = projects.find(
+            (p) =>
+              (ap.project_id && p.id === ap.project_id) ||
+              (fullDoc.linkedProjectId && p.id === fullDoc.linkedProjectId) ||
+              (ap.project_name && p.name === ap.project_name) ||
+              (fullDoc.title && p.name === fullDoc.title) ||
+              (ap.title && p.name === ap.title)
+          );
+
+          const rawStart =
+            fullDoc.startDate ||
+            linkedPrj?.start_date ||
+            ap.created_at?.slice(0, 10) ||
+            `${targetYear}-01-01`;
+          const rawEnd = fullDoc.endDate || linkedPrj?.end_date || rawStart;
+
+          const startDate = normalizeDateStr(rawStart, '01');
+          const endDate = normalizeDateStr(rawEnd, '28');
+
           return {
             ap,
             fullDoc,
+            linkedPrj,
+            startDate,
+            endDate,
           };
         } catch (e) {
           return null;
         }
       })
       .filter(Boolean);
-  }, [approvals, currentUser]);
+  }, [approvals, projects, targetYear, currentUser]);
 
-  // 2. 직원별 연간 월별 투입공수(M/M) 매트릭스 계산
+  // 2. 직원별 연간 월별 투입공수(M/M) 매트릭스 계산 (계약품의서 반영)
   const workloads = useMemo<EmployeeWorkload[]>(() => {
-    return employees.map((emp) => {
+    // 퇴사자는 기본 투입공수 목록에서 제외 (현재 재직자 기준)
+    const activeEmployees = employees.filter((e) => e.status !== '퇴사');
+
+    return activeEmployees.map((emp) => {
       const assignments: ProjectAssignment[] = [];
       const monthlyTotalMM = Array(12).fill(0);
 
       parsedApprovals.forEach((item) => {
         if (!item) return;
-        const { ap, fullDoc } = item;
+        const { ap, fullDoc, linkedPrj, startDate, endDate } = item;
         const plans = fullDoc.manpowerPlans || [];
 
-        // 해당 직원의 투입 계획 찾기 (이름 매칭)
-        const myPlans = plans.filter((p) => p.employeeId === emp.id);
+        // 해당 직원의 투입 계획 찾기 (ID 매칭 우선, 이름 매칭 보완)
+        const myPlans = plans.filter((p) => {
+          if (p.employeeId && (p.employeeId === emp.id || Number(p.employeeId) === emp.id)) return true;
+          if (p.name && emp.name && p.name.trim() === emp.name.trim()) return true;
+          return false;
+        });
 
         myPlans.forEach((plan) => {
-          const monthlyMM = monthlyAllocations(fullDoc.startDate || '', fullDoc.endDate || '', plan.months || [], targetYear);
+          let planMonths = plan.months || [];
+          if (planMonths.length === 0 && (plan.totalMM || 0) > 0) {
+            const s = new Date(startDate);
+            const e = new Date(endDate);
+            const totalMonthsCount =
+              !isNaN(s.getTime()) && !isNaN(e.getTime())
+                ? Math.max(
+                    1,
+                    (e.getFullYear() - s.getFullYear()) * 12 +
+                      (e.getMonth() - s.getMonth()) +
+                      1
+                  )
+                : 1;
+            const avg = Number(((plan.totalMM || 0) / totalMonthsCount).toFixed(2));
+            planMonths = Array(totalMonthsCount).fill(avg);
+          }
 
-          // 월별 합산에 누적
+          const monthlyMM = monthlyAllocations(
+            startDate,
+            endDate,
+            planMonths,
+            targetYear
+          );
+
+          // 월별 합산 누적
           for (let m = 0; m < 12; m++) {
             monthlyTotalMM[m] += monthlyMM[m];
           }
 
-          const totalMM = monthlyMM.reduce((sum, v) => sum + v, 0);
+          const totalMM = Number(monthlyMM.reduce((sum, v) => sum + v, 0).toFixed(2));
 
           assignments.push({
             approvalId: ap.id,
             docNo: ap.doc_no || '미발번',
-            projectName: ap.project_name || fullDoc.title || ap.title,
-            client: fullDoc.clientName || ap.vendor || '발주처',
-            role: plan.role || '개발',
+            projectName: ap.project_name || fullDoc.title || linkedPrj?.name || ap.title,
+            client: fullDoc.clientName || linkedPrj?.client_name || ap.vendor || '발주처',
+            role: plan.role || 'GIS 개발',
             grade: plan.grade || '중급',
             monthlyMM,
-            totalMM: Number(totalMM.toFixed(2)),
+            totalMM,
             unitPrice: plan.unitPrice || 0,
-            laborCost: plan.laborCost || (totalMM * (plan.unitPrice || 0)),
+            laborCost: Math.round(totalMM * (plan.unitPrice || 0)),
           });
         });
       });
 
-      const totalYearlyMM = Number(monthlyTotalMM.reduce((sum, v) => sum + v, 0).toFixed(2));
+      const totalYearlyMM = Number(
+        monthlyTotalMM.reduce((sum, v) => sum + v, 0).toFixed(2)
+      );
       const capacityRate = Math.round((totalYearlyMM / 12) * 100);
       const hasOverloadingMonth = monthlyTotalMM.some((m) => m > 1.05);
 
