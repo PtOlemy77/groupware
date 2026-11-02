@@ -136,8 +136,8 @@ export default function EmployeesView({
   const [showBizProjects, setShowBizProjects] = useState<boolean>(true);
 
   // 개별 프로젝트 세부 펼침 (내가 속한 프로젝트가 먼저 펼쳐지고, 없으면 수행중인 프로젝트 기본 펼침)
-  const [expandedProjects, setExpandedProjects] = useState<Record<number, boolean>>(() => {
-    const init: Record<number, boolean> = {};
+  const [expandedProjects, setExpandedProjects] = useState<Record<string | number, boolean>>(() => {
+    const init: Record<string | number, boolean> = { pool: true };
     if (myProjects.length > 0) {
       myProjects.forEach((p) => {
         init[p.id] = true;
@@ -158,7 +158,7 @@ export default function EmployeesView({
     setExpandedDepts(nextDepts);
     setShowBizProjects(true);
 
-    const nextPrjs: Record<number, boolean> = {};
+    const nextPrjs: Record<string | number, boolean> = { pool: true };
     if (myProjects.length > 0) {
       myProjects.forEach((p) => {
         nextPrjs[p.id] = true;
@@ -816,6 +816,13 @@ export default function EmployeesView({
                   compareEmployeesByPositionAndHireDate
                 );
 
+                // 인재Pool: 사업본부(DEPT_BIZ) 소속 중 활성 프로젝트에 투입되지 않은 가용 인력만 추출
+                const poolEmployees = isBizDept
+                  ? deptEmps
+                      .filter((e) => !(assignedProjectsMap[e.id]?.length))
+                      .sort(compareEmployeesByPositionAndHireDate)
+                  : [];
+
                 return (
                   <div key={dept.code} className="relative">
                     {/* 부서 헤더 노드 */}
@@ -847,54 +854,55 @@ export default function EmployeesView({
                       </button>
                       <span className="text-[12px]">{dept.label}</span>
                       <span className="text-[10px] text-slate-400 font-normal font-mono ml-auto">
-                        ({directDeptEmps.length}명)
+                        ({isBizDept ? deptEmps.length : directDeptEmps.length}명)
                       </span>
                     </div>
 
                     {/* 부서 하위 트리 가지 */}
                     {isExpanded && (
                       <div className="ml-2 pl-3 border-l border-slate-300 space-y-0.5 py-0.5">
-                        {/* 1) 부서 소속 직원 목록 (이름과 직함만 표시 + 클릭 시 우측 조회) */}
-                        {sortedDirectDeptEmps.map((emp) => {
-                          const isEmpActive = searchQuery === emp.name;
-                          return (
-                            <div
-                              key={emp.id}
-                              onClick={() => {
-                                setSearchQuery(emp.name);
-                                setDeptFilter(dept.code);
-                                setCurrentPage(1);
-                              }}
-                              onDoubleClick={() => canEdit && openEditModal(emp)}
-                              className={`relative flex items-center justify-between py-1 px-1.5 rounded cursor-pointer transition border border-transparent before:absolute before:-left-3 before:top-3 before:w-3 before:border-t before:border-slate-300 ${
-                                isEmpActive
-                                  ? 'bg-indigo-50 border-indigo-200 text-indigo-900 font-bold'
-                                  : 'hover:bg-slate-50 text-slate-700'
-                              }`}
-                              title={canEdit ? '클릭 시 우측 조회 / 더블클릭 시 정보 수정' : '클릭 시 우측 조회'}
-                            >
-                              <div className="flex items-center gap-1.5 truncate">
-                                <User className="w-3.5 h-3.5 text-slate-400 shrink-0 fill-slate-200" />
-                                <span className="text-[12px] font-medium text-slate-800 truncate">
-                                  {emp.name} <span className="text-slate-500 font-normal">{emp.position}</span>
-                                </span>
+                        {/* 1) 부서 소속 직원 목록 (사업본부는 인재Pool 프로젝트 노드로 일원화) */}
+                        {!isBizDept &&
+                          sortedDirectDeptEmps.map((emp) => {
+                            const isEmpActive = searchQuery === emp.name;
+                            return (
+                              <div
+                                key={emp.id}
+                                onClick={() => {
+                                  setSearchQuery(emp.name);
+                                  setDeptFilter(dept.code);
+                                  setCurrentPage(1);
+                                }}
+                                onDoubleClick={() => canEdit && openEditModal(emp)}
+                                className={`relative flex items-center justify-between py-1 px-1.5 rounded cursor-pointer transition border border-transparent before:absolute before:-left-3 before:top-3 before:w-3 before:border-t before:border-slate-300 ${
+                                  isEmpActive
+                                    ? 'bg-indigo-50 border-indigo-200 text-indigo-900 font-bold'
+                                    : 'hover:bg-slate-50 text-slate-700'
+                                }`}
+                                title={canEdit ? '클릭 시 우측 조회 / 더블클릭 시 정보 수정' : '클릭 시 우측 조회'}
+                              >
+                                <div className="flex items-center gap-1.5 truncate">
+                                  <User className="w-3.5 h-3.5 text-slate-400 shrink-0 fill-slate-200" />
+                                  <span className="text-[12px] font-medium text-slate-800 truncate">
+                                    {emp.name} <span className="text-slate-500 font-normal">{emp.position}</span>
+                                  </span>
+                                </div>
+                                {canEdit && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      openEditModal(emp);
+                                    }}
+                                    className="text-slate-400 hover:text-indigo-600 p-0.5 shrink-0"
+                                    title="직원 정보 수정"
+                                  >
+                                    <Edit3 className="w-3 h-3" />
+                                  </button>
+                                )}
                               </div>
-                              {canEdit && (
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    openEditModal(emp);
-                                  }}
-                                  className="text-slate-400 hover:text-indigo-600 p-0.5 shrink-0"
-                                  title="직원 정보 수정"
-                                >
-                                  <Edit3 className="w-3 h-3" />
-                                </button>
-                              )}
-                            </div>
-                          );
-                        })}
+                            );
+                          })}
 
                         {/* 2) 부서 관할 프로젝트 목록 (트리 하위) */}
                         {deptProjects.map((prj) => {
@@ -1004,27 +1012,6 @@ export default function EmployeesView({
                                           </button>
                                         )}
                                       </div>
-                                      {pmEmp && (
-                                        <div className="mt-0.5 pl-5 flex flex-col gap-0.5 text-[10.5px] text-slate-500 font-mono">
-                                          {pmEmp.phone && (
-                                            <span className="flex items-center gap-1 truncate text-slate-600" title={pmEmp.phone}>
-                                              <Phone className="w-2.5 h-2.5 text-slate-400 shrink-0" />
-                                              {pmEmp.phone}
-                                            </span>
-                                          )}
-                                          {pmEmp.email && (
-                                            <a
-                                              href={`mailto:${pmEmp.email}`}
-                                              onClick={(e) => e.stopPropagation()}
-                                              className="flex items-center gap-1 truncate text-slate-500 hover:text-indigo-600 hover:underline"
-                                              title={pmEmp.email}
-                                            >
-                                              <Mail className="w-2.5 h-2.5 text-slate-400 shrink-0" />
-                                              <span className="truncate">{pmEmp.email}</span>
-                                            </a>
-                                          )}
-                                        </div>
-                                      )}
                                     </div>
                                   )}
 
@@ -1089,93 +1076,116 @@ export default function EmployeesView({
                             </div>
                           );
                         })}
+
+                        {/* 3) 사업본부 하위: 인재Pool (프로젝트처럼 표현, 프로젝트 미투입 인력만 표시) */}
+                        {isBizDept && (
+                          <div key="pool" className="relative mt-1">
+                            {/* 인재Pool 노드 헤더 (하나의 프로젝트처럼 표현) */}
+                            <div
+                              onClick={() => {
+                                setDeptFilter('DEPT_POOL');
+                                setAvailabilityFilter('전체');
+                                setSearchQuery('');
+                                setCurrentPage(1);
+                              }}
+                              className={`relative flex items-center gap-1.5 py-0.5 px-1 rounded cursor-pointer transition before:absolute before:-left-3 before:top-2.5 before:w-3 before:border-t before:border-slate-300 ${
+                                deptFilter === 'DEPT_POOL' && !searchQuery
+                                  ? 'bg-indigo-600 text-white font-bold'
+                                  : 'hover:bg-slate-50 text-slate-800 font-medium'
+                              }`}
+                              title="클릭 시 우측 인재Pool 인원 조회"
+                            >
+                              {/* 사각형 [-] / [+] 토글 버튼 */}
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setExpandedProjects((prev) => ({
+                                    ...prev,
+                                    pool: !prev['pool'],
+                                  }));
+                                }}
+                                className={`w-3.5 h-3.5 shrink-0 flex items-center justify-center text-[10px] font-mono font-bold leading-none rounded-xs shadow-2xs ${
+                                  deptFilter === 'DEPT_POOL' && !searchQuery
+                                    ? 'bg-white text-indigo-700'
+                                    : 'bg-[#64748b] text-white hover:bg-[#475569]'
+                                }`}
+                              >
+                                {expandedProjects['pool'] ? '−' : '+'}
+                              </button>
+                              <span className="text-[12px] truncate flex-1 font-semibold">
+                                인재Pool
+                              </span>
+                              <span
+                                className={`text-[10px] font-mono ml-auto ${
+                                  deptFilter === 'DEPT_POOL' && !searchQuery
+                                    ? 'text-white/90'
+                                    : 'text-slate-400 font-normal'
+                                }`}
+                              >
+                                ({poolEmployees.length}명)
+                              </span>
+                            </div>
+
+                            {/* 인재Pool 하위: 프로젝트에 투입되지 않은 인력만 표시 (이름/직함만 표시) */}
+                            {expandedProjects['pool'] && (
+                              <div className="ml-2 pl-3 border-l border-slate-300 space-y-0.5 py-0.5">
+                                {poolEmployees.map((emp) => {
+                                  const isEmpActive = searchQuery === emp.name;
+                                  return (
+                                    <div
+                                      key={emp.id}
+                                      onClick={() => {
+                                        setSearchQuery(emp.name);
+                                        setDeptFilter('DEPT_POOL');
+                                        setCurrentPage(1);
+                                      }}
+                                      onDoubleClick={() => canEdit && openEditModal(emp)}
+                                      className={`relative flex items-center justify-between py-1 px-1.5 rounded cursor-pointer transition border border-transparent before:absolute before:-left-3 before:top-3 before:w-3 before:border-t before:border-slate-300 ${
+                                        isEmpActive
+                                          ? 'bg-indigo-50 border-indigo-200 text-indigo-900 font-bold'
+                                          : 'hover:bg-slate-50 text-slate-700'
+                                      }`}
+                                      title={canEdit ? '클릭 시 우측 조회 / 더블클릭 시 정보 수정' : '클릭 시 우측 조회'}
+                                    >
+                                      <div className="flex items-center gap-1.5 truncate">
+                                        <User className="w-3.5 h-3.5 text-slate-400 shrink-0 fill-slate-200" />
+                                        <span className="text-[12px] font-medium text-slate-800 truncate">
+                                          {emp.name}{' '}
+                                          <span className="text-slate-500 font-normal">{emp.position}</span>
+                                        </span>
+                                      </div>
+                                      {canEdit && (
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            openEditModal(emp);
+                                          }}
+                                          className="text-slate-400 hover:text-indigo-600 p-0.5 shrink-0"
+                                          title="직원 정보 수정"
+                                        >
+                                          <Edit3 className="w-3 h-3" />
+                                        </button>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+
+                                {poolEmployees.length === 0 && (
+                                  <div className="text-[11px] text-slate-400 italic py-0.5 pl-1">
+                                    가용 인력 없음
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
                 );
               })}
-
-              {/* 사용자 요청: 프로젝트에 소속된 인력 전용 [인재Pool] 최상위 조직도 노드 */}
-              <div className="relative mt-2 pt-2 border-t border-slate-200">
-                <div
-                  className={`flex items-center gap-1.5 py-1.5 px-1.5 rounded cursor-pointer transition ${
-                    deptFilter === 'DEPT_POOL' && !searchQuery
-                      ? 'bg-purple-100 text-purple-950 font-bold border border-purple-200 shadow-2xs'
-                      : 'hover:bg-purple-50/60 text-purple-900 font-bold'
-                  }`}
-                  onClick={() => {
-                    setDeptFilter('DEPT_POOL');
-                    setAvailabilityFilter('전체');
-                    setSearchQuery('');
-                    setCurrentPage(1);
-                  }}
-                  title="클릭하여 프로젝트 투입 인재Pool 전체 조회"
-                >
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setExpandedDepts((prev) => ({
-                        ...prev,
-                        DEPT_POOL: !prev['DEPT_POOL'],
-                      }));
-                    }}
-                    className="w-3.5 h-3.5 shrink-0 bg-purple-600 text-white flex items-center justify-center text-[10px] font-mono font-bold leading-none rounded-xs hover:bg-purple-700 shadow-2xs"
-                  >
-                    {expandedDepts['DEPT_POOL'] ? '−' : '+'}
-                  </button>
-                  <Briefcase className="w-3.5 h-3.5 text-purple-600 shrink-0" />
-                  <span className="text-[12px] font-black">인재Pool (프로젝트)</span>
-                  <span className="text-[10px] text-purple-700 font-extrabold font-mono ml-auto bg-purple-200/80 px-1.5 py-0.2 rounded-full">
-                    {stats.activeAssigned}명
-                  </span>
-                </div>
-
-                {/* 인재Pool 하위 트리 가지: 투입된 직원 목록 + 관할 프로젝트 목록 */}
-                {expandedDepts['DEPT_POOL'] && (
-                  <div className="ml-2 pl-3 border-l border-purple-300 space-y-0.5 py-1">
-                    {/* 투입 인원 목록 */}
-                    {employees
-                      .filter((e) => assignedProjectsMap[e.id]?.length > 0)
-                      .sort(compareEmployeesByPositionAndHireDate)
-                      .map((emp) => {
-                        const isEmpActive = searchQuery === emp.name;
-                        const prjList = assignedProjectsMap[emp.id] || [];
-                        return (
-                          <div
-                            key={emp.id}
-                            onClick={() => {
-                              setSearchQuery(emp.name);
-                              setDeptFilter('DEPT_POOL');
-                              setCurrentPage(1);
-                            }}
-                            onDoubleClick={() => canEdit && openEditModal(emp)}
-                            className={`relative flex items-center justify-between py-1 px-1.5 rounded cursor-pointer transition border border-transparent before:absolute before:-left-3 before:top-3 before:w-3 before:border-t before:border-purple-300 ${
-                              isEmpActive
-                                ? 'bg-purple-100 border-purple-300 text-purple-950 font-bold'
-                                : 'hover:bg-purple-50 text-slate-800'
-                            }`}
-                            title={`소속: 인재Pool / 원소속: ${cleanDeptName(emp.department)} / 투입 프로젝트: ${prjList.join(', ')}`}
-                          >
-                            <div className="flex items-center gap-1.5 truncate">
-                              <User className="w-3.5 h-3.5 text-purple-600 shrink-0 fill-purple-200" />
-                              <span className="text-[12px] font-semibold text-slate-900 truncate">
-                                {emp.name}{' '}
-                                <span className="text-slate-500 font-normal">{emp.position}</span>
-                              </span>
-                            </div>
-                            <span
-                              className="text-[9.5px] px-1.5 py-0.2 rounded bg-purple-100 text-purple-800 font-bold shrink-0 truncate max-w-[85px]"
-                              title={prjList[0]}
-                            >
-                              {prjList[0]}
-                            </span>
-                          </div>
-                        );
-                      })}
-                  </div>
-                )}
-              </div>
             </div>
           </div>
         )}
