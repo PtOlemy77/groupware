@@ -1317,15 +1317,14 @@ export default function EmployeesView({
                       {sortBy === 'position' && (sortOrder === 'asc' ? '▲' : '▼')}
                     </div>
                   </th>
-                  <th className="px-4 py-3 w-32">소속 부서</th>
                   <th className="px-4 py-3 min-w-[200px]">프로젝트명</th>
                   <th className="px-4 py-3 min-w-[220px]">연락처 / 이메일</th>
                   <th
                     onClick={() => handleSort('hire_date')}
-                    className="px-3 py-3 cursor-pointer hover:bg-slate-200/60 transition w-36"
+                    className="px-3 py-3 cursor-pointer hover:bg-slate-200/60 transition w-32"
                   >
                     <div className="flex items-center gap-1">
-                      <span>입사일 (연차/근속)</span>
+                      <span>입사일</span>
                       {sortBy === 'hire_date' && (sortOrder === 'asc' ? '▲' : '▼')}
                     </div>
                   </th>
@@ -1407,22 +1406,6 @@ export default function EmployeesView({
                         </div>
                       </td>
 
-                      {/* 소속 부서 */}
-                      <td className="px-4 py-3 font-semibold text-slate-800 whitespace-nowrap">
-                        {avail.status === '투입중' ? (
-                          <div className="flex items-center gap-1.5">
-                            <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-100 text-purple-800 border border-purple-200">
-                              인재Pool
-                            </span>
-                            <span className="text-slate-500 text-[11px] font-normal">
-                              ({cleanDeptName(emp.department)})
-                            </span>
-                          </div>
-                        ) : (
-                          cleanDeptName(emp.department)
-                        )}
-                      </td>
-
                       {/* 프로젝트명: 수행 중인 프로젝트만 보여주고 투입된 게 없으면 공란 */}
                       <td className="px-4 py-3">
                         {avail.projects.length > 0 ? (
@@ -1449,30 +1432,9 @@ export default function EmployeesView({
                         </div>
                       </td>
 
-                      {/* 입사일 및 자동계산 연차/근속 기간 */}
-                      <td className="px-3 py-3 whitespace-nowrap text-xs">
-                        {emp.hire_date ? (
-                          (() => {
-                            const tenure = calcTenure(emp.hire_date);
-                            return (
-                              <div className="flex flex-col gap-0.5">
-                                <div className="flex items-center gap-1.5">
-                                  <span className="font-mono text-slate-800 text-[11px] font-semibold">
-                                    {emp.hire_date}
-                                  </span>
-                                  <span className="font-extrabold text-[10px] text-indigo-700 bg-indigo-50 border border-indigo-200 px-1.5 py-0.2 rounded">
-                                    {tenure.yearsOrder}년차
-                                  </span>
-                                </div>
-                                <span className="text-[10px] text-slate-500 font-medium">
-                                  근속 {tenure.tenureText}
-                                </span>
-                              </div>
-                            );
-                          })()
-                        ) : (
-                          <span className="text-slate-400 text-[11px]">-</span>
-                        )}
+                      {/* 입사일 (상세 연차/근속은 상세정보 모달에서 확인) */}
+                      <td className="px-3 py-3 whitespace-nowrap text-xs font-mono text-slate-700">
+                        {emp.hire_date || '-'}
                       </td>
 
                       {/* 관리 액션 */}
@@ -1502,7 +1464,7 @@ export default function EmployeesView({
 
                 {filteredEmployees.length === 0 && (
                   <tr>
-                    <td colSpan={canEdit ? 7 : 6} className="text-center py-16 text-slate-400">
+                    <td colSpan={canEdit ? 6 : 5} className="text-center py-16 text-slate-400">
                       검색 조건에 일치하는 직원이 없습니다.
                     </td>
                   </tr>
@@ -1575,16 +1537,9 @@ export default function EmployeesView({
               {/* 입사일 & 사번 (입사연월일이 사번이 됨) */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="block font-semibold text-slate-700">
-                      입사일 <span className="text-indigo-600 font-normal">(사번 자동 생성)</span>
-                    </label>
-                    {formData.hire_date && (
-                      <span className="text-[10px] font-extrabold text-indigo-700 bg-indigo-50 border border-indigo-200 px-1.5 py-0.2 rounded">
-                        {calcTenure(formData.hire_date).yearsOrder}년차 ({calcTenure(formData.hire_date).tenureText})
-                      </span>
-                    )}
-                  </div>
+                  <label className="block font-semibold text-slate-700 mb-1">
+                    입사일 <span className="text-indigo-600 font-normal">(사번 자동 생성)</span>
+                  </label>
                   <input
                     type="date"
                     required
@@ -1605,6 +1560,27 @@ export default function EmployeesView({
                   />
                 </div>
               </div>
+
+              {/* 입사일 기준 자동 계산 연차 / 근속 정보 카드 (상세정보에서 확인) */}
+              {formData.hire_date && (() => {
+                const tenure = calcTenure(formData.hire_date);
+                return (
+                  <div className="p-2.5 rounded-xl bg-indigo-50/70 border border-indigo-100 flex items-center justify-between">
+                    <span className="text-slate-600 font-medium flex items-center gap-1.5 text-xs">
+                      <span className="w-1.5 h-1.5 rounded-full bg-indigo-500"></span>
+                      근속 정보 <span className="text-slate-400 font-normal">(입사일 기준 자동 산정)</span>
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-black text-indigo-700 bg-white border border-indigo-200 px-2 py-0.5 rounded-lg shadow-2xs">
+                        {tenure.yearsOrder}년차
+                      </span>
+                      <span className="text-xs font-semibold text-slate-700">
+                        만 {tenure.tenureText} 근속
+                      </span>
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* 성명 & 소속 부서 */}
               <div className="grid grid-cols-2 gap-3">
