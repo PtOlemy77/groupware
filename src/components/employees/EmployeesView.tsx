@@ -78,7 +78,7 @@ export default function EmployeesView({
 }: Props) {
   const [searchQuery, setSearchQuery] = useState('');
   const [deptFilter, setDeptFilter] = useState('ALL');
-  const [availabilityFilter, setAvailabilityFilter] = useState<'전체' | '투입대기' | '투입중' | '부서고유업무' | '휴직' | '퇴사'>('전체');
+  const [availabilityFilter, setAvailabilityFilter] = useState<'전체' | '인재풀' | '휴직' | '퇴사'>('전체');
   const [positionFilter, setPositionFilter] = useState('ALL');
 
   // 프로젝트가 조직도 및 투입현황에 표시될 활성 상태인지 판별 ('프로젝트 수행', '제안준비중', '진행중', '검토중' 또는 계약품의서가 등록된 과제)
@@ -288,11 +288,13 @@ export default function EmployeesView({
       }
     });
 
-    const assignmentRate = total > 0 ? Math.round((activeAssigned / total) * 100) : 0;
+    const activeTotal = total - retired;
+    const assignmentRate = activeTotal > 0 ? Math.round((activeAssigned / activeTotal) * 100) : 0;
     const bizAvailabilityRate = bizTotal > 0 ? Math.round((bizAvailable / bizTotal) * 100) : 0;
 
     return {
       total,
+      activeTotal,
       activeAssigned,
       bizAvailable,
       bizTotal,
@@ -309,28 +311,29 @@ export default function EmployeesView({
     const q = searchQuery.toLowerCase().trim();
 
     const list = employees.filter((emp) => {
+      // 규칙: 퇴사자는 오직 availabilityFilter === '퇴사' 일 때만 조회됨
+      if (availabilityFilter === '퇴사') {
+        if (emp.status !== '퇴사') return false;
+      } else {
+        // 그 외 모든 탭(전체, 인재풀, 휴직) 및 조직도 부서 클릭, 검색 등에서는 퇴사자 원천 차단
+        if (emp.status === '퇴사') return false;
+      }
+
       const avail = getEmployeeAvailability(emp);
       const isAssignedToProject = avail.status === '투입중';
 
-      // 사용자 요청: 프로젝트에 소속한 사람이면 기본 목록에서 안보이게 해주고, 인재Pool 소속으로 관리
-      if (deptFilter === 'DEPT_POOL') {
-        // 인재Pool 전용 필터: 프로젝트 소속 인력만 표시
+      // 4대 조건 탭 필터: 전체 / 인재풀 / 휴직 / 퇴사
+      if (availabilityFilter === '인재풀') {
         if (!isAssignedToProject) return false;
-      } else if (availabilityFilter === '투입중') {
-        // 명시적으로 '인재Pool 투입자' 탭을 선택한 경우
-        if (!isAssignedToProject) return false;
-      } else if (!q && availabilityFilter === '전체' && isAssignedToProject) {
-        // 기본 목록 상태에서는 프로젝트 소속 인원을 기본 목록에서 숨김
-        return false;
+      } else if (availabilityFilter === '휴직') {
+        if (emp.status !== '휴직') return false;
       }
+      // '전체'일 때는 퇴사자를 제외한 전체 임직원 노출
 
+      // 조직도 부서 필터
       const matchDept =
         deptFilter === 'ALL' ||
-        deptFilter === 'DEPT_POOL' ||
-        emp.department_code === deptFilter;
-
-      const matchAvailability =
-        availabilityFilter === '전체' || avail.status === availabilityFilter;
+        (deptFilter === 'DEPT_POOL' ? isAssignedToProject : emp.department_code === deptFilter);
 
       const matchPosition =
         positionFilter === 'ALL' || emp.position_code === positionFilter;
@@ -346,7 +349,7 @@ export default function EmployeesView({
         (emp.phone || '').toLowerCase().includes(q) ||
         avail.projects.some((p) => p.toLowerCase().includes(q));
 
-      return matchDept && matchAvailability && matchPosition && matchSearch;
+      return matchDept && matchPosition && matchSearch;
     });
 
     return list.sort((a, b) => {
@@ -573,8 +576,8 @@ export default function EmployeesView({
         {/* 인재Pool (프로젝트 투입중) */}
         <div
           onClick={() => {
-            setDeptFilter('DEPT_POOL');
-            setAvailabilityFilter('전체');
+            setDeptFilter('ALL');
+            setAvailabilityFilter('인재풀');
             setSearchQuery('');
             setCurrentPage(1);
           }}
@@ -623,13 +626,11 @@ export default function EmployeesView({
       {/* 2. 가용상태 탭 & 검색 / 필터 툴바 */}
       <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2">
-          {/* 가용인원 상태 탭 필터 */}
+          {/* 가용인원 상태 탭 필터: 전체 / 인재풀 / 휴직 / 퇴사 */}
           <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg text-xs font-semibold mr-2">
             {[
-              { key: '전체', label: `기본 목록 (${stats.bizAvailable + stats.otherDeptCount + stats.suspended + stats.retired})` },
-              { key: '투입중', label: `인재Pool (${stats.activeAssigned})` },
-              { key: '투입대기', label: `사업본부 가용 (${stats.bizAvailable})` },
-              { key: '부서고유업무', label: `타부서 (${stats.otherDeptCount})` },
+              { key: '전체', label: `전체 (${stats.activeTotal})` },
+              { key: '인재풀', label: `인재풀 (${stats.activeAssigned})` },
               { key: '휴직', label: `휴직 (${stats.suspended})` },
               { key: '퇴사', label: `퇴사 (${stats.retired})` },
             ].map((tab) => (
@@ -637,7 +638,7 @@ export default function EmployeesView({
                 key={tab.key}
                 onClick={() => {
                   setAvailabilityFilter(tab.key as any);
-                  if (tab.key === '투입중') {
+                  if (tab.key === '인재풀') {
                     setDeptFilter('ALL');
                   }
                   setCurrentPage(1);
@@ -790,7 +791,7 @@ export default function EmployeesView({
               {DEPARTMENT_CODES.map((dept) => {
                 const isDeptSelected = deptFilter === dept.code && !searchQuery;
                 const deptEmps = employees.filter(
-                  (e) => e.department_code === dept.code
+                  (e) => e.department_code === dept.code && e.status !== '퇴사'
                 );
                 const isExpanded = !!expandedDepts[dept.code];
                 // 프로젝트는 오직 '사업본부' 밑에만 생길 수 있음
@@ -911,9 +912,9 @@ export default function EmployeesView({
                           const isPrjSelected = searchQuery === prj.name;
                           const memberNames = getProjectMemberNames(prj);
 
-                          // PM 인력 정보 추출
-                          const pmName = prj.pm_name || memberNames[0] || '';
-                          const pmEmp = employees.find((e) => e.id === prj.pm_id);
+                          // PM 인력 정보 추출 (퇴사자 제외)
+                          const pmEmp = employees.find((e) => e.id === prj.pm_id && e.status !== '퇴사');
+                          const pmName = pmEmp ? (prj.pm_name || pmEmp.name) : '';
                           const pmPosition = pmEmp ? pmEmp.position : '';
 
                           return (
@@ -1015,10 +1016,10 @@ export default function EmployeesView({
                                     </div>
                                   )}
 
-                                  {/* 투입 팀원들 (직급 및 입사일 순 정렬 + 연락처/이메일 표시) */}
+                                  {/* 투입 팀원들 (퇴사자 제외, 직급 및 입사일 순 정렬) */}
                                   {getProjectMemberIds(prj)
                                     .filter((id) => id !== prj.pm_id)
-                                    .map((memberId) => employees.find((e) => e.id === memberId))
+                                    .map((memberId) => employees.find((e) => e.id === memberId && e.status !== '퇴사'))
                                     .filter((e): e is Employee => Boolean(e))
                                     .sort(compareEmployeesByPositionAndHireDate)
                                     .map((memberEmp) => {
@@ -1213,7 +1214,12 @@ export default function EmployeesView({
                   )}
                   {deptFilter === 'ALL' && availabilityFilter === '전체' && !searchQuery && (
                     <span className="text-slate-500 font-medium text-[11px] bg-slate-200/80 px-2 py-0.5 rounded-full">
-                      기본 목록 (프로젝트 투입자는 인재Pool로 분류)
+                      전체 임직원 (퇴사자 제외)
+                    </span>
+                  )}
+                  {availabilityFilter === '퇴사' && (
+                    <span className="text-rose-700 font-bold text-[11px] bg-rose-100 px-2 py-0.5 rounded-full">
+                      퇴사자 전용 조회
                     </span>
                   )}
                 </>
