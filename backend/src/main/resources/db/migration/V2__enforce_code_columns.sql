@@ -50,3 +50,4 @@ UPDATE approvals SET department_code = 'DEPT_QM' WHERE department = '품질경�
 UPDATE approvals SET department_code = 'DEPT_MGMT' WHERE department IN ('경영지원팀', '경영지원');
 UPDATE approvals SET department_code = 'DEPT_CEO' WHERE department IN ('대표이사', '사장');
 UPDATE approvals SET department_code = 'DEPT_BIZ' WHERE department_code IS NULL;
+

@@ -244,75 +244,6 @@ export default function ManpowerSheet({
     onChangeItems(items.filter((it) => it.id !== id));
   };
 
-  // 개별 행 공수 프리셋 (all1, half, firstHalf, secondHalf, clear)
-  const handleRowMonthPreset = (
-    id: string,
-    preset: 'all1' | 'half' | 'firstHalf' | 'secondHalf' | 'clear'
-  ) => {
-    const halfPoint = Math.ceil(totalMonths / 2);
-    const updated = items.map((it) => {
-      if (it.id !== id) return it;
-      let nextMonths = Array(totalMonths).fill(0);
-      if (preset === 'all1') {
-        nextMonths = Array(totalMonths).fill(1);
-      } else if (preset === 'half') {
-        nextMonths = Array(totalMonths).fill(0.5);
-      } else if (preset === 'firstHalf') {
-        nextMonths = Array.from({ length: totalMonths }, (_, i) => (i < halfPoint ? 1 : 0));
-      } else if (preset === 'secondHalf') {
-        nextMonths = Array.from({ length: totalMonths }, (_, i) => (i >= halfPoint ? 1 : 0));
-      } else if (preset === 'clear') {
-        nextMonths = Array(totalMonths).fill(0);
-      }
-
-      const nextTotalMM = Math.round(nextMonths.reduce((a, b) => a + b, 0) * 100) / 100;
-      return {
-        ...it,
-        months: nextMonths,
-        totalMM: nextTotalMM,
-        laborCost: Math.round(nextTotalMM * it.unitPrice),
-      };
-    });
-    onChangeItems(updated);
-  };
-
-  // 전 인원 일괄 공수 채우기 (전체 기간 동적 반영)
-  const handleBatchApplyMonths = (
-    preset: 'full' | 'half' | 'firstHalf' | 'secondHalf' | 'custom',
-    customMonthsCount?: number,
-    customRate: number = 1
-  ) => {
-    if (readOnly) return;
-    const halfPoint = Math.ceil(totalMonths / 2);
-
-    const updated = items.map((it) => {
-      let nextMonths: number[];
-      if (preset === 'full') {
-        nextMonths = Array(totalMonths).fill(1);
-      } else if (preset === 'half') {
-        nextMonths = Array(totalMonths).fill(0.5);
-      } else if (preset === 'firstHalf') {
-        nextMonths = Array.from({ length: totalMonths }, (_, i) => (i < halfPoint ? 1 : 0));
-      } else if (preset === 'secondHalf') {
-        nextMonths = Array.from({ length: totalMonths }, (_, i) => (i >= halfPoint ? 1 : 0));
-      } else {
-        const count = customMonthsCount ?? totalMonths;
-        nextMonths = Array.from({ length: totalMonths }, (_, idx) =>
-          idx < count ? customRate : 0
-        );
-      }
-
-      const nextTotalMM = Math.round(nextMonths.reduce((a, b) => a + b, 0) * 100) / 100;
-      return {
-        ...it,
-        months: nextMonths,
-        totalMM: nextTotalMM,
-        laborCost: Math.round(nextTotalMM * it.unitPrice),
-      };
-    });
-    onChangeItems(updated);
-  };
-
   return (
     <div className="space-y-4">
       {/* 1. 상단 인건비 요약 및 툴바 (상단 검색창 제거 후 테이블로 통합) */}
@@ -329,7 +260,7 @@ export default function ManpowerSheet({
               </span>
             </h3>
             <p className="text-xs text-slate-500 mt-0.5">
-              아래 표에서 <strong>직원 성명 또는 초성(예: ㅂㅇㅁ, ㄱㅅㅊ)</strong>으로 검색하여 투입인력을 지정할 수 있습니다.
+              아래 표에서 <strong>직원 성명 또는 초성(예: ㅂㅇㅁ, ㄱㅅㅊ)</strong>으로 지정하세요. 월별 셀을 클릭하면 <strong className="text-indigo-600 font-mono">[1.0 → 0.5 → 0]</strong> 순환 입력됩니다.
             </p>
           </div>
         </div>
@@ -337,7 +268,7 @@ export default function ManpowerSheet({
         <div className="flex items-center gap-3 flex-wrap">
           {/* 사업 기간 표시 뱃지 */}
           {startDate && endDate && (
-            <div className="flex items-center gap-1.5 bg-slate-100 border border-slate-200 px-2.5 py-1.5 rounded-xl text-xs font-medium text-slate-700">
+            <div className="flex items-center gap-1.5 bg-slate-100 border border-slate-200 px-3 py-1.5 rounded-xl text-xs font-medium text-slate-700">
               <span className="text-slate-400 font-normal">사업기간:</span>
               <strong className="font-mono text-indigo-700">
                 {startDate.replace(/-/g, '.')} ~ {endDate.replace(/-/g, '.')}
@@ -348,45 +279,8 @@ export default function ManpowerSheet({
             </div>
           )}
 
-          {/* 일괄 공수 조정 버튼 */}
-          <div className="hidden sm:flex items-center gap-1 bg-slate-100 p-1 rounded-xl text-xs">
-            <span className="text-slate-500 font-semibold px-2 text-[11px]">일괄 공수:</span>
-            <button
-              type="button"
-              onClick={() => handleBatchApplyMonths('full')}
-              className="px-2 py-1 rounded-lg bg-white hover:bg-indigo-600 hover:text-white text-slate-700 font-bold transition text-[11px] shadow-2xs"
-            >
-              전 기간 (1.0)
-            </button>
-            <button
-              type="button"
-              onClick={() => handleBatchApplyMonths('half')}
-              className="px-2 py-1 rounded-lg bg-white hover:bg-indigo-600 hover:text-white text-slate-700 font-bold transition text-[11px] shadow-2xs"
-            >
-              전 기간 (0.5)
-            </button>
-            {totalMonths >= 4 && (
-              <>
-                <button
-                  type="button"
-                  onClick={() => handleBatchApplyMonths('firstHalf')}
-                  className="px-2 py-1 rounded-lg bg-white hover:bg-indigo-600 hover:text-white text-slate-700 font-bold transition text-[11px] shadow-2xs"
-                >
-                  전반기
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleBatchApplyMonths('secondHalf')}
-                  className="px-2 py-1 rounded-lg bg-white hover:bg-indigo-600 hover:text-white text-slate-700 font-bold transition text-[11px] shadow-2xs"
-                >
-                  후반기
-                </button>
-              </>
-            )}
-          </div>
-
           {/* 총 합계 정보 */}
-          <div className="flex items-center gap-2 bg-indigo-50/70 border border-indigo-200 px-3 py-1.5 rounded-xl text-xs">
+          <div className="flex items-center gap-2.5 bg-indigo-50/70 border border-indigo-200 px-3.5 py-1.5 rounded-xl text-xs">
             <div>
               <span className="text-slate-500">총 M/M:</span>{' '}
               <strong className="text-indigo-950 font-mono font-bold text-sm">
@@ -435,11 +329,10 @@ export default function ManpowerSheet({
                 <th className="px-3 py-3 w-44 sticky left-0 bg-slate-50 z-10">성명 (초성 검색)</th>
                 <th className="px-2.5 py-3 w-28">직급 / 등급 (자동)</th>
                 <th className="px-2.5 py-3 w-40">담당 역할</th>
-                {!readOnly && <th className="px-1.5 py-3 text-center w-28">공수 프리셋</th>}
                 {monthList.map((m) => (
                   <th
                     key={m.index}
-                    className="px-1 py-2 text-center min-w-[48px] border-l border-slate-200"
+                    className="px-1.5 py-2 text-center min-w-[48px] border-l border-slate-200"
                   >
                     <div className="text-[10px] text-indigo-600 font-semibold leading-tight">
                       {m.yearMonth}
@@ -461,7 +354,7 @@ export default function ManpowerSheet({
             <tbody className="divide-y divide-slate-100 text-slate-800">
               {items.length === 0 ? (
                 <tr>
-                  <td colSpan={monthList.length + 8} className="py-12 text-center text-slate-400">
+                  <td colSpan={monthList.length + 7} className="py-12 text-center text-slate-400">
                     <Users className="w-8 h-8 mx-auto text-slate-300 mb-2" />
                     <p className="text-xs font-semibold">편성된 투입 인력이 없습니다.</p>
                     <button
@@ -620,59 +513,15 @@ export default function ManpowerSheet({
                         )}
                       </td>
 
-                      {/* 빠른 공수 프리셋 */}
-                      {!readOnly && (
-                        <td className="px-1.5 py-2.5 text-center">
-                          <div className="flex items-center justify-center gap-0.5">
-                            <button
-                              type="button"
-                              onClick={() => handleRowMonthPreset(it.id, 'all1')}
-                              className="px-1.5 py-0.5 rounded bg-slate-100 hover:bg-indigo-600 hover:text-white text-[10px] font-bold text-slate-600 transition"
-                              title={`전 기간 1.0 투입 (${totalMonths}MM)`}
-                            >
-                              전체
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleRowMonthPreset(it.id, 'half')}
-                              className="px-1.5 py-0.5 rounded bg-slate-100 hover:bg-indigo-600 hover:text-white text-[10px] font-bold text-slate-600 transition"
-                              title={`전 기간 0.5 반투입 (${(totalMonths * 0.5).toFixed(1)}MM)`}
-                            >
-                              0.5
-                            </button>
-                            {totalMonths >= 4 && (
-                              <>
-                                <button
-                                  type="button"
-                                  onClick={() => handleRowMonthPreset(it.id, 'firstHalf')}
-                                  className="px-1.5 py-0.5 rounded bg-slate-100 hover:bg-indigo-600 hover:text-white text-[10px] font-bold text-slate-600 transition"
-                                  title="전반기 투입"
-                                >
-                                  전반
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleRowMonthPreset(it.id, 'secondHalf')}
-                                  className="px-1.5 py-0.5 rounded bg-slate-100 hover:bg-indigo-600 hover:text-white text-[10px] font-bold text-slate-600 transition"
-                                  title="후반기 투입"
-                                >
-                                  후반
-                                </button>
-                              </>
-                            )}
-                          </div>
-                        </td>
-                      )}
-
                       {/* M1 ~ Mn 전체 사업 기간 월별 공수 셀 (클릭 시 1.0 -> 0.5 -> 0 순환 토글) */}
                       {monthList.map((m) => {
                         const mVal = it.months[m.index] ?? 0;
                         const cellBg =
                           mVal >= 1
-                            ? 'bg-indigo-600 text-white font-black'
+                            ? 'bg-indigo-600 text-white font-black shadow-xs'
                             : mVal > 0
                             ? 'bg-indigo-100 text-indigo-900 font-bold'
-                            : 'bg-slate-50 text-slate-300';
+                            : 'bg-slate-50 text-slate-300 hover:bg-slate-100';
 
                         return (
                           <td
@@ -683,10 +532,10 @@ export default function ManpowerSheet({
                               type="button"
                               disabled={readOnly}
                               onClick={() => handleCycleMonthCell(it.id, m.index)}
-                              className={`w-9 h-7 rounded-lg text-xs font-mono transition flex items-center justify-center mx-auto shadow-2xs ${cellBg} ${
-                                !readOnly ? 'hover:scale-105 active:scale-95' : ''
+                              className={`w-9 h-7 rounded-lg text-xs font-mono transition flex items-center justify-center mx-auto ${cellBg} ${
+                                !readOnly ? 'hover:scale-105 active:scale-95 cursor-pointer' : ''
                               }`}
-                              title={`${m.yearMonth} (${m.label}) 공수: ${mVal} (클릭하여 1.0/0.5/0 순환)`}
+                              title={`${m.yearMonth} (${m.label}) 공수: ${mVal} (클릭 시 1.0 -> 0.5 -> 0 순환)`}
                             >
                               {mVal > 0 ? mVal : '-'}
                             </button>
