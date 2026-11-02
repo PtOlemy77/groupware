@@ -258,6 +258,7 @@ export default function MasterDataView({
       const q = codeSearch.toLowerCase().trim();
       const matchSearch =
         !q ||
+        c.group_code.toLowerCase().includes(q) ||
         c.code.toLowerCase().includes(q) ||
         c.code_name.toLowerCase().includes(q) ||
         c.group_name.toLowerCase().includes(q) ||

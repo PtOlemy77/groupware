@@ -64,8 +64,8 @@ export default function Header({
   const addBtnLabel = getAddButtonLabel();
 
   return (
-    <header className="h-16 bg-white border-b border-slate-200 px-6 md:px-8 flex items-center justify-between sticky top-0 z-20 shadow-2xs">
-      <div className="flex items-center gap-3">
+    <header className="h-16 shrink-0 bg-white border-b border-slate-200 pl-12 pr-3 md:px-6 flex items-center justify-between gap-2 sticky top-0 z-20 shadow-2xs">
+      <div className="flex min-w-0 items-center gap-2">
         {onGoBack && (
           <button
             type="button"
@@ -82,14 +82,14 @@ export default function Header({
             <ChevronLeft className="w-5 h-5 stroke-[2.2]" />
           </button>
         )}
-        <div>
-          <h1 className="text-base md:text-lg font-bold text-slate-900">{currentTabInfo.label}</h1>
+        <div className="min-w-0">
+          <h1 className="truncate text-sm sm:text-base md:text-lg font-bold text-slate-900">{currentTabInfo.label}</h1>
         </div>
       </div>
 
-      <div className="flex items-center gap-3">
+      <div className="flex shrink-0 items-center gap-1.5 lg:gap-3">
         {/* 로그인 사용자 정보 및 보안 권한 뱃지 */}
-        <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200">
+        <div className="hidden xl:flex whitespace-nowrap items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200">
           <div className="w-6 h-6 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold text-xs">
             {currentUser.name ? currentUser.name.slice(0, 1) : 'U'}
           </div>
@@ -118,6 +118,7 @@ export default function Header({
           href="#top"
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-700 hover:text-indigo-600 hover:bg-slate-100 border border-slate-200 transition"
           title="스패셜티 공개 포털 메인으로 이동"
+          aria-label="스패셜티 포털"
         >
           <Globe className="w-3.5 h-3.5 text-indigo-600" />
           <span className="hidden sm:inline">스패셜티 포털</span>
@@ -129,6 +130,7 @@ export default function Header({
           disabled={loading}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium text-slate-600 hover:bg-slate-100 border border-slate-200 transition"
           title="최신 데이터 새로고침"
+          aria-label="최신 데이터 새로고침"
         >
           <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-indigo-600' : ''}`} />
           <span className="hidden sm:inline">새로고침</span>

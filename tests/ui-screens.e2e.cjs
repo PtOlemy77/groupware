@@ -6,7 +6,7 @@ module.exports = async function auditScreens({ page, browser, mutate, base, arti
   const pass = name => { checks.push(name); console.log('UI PASS: ' + name); };
   const nav = async label => {
     await page.getByRole('complementary', { name: '업무 메뉴' }).getByRole('button', { name: new RegExp('^' + label) }).click();
-    await page.getByRole('heading', { name: label, exact: true }).first().waitFor();
+    await page.getByRole('heading', { name: ({'자산 관리':'IT 자산 관리','인사 평가':'인사 평가 관리'}[label] || label), exact: true }).first().waitFor();
     await page.getByTitle('최신 데이터 새로고침', {exact:true}).click();
   };
   const clearAlert = async () => {
@@ -94,10 +94,12 @@ module.exports = async function auditScreens({ page, browser, mutate, base, arti
   await table.getByRole('button',{name:'가용수정검증 퇴사 처리'}).click();
   await page.getByRole('dialog',{name:'직원 퇴사 처리',exact:true}).getByRole('button',{name:'취소',exact:true}).click(); await count(1);
   await table.getByRole('button',{name:'가용수정검증 퇴사 처리'}).click();
+  const retiringResponse=page.waitForResponse(response=>response.url().endsWith('/api/groupware')&&response.request().method()==='POST');
   await page.getByRole('dialog',{name:'직원 퇴사 처리',exact:true}).getByRole('button',{name:'퇴사 처리',exact:true}).click(); await count(0); await clearAlert();
+  const retiring=await retiringResponse; assert.equal(retiring.status(),200); assert.equal((await retiring.json()).record.account_enabled,false);
   await page.getByRole('button',{name:/^퇴사 \(/}).click(); await search.fill('가용수정검증'); await count(1);
   const retired=(await (await page.request.get(base+'/api/groupware?scope=employees')).json()).employees.find(employee=>employee.id===pool.id);
-  assert.equal(retired.status_code,'STATUS_RETIRED'); assert.equal(retired.account_enabled,false); pass('삭제 대신 퇴사·계정 비활성 · 취소와 실행 · 이력 보존');
+  assert.equal(retired.status_code,'STATUS_RETIRED'); pass('삭제 대신 퇴사·계정 비활성 · 취소와 실행 · 이력 보존');
   await page.getByRole('button',{name:'조건 초기화',exact:true}).click();
   await page.getByRole('button',{name:'신규 직원 등록',exact:true}).click();
   dialog=page.getByRole('dialog',{name:'신규 직원 등록',exact:true}); await dialog.getByPlaceholder('성명 입력').fill('신규화면검증');
@@ -109,13 +111,18 @@ module.exports = async function auditScreens({ page, browser, mutate, base, arti
   for(const width of [768,390]){
     await page.setViewportSize({width,height:900});
     const overflow=await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1);
+    assert.equal(await page.locator('header h1').evaluate(node=>node.getBoundingClientRect().height<=28),true,'Mobile heading must stay on one line');
+    assert.equal(await page.locator('header').evaluate(header=>Array.from(header.querySelectorAll('button,a')).filter(node=>node.getBoundingClientRect().width>0).every(node=>{const box=node.getBoundingClientRect(),parent=header.getBoundingClientRect();return box.left>=parent.left&&box.right<=parent.right&&box.top>=parent.top&&box.bottom<=parent.bottom;})),true,'Header controls must remain inside the header');
     assert.equal(overflow,false,'Employee directory must not overflow the viewport at '+width);
-    await search.fill('동명검증'); await count(2); await search.fill('');
+    await search.fill('동명검증'); await count(2);
+    await tree.locator(`[data-employee-id="${sameTwo.id}"]`).first().click(); await count(1);
+    await page.waitForFunction(()=>document.activeElement.id==='employee-directory-results');
+    await search.fill('');
     await page.screenshot({path:path.join(artifacts,`employee-directory-${width}.png`),fullPage:true});
   }
   await page.setViewportSize({width:1440,height:1000}); pass('조직도 태블릿·모바일 검색 및 가로 넘침 검사');
   await nav('자산 관리'); await page.getByRole('button',{name:'신규 자산 등록',exact:true}).click();
-  dialog=page.getByRole('dialog',{name:'신규 자산 등록',exact:true}); await dialog.getByLabel('자산번호', {exact:false}).fill('AUDIT-ASSET'); await dialog.getByPlaceholder(/MacBook Pro/).fill('화면검증 노트북'); await save(dialog,'등록 완료');
+  dialog=page.getByRole('dialog',{name:'신규 자산 등록',exact:true}); await dialog.getByLabel('자산 관리 번호', {exact:true}).fill('AUDIT-ASSET'); await dialog.getByPlaceholder(/MacBook Pro/).fill('화면검증 노트북'); await save(dialog,'등록 완료');
   await page.getByPlaceholder('자산번호, 모델명, 지급직원명 검색...').fill('AUDIT-ASSET');
   await page.getByText('화면검증 노트북',{exact:true}).waitFor();
   await page.getByTitle('자산 정보 수정',{exact:true}).click(); dialog=page.getByRole('dialog',{name:'자산 정보 수정',exact:true}); await dialog.getByPlaceholder(/MacBook Pro/).fill('화면검증 노트북 수정'); await save(dialog,'수정 완료');
@@ -146,10 +153,19 @@ module.exports = async function auditScreens({ page, browser, mutate, base, arti
       const changedToken=(await (await context.request.get(base+'/api/auth/csrf')).json()).token;
       const changed=await context.request.post(base+'/api/auth/password',{headers:{'X-CSRF-TOKEN':changedToken},data:{current_password:password,new_password:'Audit-changed-password!'}}); assert.equal(changed.status(),200);
       const memberPage=await context.newPage(); await memberPage.goto(base+'/#employees'); await memberPage.getByRole('heading',{name:'직원 관리',exact:true}).waitFor(); assert.equal(await memberPage.getByRole('button',{name:'신규 직원 등록',exact:true}).count(),0);
-      await memberPage.goto(base+'/#equipments'); await memberPage.getByRole('heading',{name:'자산 관리',exact:true}).waitFor(); assert.equal(await memberPage.getByRole('button',{name:'신규 자산 등록',exact:true}).count(),0);
+      await memberPage.goto(base+'/#equipments'); await memberPage.getByRole('heading',{name:/자산 관리$/}).waitFor(); assert.equal(await memberPage.getByRole('button',{name:'신규 자산 등록',exact:true}).count(),0);
       pass(label+' 역할의 관리 버튼 제한');
     }finally{await context.close();}
   }
+  await nav('프로젝트 관리'); await page.getByRole('button',{name:/직원별 연간 투입공수/}).click();
+  await page.getByPlaceholder('성명, 직급, 참여 프로젝트 검색...').fill('담당검증');
+  await page.getByRole('button',{name:'2027년도',exact:true}).click(); await page.getByRole('button',{name:'2026년도',exact:true}).click(); pass('직원별 연간 공수 화면·연도 전환·검색');
+  for(const label of ['통합 대시보드','프로젝트 관리','주간/월간 보고','자산 관리','인사 평가','기준정보 관리']){
+    await nav(label); await page.setViewportSize({width:390,height:844});
+    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false,label+' mobile overflow');
+    await page.setViewportSize({width:1440,height:1000});
+  }
+  pass('대시보드·프로젝트·보고·자산·평가·기준정보 모바일 진입');
   await nav('직원 관리'); await page.getByRole('button',{name:'조건 초기화',exact:true}).click();
   fs.writeFileSync(path.join(artifacts,'screen-audit.json'),JSON.stringify({checks,scope:'Isolated H2; synthetic records; admin/staff/PM; selected major controls, not every possible permission or input combination'},null,2));
 };

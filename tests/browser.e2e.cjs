@@ -57,6 +57,10 @@ async function stop(child) {
   try {
     await page.goto(base);
     await page.getByRole('heading', { name: /AI 시대, 좋은 시스템은/ }).waitFor();
+    await page.locator('.domain-card').first().click();
+    await page.getByRole('dialog', { name: '측량 · 공간정보', exact: true }).waitFor();
+    await page.getByRole('button', { name: '상세 내용 닫기', exact: true }).click();
+    assert.ok((await page.getByRole('link', { name: /063-211-9651/ }).getAttribute('href')).startsWith('tel:'));
     await page.getByRole('link', { name: '개인정보 처리방침', exact: true }).click();
     await page.getByRole('heading', { name: '개인정보 처리방침', exact: true }).waitFor();
     await page.getByRole('link', { name: '포털로 돌아가기' }).click();

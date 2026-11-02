@@ -371,7 +371,8 @@ export default function EquipmentsView({
                           <button
                             onClick={() => handleDelete(eq.id)}
                             className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition"
-                            title="삭제"
+                            title="자산 삭제"
+                            aria-label="자산 삭제"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>

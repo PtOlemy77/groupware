@@ -48,3 +48,8 @@ export function selectDirectoryEmployees(employees: Employee[], projects: Projec
     return employeeMatchesQuery(employee, filters.query, activeProjects);
   });
 }
+
+export function directoryPageNumbers(total: number, current: number): number[] {
+  if (total <= 7) return Array.from({ length: Math.max(1, total) }, (_, index) => index + 1);
+  return [...new Set([1, ...Array.from({ length: 5 }, (_, index) => Math.min(total - 2, Math.max(3, current)) - 2 + index), total])].sort((a, b) => a - b);
+}

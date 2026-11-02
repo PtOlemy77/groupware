@@ -3,9 +3,9 @@
 import { apiFetch } from '@/lib/api';
 import { useModal } from '@/contexts/ModalContext';
 import EmployeeOrgTree from './EmployeeOrgTree';
-import { initialDirectoryFilters, selectDirectoryEmployees, activeDirectoryProject, employeeStatus, projectEmployeeIds, type DirectoryFilters, type AvailabilityFilter } from '@/lib/employee-directory';
+import { initialDirectoryFilters, directoryPageNumbers, selectDirectoryEmployees, activeDirectoryProject, employeeStatus, projectEmployeeIds, type DirectoryFilters, type AvailabilityFilter } from '@/lib/employee-directory';
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
   Employee,
   Project,
@@ -206,8 +206,16 @@ export default function EmployeesView({
   const [filters, setFilters] = useState<DirectoryFilters>({ ...initialDirectoryFilters });
   const { query: searchQuery, department: deptFilter, position: positionFilter, availability: availabilityFilter } = filters;
   const [showOrgTree, setShowOrgTree] = useState(true);
+  const resultsRef = useRef<HTMLDivElement>(null);
   const updateFilters = (patch: Partial<DirectoryFilters>) => { setFilters(previous => ({ ...previous, ...patch })); setCurrentPage(1); };
   const resetFilters = () => { setFilters({ ...initialDirectoryFilters }); setCurrentPage(1); };
+  const selectFromOrg = (patch: Partial<DirectoryFilters>) => {
+    updateFilters(patch);
+    if (window.innerWidth < 1280) requestAnimationFrame(() => {
+      resultsRef.current?.focus({ preventScroll: true });
+      resultsRef.current?.scrollIntoView({ block: 'start', behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+    });
+  };
   const selectAvailability = (availability: AvailabilityFilter) => { setFilters({ ...initialDirectoryFilters, availability }); setCurrentPage(1); };
   const activeProjects = useMemo(() => projects.filter(project => activeDirectoryProject(project, approvals)), [projects, approvals]);
   const getProjectMemberIds = projectEmployeeIds;
@@ -383,6 +391,7 @@ export default function EmployeesView({
   // 페이지네이션
   const totalPages = Math.max(1, Math.ceil(filteredEmployees.length / (pageSize || 1)));
   const safePage = Math.min(currentPage, totalPages);
+  const pageNumbers = directoryPageNumbers(totalPages, safePage);
   useEffect(() => { if (currentPage > totalPages) setCurrentPage(totalPages); }, [currentPage, totalPages]);
   const paginatedEmployees = useMemo(() => {
     if (pageSize === 0) return filteredEmployees;
@@ -624,9 +633,9 @@ export default function EmployeesView({
       </section>
 
       <div className="flex min-w-0 flex-col items-stretch gap-4 xl:flex-row xl:items-start">
-        {showOrgTree && <EmployeeOrgTree employees={treeEmployees} projects={activeProjects} filters={filters} defaultDepartment={currentUser.department_code} onSelect={updateFilters} onReset={resetFilters} onEdit={canEdit ? openEditModal : undefined} />}
+        {showOrgTree && <EmployeeOrgTree employees={treeEmployees} projects={activeProjects} filters={filters} defaultDepartment={currentUser.department_code} onSelect={selectFromOrg} onReset={resetFilters} onEdit={canEdit ? openEditModal : undefined} />}
         {/* 메인 목록 테이블 (담당업무/기술스택 제외, 사번=입사일, 가용인원 명확 표시) */}
-        <div className="min-w-0 flex-1 bg-white rounded-2xl border border-slate-200 shadow-2xs overflow-hidden flex flex-col">
+        <div ref={resultsRef} id="employee-directory-results" tabIndex={-1} role="region" aria-label="직원 검색 결과" className="scroll-mt-20 min-w-0 flex-1 bg-white rounded-2xl border border-slate-200 shadow-2xs overflow-hidden flex flex-col">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3 text-sm">
             <div role="status" aria-live="polite" className="flex min-w-0 flex-wrap items-center gap-2"><span>조회 인원: <strong data-testid="employee-result-count">{filteredEmployees.length}</strong>명</span>
               {filters.projectId !== null && <button type="button" aria-label="프로젝트 선택 해제" onClick={() => updateFilters({ projectId: null })} className="flex items-center gap-1 rounded bg-indigo-100 px-2 py-1 text-xs text-indigo-700">{projects.find(project => project.id === filters.projectId)?.name || '선택한 프로젝트'}<X size={12} /></button>}
@@ -670,7 +679,7 @@ export default function EmployeesView({
                       {sortBy === 'hire_date' && (sortOrder === 'asc' ? '▲' : '▼')}
                     </button>
                   </th>
-                  {canEdit && <th className="px-3 py-3 text-center w-20">관리</th>}
+                  {canEdit && <th className="sticky right-0 bg-slate-100 px-3 py-3 text-center w-20">관리</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -764,6 +773,7 @@ export default function EmployeesView({
                             <Phone className="w-3 h-3 text-slate-400" />
                             {emp.phone || '-'}
                           </span>
+                          {emp.email ? (
                           <a
                             href={`mailto:${emp.email}`}
                             className="font-mono text-slate-500 hover:text-indigo-600 hover:underline text-[11px] flex items-center gap-1.5"
@@ -771,6 +781,7 @@ export default function EmployeesView({
                             <Mail className="w-3 h-3 text-slate-400" />
                             {emp.email || '-'}
                           </a>
+                          ) : <span className="text-xs text-slate-400">연락처 비공개</span>}
                         </div>
                       </td>
 
@@ -781,11 +792,12 @@ export default function EmployeesView({
 
                       {/* 관리 액션 */}
                       {canEdit && (
-                        <td className="px-3 py-3 text-center whitespace-nowrap">
+                        <td className="sticky right-0 bg-white px-3 py-3 text-center whitespace-nowrap shadow-[-4px_0_8px_-6px_#94a3b8]">
                           <div className="flex items-center justify-center gap-1">
                             <button
                               onClick={() => openEditModal(emp)}
                               className="p-1.5 text-slate-400 hover:text-indigo-600 rounded-lg hover:bg-slate-100 transition"
+                              aria-label={`${emp.name} 정보 수정`}
                               title="직원 정보 수정"
                             >
                               <Edit3 className="w-3.5 h-3.5" />
@@ -817,13 +829,13 @@ export default function EmployeesView({
 
           {/* 페이지네이션 컨트롤 */}
           {pageSize > 0 && totalPages > 1 && (
-            <div className="px-5 py-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between text-xs">
+            <div className="px-4 py-3 bg-slate-50 border-t border-slate-200 flex flex-wrap items-center justify-between gap-3 text-xs">
               <span className="text-slate-500">
-                총 {filteredEmployees.length}명 중 {(currentPage - 1) * pageSize + 1} -{' '}
-                {Math.min(currentPage * pageSize, filteredEmployees.length)}명 표시
+                총 {filteredEmployees.length}명 중 {(safePage - 1) * pageSize + 1} -{' '}
+                {Math.min(safePage * pageSize, filteredEmployees.length)}명 표시
               </span>
 
-              <div className="flex items-center gap-1">
+              <div className="flex max-w-full flex-wrap items-center gap-1">
                 <button
                   aria-label="직원 이전 페이지"
                   disabled={safePage === 1}
@@ -833,20 +845,23 @@ export default function EmployeesView({
                   <ChevronLeft className="w-3.5 h-3.5 text-slate-600" />
                 </button>
 
-                {Array.from({ length: totalPages }, (_, i) => i + 1).map((pg) => (
+                {pageNumbers.map((pg, index) => (
+                  <React.Fragment key={pg}>
+                  {index > 0 && pg > pageNumbers[index - 1] + 1 && <span aria-hidden="true" className="px-1 text-slate-400">…</span>}
                   <button
                     key={pg}
                     aria-label={`직원 ${pg}페이지`}
                     aria-current={safePage === pg ? 'page' : undefined}
                     onClick={() => setCurrentPage(pg)}
                     className={`w-7 h-7 rounded-lg text-xs font-semibold transition ${
-                      currentPage === pg
+                      safePage === pg
                         ? 'bg-indigo-600 text-white font-bold'
                         : 'text-slate-600 hover:bg-white border border-transparent'
                     }`}
                   >
                     {pg}
                   </button>
+                  </React.Fragment>
                 ))}
 
                 <button
