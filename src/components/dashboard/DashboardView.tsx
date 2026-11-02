@@ -96,7 +96,7 @@ export default function DashboardView({
     };
   }, [currentYear]);
 
-  // 2. 프로젝트/사업 상태별 집계 및 2026년 귀속 매출 계산
+  // 2. 프로젝트 상태별 집계 및 올해(currentYear) 기간 귀속 당사 지분율 매출 계산
   const {
     confirmedRevenue,
     estimatedRevenue,
@@ -114,6 +114,7 @@ export default function DashboardView({
       completed: 0,       // 완료
     };
 
+    // 연차사업은 올해 기간으로만 안분되고, 컨소시엄 지분율이 적용된 당사 매출 기준 집계
     projects.forEach((prj) => {
       const normStatus = normalizeProjectStatus(prj.status);
       const prjYearRev = getMultiYearRevenueForYear(prj, currentYear);
@@ -133,18 +134,6 @@ export default function DashboardView({
       }
     });
 
-    deals.forEach((d) => {
-      if (d.converted_project_id) return;
-      const start = d.start_date || d.close_date, end = d.end_date || d.close_date;
-      if (currentYear < new Date(start).getFullYear() || currentYear > new Date(end).getFullYear()) return;
-      const revenue = calculateMultiYearRevenues(start, end, d.amount)[currentYear] ?? 0;
-      if (d.stage === '계약완료' || d.stage === '수주확정') {
-        confirmed += revenue;
-      } else {
-        pipelineWeighted += Math.round(revenue * (d.probability / 100));
-      }
-    });
-
     const totalEstimated = confirmed + pipelineWeighted;
     const currentRate = targetRevenue > 0 ? Number(((confirmed / targetRevenue) * 100).toFixed(1)) : 0;
     const estimatedRate = targetRevenue > 0 ? Number(((totalEstimated / targetRevenue) * 100).toFixed(1)) : 0;
@@ -156,7 +145,7 @@ export default function DashboardView({
       currentAchievementRate: currentRate,
       estimatedAchievementRate: estimatedRate,
     };
-  }, [projects, deals, targetRevenue]);
+  }, [projects, targetRevenue, currentYear]);
 
   // 3. 사업본부 가용인원 산정 (조직도 기준과 동일하게 프로젝트 + 계약품의서 투입인원 연동)
   const bizAvailability = useMemo(() => {
@@ -226,7 +215,7 @@ export default function DashboardView({
             className="p-3.5 rounded-xl border border-emerald-200 bg-emerald-50/20 hover:bg-emerald-50/40 transition cursor-pointer group"
           >
             <div className="flex items-center justify-between mb-1.5">
-              <span className="text-xs font-bold text-emerald-800">현재 달성율 (확정)</span>
+              <span className="text-xs font-bold text-emerald-800">올해 달성율 (확정)</span>
               <div className="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center group-hover:bg-emerald-600 group-hover:text-white transition">
                 <CheckCircle2 className="w-4 h-4" />
               </div>
@@ -240,7 +229,7 @@ export default function DashboardView({
               </span>
             </div>
             <div className="mt-1 flex items-center justify-between text-[11px] text-slate-500">
-              <span>수행·완료 확정액 기준</span>
+              <span>올해 귀속·지분율 반영</span>
               <span className="text-emerald-700 font-semibold">과제수행 →</span>
             </div>
           </div>
@@ -251,7 +240,7 @@ export default function DashboardView({
             className="p-3.5 rounded-xl border border-indigo-200 bg-indigo-50/20 hover:bg-indigo-50/40 transition cursor-pointer group"
           >
             <div className="flex items-center justify-between mb-1.5">
-              <span className="text-xs font-bold text-indigo-800">예상 달성율 (파이프라인)</span>
+              <span className="text-xs font-bold text-indigo-800">올해 예상 달성율 (파이프라인)</span>
               <div className="w-7 h-7 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center group-hover:bg-indigo-600 group-hover:text-white transition">
                 <TrendingUp className="w-4 h-4" />
               </div>
@@ -300,12 +289,12 @@ export default function DashboardView({
             <div className="flex items-center gap-3 text-slate-700 flex-wrap">
               <span className="inline-flex items-center gap-1.5">
                 <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />
-                확정 매출: <strong>{formatCurrencyManwon(confirmedRevenue)} ({currentAchievementRate}%)</strong>
+                올해 확정 매출(당사 지분): <strong>{formatCurrencyManwon(confirmedRevenue)} ({currentAchievementRate}%)</strong>
               </span>
               <span className="text-slate-300">|</span>
               <span className="inline-flex items-center gap-1.5">
                 <span className="w-2 h-2 rounded-full bg-indigo-500 inline-block" />
-                예상 총매출: <strong>{formatCurrencyManwon(estimatedRevenue)} ({estimatedAchievementRate}%)</strong>
+                올해 예상 총매출: <strong>{formatCurrencyManwon(estimatedRevenue)} ({estimatedAchievementRate}%)</strong>
               </span>
             </div>
             <span className="text-slate-500 font-mono text-[11px]">
