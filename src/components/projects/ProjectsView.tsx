@@ -1218,94 +1218,9 @@ export default function ProjectsView({
                   ))}
                 </div>
               </div>
+            </div>
 
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="block font-bold text-slate-700">
-                    프로젝트 참여 인력 명단 <span className="text-[11px] text-indigo-600 font-normal">(계약품의서 연동)</span>
-                  </label>
-                  <span className="text-[11px] text-slate-500 font-bold">
-                    총 {[...new Set([formData.pm_id, ...(formData.member_ids || [])].filter(Boolean))].length}명 편성
-                  </span>
-                </div>
-
-                <div className="p-3 rounded-xl border border-slate-200 bg-slate-50/70 space-y-2.5">
-                  <div className="flex items-start justify-between gap-2">
-                    <p className="text-[11px] text-slate-500 leading-relaxed">
-                      참여인력 명단은 <span className="font-semibold text-indigo-700">계약품의서의 [투입인력 및 인건비]</span>에서 입력·편성되며, 품의서 저장 시 프로젝트 정보와 직원 조직도 투입정보가 실시간으로 자동 업데이트됩니다.
-                    </p>
-                    {editingPrj && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const targetPrj = editingPrj;
-                          setModalOpen(false);
-                          handleOpenContractForProject(targetPrj);
-                        }}
-                        className="shrink-0 flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white transition shadow-2xs"
-                      >
-                        <FileSpreadsheet className="w-3.5 h-3.5" />
-                        <span>계약품의서에서 인력 편성</span>
-                      </button>
-                    )}
-                  </div>
-
-                  {/* 현재 편성된 참여 인력 목록 (PM + 팀원) */}
-                  <div className="p-2 rounded-lg bg-white border border-slate-200 min-h-[46px] flex flex-wrap gap-1.5 items-center">
-                    {/* 총괄 PM */}
-                    {formData.pm_name && (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-100 border border-indigo-300 text-xs font-bold text-indigo-950">
-                        <User className="w-3 h-3 text-indigo-600" />
-                        <span className="text-[10px] bg-indigo-600 text-white px-1 rounded font-semibold">PM</span>
-                        <span>{formData.pm_name}</span>
-                      </span>
-                    )}
-
-                    {/* 투입 팀원들 */}
-                    {(formData.member_ids || [])
-                      .filter((id) => id !== formData.pm_id)
-                      .map((employeeId) => {
-                        const empObj = employees.find((e) => e.id === employeeId);
-                        const name = empObj?.name || '알 수 없는 직원';
-                        return (
-                          <span
-                            key={employeeId}
-                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-50 border border-slate-200 text-xs font-medium text-slate-800"
-                          >
-                            <User className="w-3 h-3 text-slate-400" />
-                            <span>{name}</span>
-                            {empObj && (
-                              <span className="text-[10px] text-slate-400">
-                                ({empObj.position})
-                              </span>
-                            )}
-                          </span>
-                        );
-                      })}
-
-                    {![...new Set([formData.pm_id, ...(formData.member_ids || [])].filter(Boolean))].length && (
-                      <span className="text-xs text-slate-400 py-1">
-                        {editingPrj
-                          ? '현재 편성된 투입인력이 없습니다. 우측 버튼을 눌러 계약품의서에서 인력을 등록하세요.'
-                          : '프로젝트 등록 저장 후 [계약품의서]에서 참여인력을 등록하시면 조직도와 자동 연동됩니다.'}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">과제 세부 설명</label>
-                  <textarea
-                    rows={2}
-                    value={formData.description || ''}
-                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                    className="w-full p-2.5 rounded-xl border border-slate-300"
-                  />
-                </div>
-              </div>
-
-              {/* 하단 고정 푸터: 저장/취소 버튼이 항상 보이도록 하단 고정 */}
+            {/* 하단 고정 푸터: 저장/취소 버튼이 항상 보이도록 하단 고정 */}
               <div className="shrink-0 flex justify-end gap-2 pt-3 mt-2 border-t border-slate-200 bg-white">
                 <button
                   type="button"
