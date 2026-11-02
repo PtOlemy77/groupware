@@ -40,7 +40,7 @@ public class GroupwareService {
                       + " account_enabled"),
           "projects",
               fields(
-                  "code name department department_code pm_name pm_id start_date end_date status status_code progress budget"
+                  "code name client_name department department_code pm_name pm_id start_date end_date status status_code progress budget"
                       + " share_rate consortium_partners members member_ids priority description"
                       + " yearly_revenue_json"),
           "equipments",
@@ -1214,10 +1214,13 @@ public class GroupwareService {
           && a.getCategory().contains("계약품의")) {
         Map<String, Object> doc = read(a.getItemsJson(), Map.class);
         doc.put("title", p.getName());
+        doc.put("clientName", p.getClientName());
         doc.put("startDate", p.getStartDate());
         doc.put("endDate", p.getEndDate());
+        doc.put("contractPeriod", p.getStartDate().replace("-", ".") + " ~ " + p.getEndDate().replace("-", ".") + " (" + ChronoUnitMonths(p.getStartDate(), p.getEndDate()) + "개월)");
         doc.put("ourShareRate", p.getShareRate());
         doc.put("supplyAmount", p.getOurBudget() * 10L);
+        a.setVendor(p.getClientName());
         // Anchor existing allocations to actual calendar months when the contract period changes.
         YearMonth
             oldStart =
@@ -1291,6 +1294,11 @@ public class GroupwareService {
         version(p, payload.get("project_version"));
       }
       p.setName(a.getTitle());
+      if (a.getVendor() != null && !a.getVendor().isBlank()) {
+        p.setClientName(a.getVendor());
+      } else if (doc.get("clientName") != null && !Objects.toString(doc.get("clientName")).isBlank()) {
+        p.setClientName(Objects.toString(doc.get("clientName")));
+      }
       p.setDepartment(a.getDepartment());
       p.setStartDate(Objects.toString(doc.get("startDate")));
       p.setEndDate(Objects.toString(doc.get("endDate")));

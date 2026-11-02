@@ -126,20 +126,22 @@ export default function SummarySheet({
     const periodStr = formatPeriodText(sDate, eDate);
     const durationMonths = calcMonthsBetween(sDate, eDate);
 
-    let inferredClient = doc.clientName;
-    if (prj.name.includes('농촌진흥청') || prj.name.includes('농진청')) {
-      inferredClient = '농촌진흥청';
-    } else if (
-      prj.name.includes('한국국토정보공사') ||
-      prj.name.includes('국토정보공사') ||
-      prj.name.includes('LX')
-    ) {
-      inferredClient = '한국국토정보공사';
-    } else if (prj.name.includes('전기안전공사')) {
-      inferredClient = '전기안전공사';
-    } else {
-      const matchedDeal = deals.find((d) => prj.name.includes(d.client_name));
-      if (matchedDeal) inferredClient = matchedDeal.client_name;
+    let inferredClient = prj.client_name || doc.clientName;
+    if (!inferredClient) {
+      if (prj.name.includes('농촌진흥청') || prj.name.includes('농진청')) {
+        inferredClient = '농촌진흥청';
+      } else if (
+        prj.name.includes('한국국토정보공사') ||
+        prj.name.includes('국토정보공사') ||
+        prj.name.includes('LX')
+      ) {
+        inferredClient = '한국국토정보공사';
+      } else if (prj.name.includes('전기안전공사')) {
+        inferredClient = '전기안전공사';
+      } else {
+        const matchedDeal = deals.find((d) => prj.name.includes(d.client_name));
+        if (matchedDeal) inferredClient = matchedDeal.client_name;
+      }
     }
 
     // 프로젝트 참여 인원(prj.members)을 사내 직원 DB와 매칭하여 투입인력(manpowerPlans) 자동 생성

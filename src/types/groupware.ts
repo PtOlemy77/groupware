@@ -227,6 +227,7 @@ export interface Project {
   id: number;
   code: string;
   name: string;
+  client_name?: string; // 발주기관 / 고객사
   department_code?: string;
   department: string;
   pm_name: string;

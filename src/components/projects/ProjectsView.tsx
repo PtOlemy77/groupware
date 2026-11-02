@@ -301,7 +301,17 @@ export default function ProjectsView({
     const doc = buildDefaultFullContractDoc(matchedAp, currentUser, approvals.length);
     doc.linkedProjectId = prj.id;
     doc.linkedProjectCode = prj.code;
-    if (!hasSavedJson) { doc.title = prj.name; doc.startDate = prj.start_date; doc.endDate = prj.end_date; }
+    // 발주기관, 사업명, 금액, 수행기간 연동
+    if (prj.client_name) {
+      doc.clientName = prj.client_name;
+    } else if (matchedAp?.vendor) {
+      doc.clientName = matchedAp.vendor;
+    }
+    if (!hasSavedJson) {
+      doc.title = prj.name;
+      doc.startDate = prj.start_date;
+      doc.endDate = prj.end_date;
+    }
 
     // DB에 저장된 계약품의서 JSON이 아직 없는 경우: 프로젝트의 실제 소속 직원(pm_name, members)으로 투입인력 시트 구성
     if (!hasSavedJson) {
@@ -635,9 +645,15 @@ export default function ProjectsView({
                       </div>
 
                       {/* 과제명 */}
-                      <h4 className="font-bold text-sm text-slate-900 mb-1.5 line-clamp-1 group-hover:text-indigo-600 transition">
+                      <h4 className="font-bold text-sm text-slate-900 mb-1 line-clamp-1 group-hover:text-indigo-600 transition">
                         {prj.name}
                       </h4>
+                      {prj.client_name && (
+                        <div className="flex items-center gap-1 text-[11px] font-semibold text-slate-600 mb-2">
+                          <Building2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                          <span className="truncate">{prj.client_name}</span>
+                        </div>
+                      )}
                       <p className="text-xs text-slate-500 line-clamp-2 mb-3">
                         {prj.description || '공간정보 GIS 구축 및 고도화 사업'}
                       </p>
@@ -925,7 +941,7 @@ export default function ProjectsView({
               </div>
 
               <div>
-                <label className="block font-bold text-slate-700 mb-1">프로젝트 과제명</label>
+                <label className="block font-bold text-slate-700 mb-1">프로젝트 과제명 (사업명)</label>
                 <input
                   type="text"
                   required
@@ -933,6 +949,19 @@ export default function ProjectsView({
                   value={formData.name || ''}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   className="w-full p-2.5 rounded-xl border border-slate-300 font-bold text-slate-900"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">
+                  발주기관 (고객사) <span className="text-[11px] text-indigo-600 font-normal">(계약품의서 연동)</span>
+                </label>
+                <input
+                  type="text"
+                  placeholder="예: 한국국토정보공사, 농촌진흥청, 충청북도청"
+                  value={formData.client_name || ''}
+                  onChange={(e) => setFormData({ ...formData, client_name: e.target.value })}
+                  className="w-full p-2.5 rounded-xl border border-slate-300 font-bold text-slate-800"
                 />
               </div>
 

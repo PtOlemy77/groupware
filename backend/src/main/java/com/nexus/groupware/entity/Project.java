@@ -18,6 +18,9 @@ public class Project extends VersionedEntity {
   @Column(nullable = false)
   private String name;
 
+  @Column(name = "client_name", columnDefinition = "varchar(255) default ''")
+  private String clientName = "";
+
   @Column(name = "department_code", columnDefinition = "varchar(50) default 'DEPT_BIZ'")
   private String departmentCode = "DEPT_BIZ";
 
@@ -190,6 +193,14 @@ public class Project extends VersionedEntity {
 
   public void setName(String name) {
     this.name = name;
+  }
+
+  public String getClientName() {
+    return clientName != null ? clientName : "";
+  }
+
+  public void setClientName(String clientName) {
+    this.clientName = clientName;
   }
 
   public String getDepartmentCode() {
