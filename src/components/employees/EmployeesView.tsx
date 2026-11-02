@@ -321,10 +321,16 @@ export default function EmployeesView({
 
       const avail = getEmployeeAvailability(emp);
       const isAssignedToProject = avail.status === '투입중';
+      const isBiz =
+        cleanDeptName(emp.department) === '사업본부' ||
+        emp.department_code === 'DEPT_BIZ';
 
       // 4대 조건 탭 필터: 전체 / 인재풀 / 휴직 / 퇴사
       if (availabilityFilter === '인재풀') {
-        if (!isAssignedToProject) return false;
+        // 사용자 요청: 인재 풀은 프로젝트에 투입되지 않은 인력만 조회되어야 함!
+        if (isAssignedToProject) return false;
+        if (emp.status === '퇴사' || emp.status === '휴직') return false;
+        if (!isBiz) return false;
       } else if (availabilityFilter === '휴직') {
         if (emp.status !== '휴직') return false;
       }
@@ -333,7 +339,9 @@ export default function EmployeesView({
       // 조직도 부서 필터
       const matchDept =
         deptFilter === 'ALL' ||
-        (deptFilter === 'DEPT_POOL' ? isAssignedToProject : emp.department_code === deptFilter);
+        (deptFilter === 'DEPT_POOL'
+          ? (!isAssignedToProject && isBiz && emp.status !== '퇴사' && emp.status !== '휴직')
+          : emp.department_code === deptFilter);
 
       const matchPosition =
         positionFilter === 'ALL' || emp.position_code === positionFilter;
@@ -573,7 +581,21 @@ export default function EmployeesView({
           </div>
         </div>
 
-        {/* 인재Pool (프로젝트 투입중) */}
+        {/* 프로젝트 투입 인력 */}
+        <div className="bg-white p-4 rounded-xl border border-indigo-200 bg-indigo-50/20 shadow-2xs flex items-center justify-between">
+          <div>
+            <div className="text-[11px] font-semibold text-indigo-700">프로젝트 투입 인력</div>
+            <div className="text-2xl font-extrabold text-indigo-700 mt-1">{stats.activeAssigned}명</div>
+            <div className="text-[11px] text-indigo-600 mt-0.5 font-medium">
+              인력 투입률 {stats.assignmentRate}%
+            </div>
+          </div>
+          <div className="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center">
+            <Briefcase className="w-5 h-5" />
+          </div>
+        </div>
+
+        {/* 인재Pool (프로젝트 미투입 가용인력) */}
         <div
           onClick={() => {
             setDeptFilter('ALL');
@@ -581,28 +603,14 @@ export default function EmployeesView({
             setSearchQuery('');
             setCurrentPage(1);
           }}
-          className="bg-white p-4 rounded-xl border border-purple-200 bg-purple-50/20 shadow-2xs flex items-center justify-between cursor-pointer hover:border-purple-300 transition"
-          title="클릭하여 인재Pool 소속 직원만 조회"
+          className="bg-white p-4 rounded-xl border border-emerald-200 bg-emerald-50/20 shadow-2xs flex items-center justify-between cursor-pointer hover:border-emerald-300 transition"
+          title="클릭하여 인재Pool (가용 인력)만 조회"
         >
           <div>
-            <div className="text-[11px] font-semibold text-purple-700">인재Pool (프로젝트 투입)</div>
-            <div className="text-2xl font-extrabold text-purple-700 mt-1">{stats.activeAssigned}명</div>
-            <div className="text-[11px] text-purple-600 mt-0.5 font-medium">
-              인력 투입률 {stats.assignmentRate}%
-            </div>
-          </div>
-          <div className="w-10 h-10 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center">
-            <Briefcase className="w-5 h-5" />
-          </div>
-        </div>
-
-        {/* 사업본부 가용인력 (신규 프로젝트 즉시 투입 가능) */}
-        <div className="bg-white p-4 rounded-xl border border-emerald-200 bg-emerald-50/20 shadow-2xs flex items-center justify-between">
-          <div>
-            <div className="text-[11px] font-semibold text-emerald-800">사업본부 가용인력</div>
+            <div className="text-[11px] font-semibold text-emerald-800">인재Pool (대기 인력)</div>
             <div className="text-2xl font-extrabold text-emerald-600 mt-1">{stats.bizAvailable}명</div>
             <div className="text-[11px] text-emerald-700 mt-0.5 font-bold">
-              사업본부 총 {stats.bizTotal}명 중 미투입 (가용률 {stats.bizAvailabilityRate}%)
+              프로젝트 미투입 가용인력 (가용률 {stats.bizAvailabilityRate}%)
             </div>
           </div>
           <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center">
@@ -630,7 +638,7 @@ export default function EmployeesView({
           <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg text-xs font-semibold mr-2">
             {[
               { key: '전체', label: `전체 (${stats.activeTotal})` },
-              { key: '인재풀', label: `인재풀 (${stats.activeAssigned})` },
+              { key: '인재풀', label: `인재풀 (${stats.bizAvailable})` },
               { key: '휴직', label: `휴직 (${stats.suspended})` },
               { key: '퇴사', label: `퇴사 (${stats.retired})` },
             ].map((tab) => (
@@ -1198,9 +1206,9 @@ export default function EmployeesView({
               <span>
                 조회 인원: <strong className="text-slate-900">{filteredEmployees.length}</strong>명
               </span>
-              {deptFilter === 'DEPT_POOL' ? (
-                <span className="text-purple-700 font-bold bg-purple-100 px-2 py-0.5 rounded-full">
-                  [인재Pool (프로젝트 투입자)]
+              {deptFilter === 'DEPT_POOL' || availabilityFilter === '인재풀' ? (
+                <span className="text-emerald-700 font-bold bg-emerald-100 px-2 py-0.5 rounded-full">
+                  [인재Pool (프로젝트 미투입 인력)]
                 </span>
               ) : (
                 <>
