@@ -153,6 +153,21 @@ export default function Sidebar({
         })}
       </nav>
 
+      {/* Portal Return Link */}
+      <div className="px-4 pt-1">
+        <a
+          href="#top"
+          className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-700/60 text-xs font-semibold transition group"
+          title="스패셜티 공개 포털 메인으로 이동"
+        >
+          <span className="flex items-center gap-2.5">
+            <Globe className="w-4 h-4 text-emerald-400 group-hover:rotate-12 transition-transform" />
+            <span>스패셜티 포털</span>
+          </span>
+          <span className="text-[11px] text-slate-500 group-hover:text-slate-300 transition">이동 →</span>
+        </a>
+      </div>
+
       {/* Company Info Footer */}
       <div className="p-4 m-4 rounded-xl bg-slate-800/70 border border-slate-700/70 space-y-2.5">
         <div className="flex items-center justify-between text-xs">

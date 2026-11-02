@@ -9,7 +9,7 @@ import {
   getRoleCode,
   TabKey,
 } from '@/types/groupware';
-import { RefreshCw, Plus, LogOut, ChevronLeft } from 'lucide-react';
+import { RefreshCw, Plus, LogOut, ChevronLeft, Globe } from 'lucide-react';
 
 interface Props {
   activeTab: TabKey;
@@ -112,6 +112,16 @@ export default function Header({
             </span>
           </div>
         </div>
+
+        {/* Portal Link */}
+        <a
+          href="#top"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-700 hover:text-indigo-600 hover:bg-slate-100 border border-slate-200 transition"
+          title="스패셜티 공개 포털 메인으로 이동"
+        >
+          <Globe className="w-3.5 h-3.5 text-indigo-600" />
+          <span className="hidden sm:inline">스패셜티 포털</span>
+        </a>
 
         {/* Refresh button */}
         <button
