@@ -241,19 +241,6 @@ export default function SummarySheet({
 
   return (
     <div className="space-y-6">
-      {/* 연동된 프로젝트 정보 표시 배너 (있는 경우에만 간결하게 표시) */}
-      {doc.linkedProjectCode && (
-        <div className="bg-indigo-50/80 px-4 py-2.5 rounded-xl border border-indigo-200 flex items-center justify-between">
-          <div className="flex items-center gap-2 text-xs font-semibold text-indigo-950">
-            <Briefcase className="w-4 h-4 text-indigo-600" />
-            <span>연계 프로젝트 과제: <strong className="font-mono text-indigo-700">{doc.linkedProjectCode}</strong> ({doc.title})</span>
-          </div>
-          <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-indigo-600 text-white">
-            프로젝트 연동 완료
-          </span>
-        </div>
-      )}
-
       {/* 2. 계약일반현황 */}
       <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-2xs">
         <div className="px-5 py-3 bg-slate-100 border-b border-slate-200 flex items-center justify-between">
