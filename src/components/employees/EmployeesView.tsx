@@ -68,6 +68,59 @@ function getEmpNoFromHireDate(hireDate?: string, defaultNo?: string): string {
   return defaultNo || '';
 }
 
+export interface TenureInfo {
+  yearsOrder: number; // N년차 (한국식: 당해연도 - 입사연도 + 1)
+  fullYears: number;  // 만 N년
+  fullMonths: number; // 만 N개월
+  tenureText: string; // "N년 M개월" 또는 "N개월"
+}
+
+// 입사일 기준 몇 년차인지 및 만 근속 기간 자동 계산 헬퍼
+export function calcTenure(hireDate?: string, targetDate = new Date()): TenureInfo {
+  if (!hireDate || !hireDate.includes('-')) {
+    return { yearsOrder: 1, fullYears: 0, fullMonths: 0, tenureText: '-' };
+  }
+  const parts = hireDate.split('-').map(Number);
+  if (parts.length < 3 || isNaN(parts[0]) || isNaN(parts[1]) || isNaN(parts[2])) {
+    return { yearsOrder: 1, fullYears: 0, fullMonths: 0, tenureText: '-' };
+  }
+  const [hYear, hMonth, hDay] = parts;
+  const tYear = targetDate.getFullYear();
+  const tMonth = targetDate.getMonth() + 1;
+  const tDay = targetDate.getDate();
+
+  // 1. 한국식 N년차 (입사 당해연도가 1년차)
+  const yearsOrder = Math.max(1, tYear - hYear + 1);
+
+  // 2. 만 근속 기간 계산
+  let totalMonths = (tYear - hYear) * 12 + (tMonth - hMonth);
+  if (tDay < hDay) {
+    totalMonths -= 1;
+  }
+  if (totalMonths < 0) {
+    return { yearsOrder, fullYears: 0, fullMonths: 0, tenureText: '입사 예정' };
+  }
+
+  const fullYears = Math.floor(totalMonths / 12);
+  const remainingMonths = totalMonths % 12;
+
+  let tenureText = '';
+  if (fullYears > 0 && remainingMonths > 0) {
+    tenureText = `${fullYears}년 ${remainingMonths}개월`;
+  } else if (fullYears > 0) {
+    tenureText = `${fullYears}년`;
+  } else {
+    tenureText = `${remainingMonths}개월`;
+  }
+
+  return {
+    yearsOrder,
+    fullYears,
+    fullMonths: totalMonths,
+    tenureText,
+  };
+}
+
 export default function EmployeesView({
   employees,
   currentUser,
@@ -173,8 +226,8 @@ export default function EmployeesView({
 
   const { showAlert, showConfirm } = useModal();
 
-  // 페이지네이션 상태
-  const [pageSize, setPageSize] = useState<number>(25);
+  // 페이지네이션 상태 (사용자 요청: 5/10/15/20명 단위로 축소하여 스크롤 최적화)
+  const [pageSize, setPageSize] = useState<number>(10);
   const [currentPage, setCurrentPage] = useState<number>(1);
 
   // 정렬 상태 (기본 정렬: 직급 서열 및 입사일)
@@ -736,13 +789,12 @@ export default function EmployeesView({
                 setPageSize(Number(e.target.value));
                 setCurrentPage(1);
               }}
-              className="px-2 py-1 text-xs rounded-lg border border-slate-300 bg-white font-semibold"
+              className="px-2 py-1 text-xs rounded-lg border border-slate-300 bg-white font-semibold text-slate-800"
             >
-              <option value={20}>20명씩</option>
-              <option value={25}>25명씩</option>
-              <option value={50}>50명씩</option>
-              <option value={100}>100명씩</option>
-              <option value={0}>전체 보기</option>
+              <option value={5}>5명씩 보기</option>
+              <option value={10}>10명씩 보기</option>
+              <option value={15}>15명씩 보기</option>
+              <option value={20}>20명씩 보기</option>
             </select>
           </div>
 
@@ -1270,10 +1322,10 @@ export default function EmployeesView({
                   <th className="px-4 py-3 min-w-[220px]">연락처 / 이메일</th>
                   <th
                     onClick={() => handleSort('hire_date')}
-                    className="px-3 py-3 cursor-pointer hover:bg-slate-200/60 transition w-28"
+                    className="px-3 py-3 cursor-pointer hover:bg-slate-200/60 transition w-36"
                   >
                     <div className="flex items-center gap-1">
-                      <span>입사일</span>
+                      <span>입사일 (연차/근속)</span>
                       {sortBy === 'hire_date' && (sortOrder === 'asc' ? '▲' : '▼')}
                     </div>
                   </th>
@@ -1397,9 +1449,30 @@ export default function EmployeesView({
                         </div>
                       </td>
 
-                      {/* 입사일 */}
-                      <td className="px-3 py-3 text-slate-500 whitespace-nowrap text-[11px]">
-                        {emp.hire_date || '-'}
+                      {/* 입사일 및 자동계산 연차/근속 기간 */}
+                      <td className="px-3 py-3 whitespace-nowrap text-xs">
+                        {emp.hire_date ? (
+                          (() => {
+                            const tenure = calcTenure(emp.hire_date);
+                            return (
+                              <div className="flex flex-col gap-0.5">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="font-mono text-slate-800 text-[11px] font-semibold">
+                                    {emp.hire_date}
+                                  </span>
+                                  <span className="font-extrabold text-[10px] text-indigo-700 bg-indigo-50 border border-indigo-200 px-1.5 py-0.2 rounded">
+                                    {tenure.yearsOrder}년차
+                                  </span>
+                                </div>
+                                <span className="text-[10px] text-slate-500 font-medium">
+                                  근속 {tenure.tenureText}
+                                </span>
+                              </div>
+                            );
+                          })()
+                        ) : (
+                          <span className="text-slate-400 text-[11px]">-</span>
+                        )}
                       </td>
 
                       {/* 관리 액션 */}
@@ -1502,9 +1575,16 @@ export default function EmployeesView({
               {/* 입사일 & 사번 (입사연월일이 사번이 됨) */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">
-                    입사일 <span className="text-indigo-600 font-normal">(사번 자동 생성)</span>
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block font-semibold text-slate-700">
+                      입사일 <span className="text-indigo-600 font-normal">(사번 자동 생성)</span>
+                    </label>
+                    {formData.hire_date && (
+                      <span className="text-[10px] font-extrabold text-indigo-700 bg-indigo-50 border border-indigo-200 px-1.5 py-0.2 rounded">
+                        {calcTenure(formData.hire_date).yearsOrder}년차 ({calcTenure(formData.hire_date).tenureText})
+                      </span>
+                    )}
+                  </div>
                   <input
                     type="date"
                     required
