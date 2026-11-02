@@ -15,6 +15,7 @@ import {
   Evaluation,
   Approval,
   CommonCode,
+  Holiday,
 } from '@/types/groupware';
 import LoginPage from '@/components/LoginPage';
 import Sidebar from '@/components/layout/Sidebar';
@@ -59,6 +60,7 @@ export default function App() {
   const [evaluations, setEvaluations] = useState<Evaluation[]>([]);
   const [approvals, setApprovals] = useState<Approval[]>([]);
   const [commonCodes, setCommonCodes] = useState<CommonCode[]>([]);
+  const [holidays, setHolidays] = useState<Holiday[]>([]);
 
   const clearData = () => {
     setEmployees([]);
@@ -68,6 +70,7 @@ export default function App() {
     setEvaluations([]);
     setApprovals([]);
     setCommonCodes([]);
+    setHolidays([]);
   };
   const fetchAllData = async () => {
     setLoading(true);
@@ -88,6 +91,7 @@ export default function App() {
       setEvaluations(data.evaluations);
       setApprovals(data.approvals);
       setCommonCodes(data.common_codes);
+      if (data.holidays) setHolidays(data.holidays);
       setCounts(data.counts);
       setPageTotal(data.page_total || 0);
       setLoadedAt(new Date(data.loaded_at).toLocaleString('ko-KR'));
@@ -316,6 +320,7 @@ export default function App() {
               deals={deals}
               evaluations={evaluations}
               approvals={approvals}
+              holidays={holidays}
               onNavigateTab={navigateToTab}
             />
           )}

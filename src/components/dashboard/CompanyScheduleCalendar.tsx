@@ -6,6 +6,7 @@ import {
   Employee,
   Project,
   Approval,
+  Holiday,
 } from '@/types/groupware';
 import { useModal } from '@/contexts/ModalContext';
 import {
@@ -45,6 +46,7 @@ interface Props {
   employees: Employee[];
   projects: Project[];
   approvals: Approval[];
+  holidays?: Holiday[];
 }
 
 // 2025~2027 한국 법정 공휴일 및 명절 (양력 기준 및 주요 대체공휴일)
@@ -123,6 +125,7 @@ export default function CompanyScheduleCalendar({
   employees,
   projects,
   approvals,
+  holidays = [],
 }: Props) {
   const { showAlert, showConfirm } = useModal();
 
@@ -208,32 +211,55 @@ export default function CompanyScheduleCalendar({
   const allEvents = useMemo<CalendarEvent[]>(() => {
     const list: CalendarEvent[] = [];
 
-    // 1. 법정 공휴일
-    Object.entries(KOREAN_HOLIDAYS).forEach(([dateStr, name]) => {
-      list.push({
-        id: `holiday-${dateStr}`,
-        title: `[공휴일] ${name}`,
-        start_date: dateStr,
-        end_date: dateStr,
-        category: 'holiday',
-        description: '대한민국 법정 공휴일',
-      });
-    });
+    // 1. 공휴일 및 법정/지정 휴일 (DB 휴일 테이블 연동)
+    if (holidays.length > 0) {
+      holidays.forEach((h) => {
+        const isCompanyDay =
+          !h.is_statutory ||
+          h.holiday_name.includes('창립기념일') ||
+          h.holiday_name.includes('근로자의 날');
 
-    // 2. 회사 연례 기념일 (매년 반복 등록: 2025, 2026, 2027)
-    [2025, 2026, 2027].forEach((yr) => {
+        list.push({
+          id: `db-holiday-${h.id}`,
+          title: isCompanyDay ? `🏢 [회사휴무] ${h.holiday_name}` : `[공휴일] ${h.holiday_name}`,
+          start_date: h.holiday_date,
+          end_date: h.holiday_date,
+          category: isCompanyDay ? 'company' : 'holiday',
+          description: h.description || (isCompanyDay ? '전사 지정 휴무일' : '대한민국 법정공휴일'),
+        });
+      });
+    } else {
+      // DB 데이터 로딩 전 fallback
+      Object.entries(KOREAN_HOLIDAYS).forEach(([dateStr, name]) => {
+        list.push({
+          id: `holiday-${dateStr}`,
+          title: `[공휴일] ${name}`,
+          start_date: dateStr,
+          end_date: dateStr,
+          category: 'holiday',
+          description: '대한민국 법정 공휴일',
+        });
+      });
+    }
+
+    // 2. 회사 연례 기념일 (2024~2030년 반복)
+    [2024, 2025, 2026, 2027, 2028, 2029, 2030].forEach((yr) => {
       ANNUAL_COMPANY_EVENTS.forEach((ev, idx) => {
+        // 이미 DB 휴일에서 창립기념일이나 근로자의 날이 들어갔으면 중복 방지
         const mm = String(ev.month).padStart(2, '0');
         const dd = String(ev.day).padStart(2, '0');
         const dateStr = `${yr}-${mm}-${dd}`;
-        list.push({
-          id: `annual-company-${yr}-${idx}`,
-          title: ev.title,
-          start_date: dateStr,
-          end_date: dateStr,
-          category: ev.category,
-          description: ev.desc,
-        });
+        const alreadyInList = list.some((item) => item.start_date === dateStr && item.title.includes(ev.title));
+        if (!alreadyInList) {
+          list.push({
+            id: `annual-company-${yr}-${idx}`,
+            title: ev.title,
+            start_date: dateStr,
+            end_date: dateStr,
+            category: ev.category,
+            description: ev.desc,
+          });
+        }
       });
     });
 

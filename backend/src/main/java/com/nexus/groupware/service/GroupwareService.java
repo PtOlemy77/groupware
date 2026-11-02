@@ -25,6 +25,7 @@ public class GroupwareService {
   private final EvaluationRepository evaluations;
   private final ApprovalRepository approvals;
   private final CommonCodeRepository codes;
+  private final HolidayRepository holidays;
   private final AuditEventRepository audit;
   private final AuthService auth;
   private final PasswordEncoder passwords;
@@ -74,6 +75,7 @@ public class GroupwareService {
       EvaluationRepository v,
       ApprovalRepository a,
       CommonCodeRepository c,
+      HolidayRepository h,
       AuditEventRepository logs,
       AuthService auth,
       PasswordEncoder pw,
@@ -85,6 +87,7 @@ public class GroupwareService {
     evaluations = v;
     approvals = a;
     codes = c;
+    holidays = h;
     audit = logs;
     this.auth = auth;
     passwords = pw;
@@ -322,6 +325,7 @@ public class GroupwareService {
               .toList());
     } else result.put("approvals", List.of());
     result.put("common_codes", codes.findAllByOrderByGroupCodeAscSortOrderAsc());
+    result.put("holidays", holidays.findAllByOrderByHolidayDateAsc());
     result.put("department_codes", DepartmentCode.toList());
     result.put("position_codes", PositionCode.toList());
     result.put(

@@ -335,6 +335,14 @@ export interface Approval {
   approved_by?: string;
 }
 
+export interface Holiday {
+  id: number;
+  holiday_date: string; // YYYY-MM-DD
+  holiday_name: string;
+  is_statutory?: boolean;
+  description?: string;
+}
+
 export type TabKey =
   | 'dashboard'
   | 'approvals'

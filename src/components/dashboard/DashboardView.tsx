@@ -11,6 +11,7 @@ import {
   Evaluation,
   Approval,
   TabKey,
+  Holiday,
   formatCurrencyManwon,
   getMultiYearRevenueForYear,
   getProjectYearlyScope,
@@ -39,6 +40,7 @@ interface Props {
   deals: BusinessDeal[];
   evaluations: Evaluation[];
   approvals: Approval[];
+  holidays?: Holiday[];
   onNavigateTab: (tab: TabKey) => void;
   onQuickApprove?: (ap: Approval) => void;
   onQuickReject?: (ap: Approval) => void;
@@ -58,6 +60,7 @@ export default function DashboardView({
   projects,
   deals,
   approvals,
+  holidays = [],
   onNavigateTab,
 }: Props) {
   const [dashboardTab, setDashboardTab] = useState<'overview' | 'calendar'>('overview');
@@ -232,6 +235,7 @@ export default function DashboardView({
           employees={employees}
           projects={projects}
           approvals={approvals}
+          holidays={holidays}
         />
       )}
 
