@@ -9,7 +9,7 @@ import {
   getRoleCode,
   TabKey,
 } from '@/types/groupware';
-import { RefreshCw, Plus, LogOut } from 'lucide-react';
+import { RefreshCw, Plus, LogOut, ChevronLeft } from 'lucide-react';
 
 interface Props {
   activeTab: TabKey;
@@ -18,6 +18,8 @@ interface Props {
   onRefresh: () => void;
   onLogout: () => void;
   onOpenCreateModal?: () => void;
+  onGoBack?: () => void;
+  canGoBack?: boolean;
 }
 
 const TAB_TITLES: Partial<Record<TabKey, { label: string; sub: string }>> = {
@@ -37,6 +39,8 @@ export default function Header({
   onRefresh,
   onLogout,
   onOpenCreateModal,
+  onGoBack,
+  canGoBack = false,
 }: Props) {
   const currentTabInfo = TAB_TITLES[activeTab] || { label: '그룹웨어', sub: '' };
   const roleCode = getRoleCode(currentUser);
@@ -62,6 +66,22 @@ export default function Header({
   return (
     <header className="h-16 bg-white border-b border-slate-200 px-6 md:px-8 flex items-center justify-between sticky top-0 z-20 shadow-2xs">
       <div className="flex items-center gap-3">
+        {onGoBack && (
+          <button
+            type="button"
+            onClick={onGoBack}
+            disabled={!canGoBack}
+            className={`p-2 rounded-xl border transition flex items-center justify-center ${
+              canGoBack
+                ? 'bg-white hover:bg-slate-100 active:bg-slate-200 text-slate-700 border-slate-200 shadow-2xs hover:border-slate-300 cursor-pointer'
+                : 'bg-slate-50 text-slate-300 border-slate-200 cursor-not-allowed opacity-40'
+            }`}
+            title={canGoBack ? '이전 화면으로 뒤로가기' : '이전 화면 없음'}
+            aria-label="이전 화면으로 뒤로가기"
+          >
+            <ChevronLeft className="w-5 h-5 stroke-[2.2]" />
+          </button>
+        )}
         <div>
           <h1 className="text-base md:text-lg font-bold text-slate-900">{currentTabInfo.label}</h1>
         </div>

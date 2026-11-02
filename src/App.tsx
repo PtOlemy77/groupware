@@ -1,6 +1,6 @@
 import { apiFetch } from '@/lib/api';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   AuthUser,
   UserRole,
@@ -35,6 +35,7 @@ export default function App() {
   const [selectedReportProjectId, setSelectedReportProjectId] = useState<
     number | null
   >(null);
+  const [historyStack, setHistoryStack] = useState<TabKey[]>([]);
   const [loading, setLoading] = useState(true);
   const [restoring, setRestoring] = useState(true);
   const [error, setError] = useState('');
@@ -149,6 +150,57 @@ export default function App() {
         void fetchAllData();
     }
   }, [activeTab, page]);
+
+  // 화면 전환 헬퍼 (뒤로가기 히스토리 스택 적재)
+  const navigateToTab = useCallback(
+    (targetTab: TabKey) => {
+      let resolvedTab = targetTab;
+      if (resolvedTab === 'approvals' || resolvedTab === 'business_deals') {
+        resolvedTab = 'projects';
+      }
+      if (resolvedTab === activeTab) return;
+
+      setHistoryStack((prev) => [...prev, activeTab]);
+      setPage(0);
+      setActiveTab(resolvedTab);
+    },
+    [activeTab]
+  );
+
+  // 뒤로가기 동작 (이전 방문 탭으로 복귀)
+  const handleGoBack = useCallback(() => {
+    if (historyStack.length > 0) {
+      setHistoryStack((prev) => {
+        const nextStack = [...prev];
+        const prevTab = nextStack.pop();
+        if (prevTab) {
+          setPage(0);
+          setActiveTab(prevTab);
+        }
+        return nextStack;
+      });
+    } else if (window.history.length > 1) {
+      window.history.back();
+    }
+  }, [historyStack.length]);
+
+  // 키보드 단축키 (Alt + Left Arrow 뒤로가기)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const activeEl = document.activeElement;
+      const isInput =
+        activeEl instanceof HTMLInputElement ||
+        activeEl instanceof HTMLTextAreaElement ||
+        activeEl instanceof HTMLSelectElement;
+
+      if (!isInput && e.altKey && e.key === 'ArrowLeft') {
+        e.preventDefault();
+        handleGoBack();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleGoBack]);
   const handleLoginSuccess = (user: AuthUser) => {
     setCurrentUser(user);
     clearData();
@@ -220,10 +272,7 @@ export default function App() {
       {/* 1. Left Sidebar Navigation */}
       <Sidebar
         activeTab={effectiveTab}
-        onTabChange={(tab) => {
-          setPage(0);
-          setActiveTab(tab);
-        }}
+        onTabChange={navigateToTab}
         currentUser={currentUser}
         counts={counts}
       />
@@ -237,6 +286,8 @@ export default function App() {
           loading={loading}
           onRefresh={fetchAllData}
           onLogout={handleLogout}
+          onGoBack={handleGoBack}
+          canGoBack={historyStack.length > 0}
         />
 
         {/* Dynamic Tab Body */}
@@ -265,14 +316,7 @@ export default function App() {
               deals={deals}
               evaluations={evaluations}
               approvals={approvals}
-              onNavigateTab={(tab) => {
-                // 제거된 탭(approvals, business_deals)은 projects로 이동
-                if (tab === 'approvals' || tab === 'business_deals') {
-                  setActiveTab('projects');
-                } else {
-                  setActiveTab(tab);
-                }
-              }}
+              onNavigateTab={navigateToTab}
             />
           )}
 
@@ -287,7 +331,7 @@ export default function App() {
               onRefresh={fetchAllData}
               onNavigateToReports={(pId) => {
                 setSelectedReportProjectId(pId || null);
-                setActiveTab('reports');
+                navigateToTab('reports');
               }}
             />
           )}
