@@ -425,7 +425,7 @@ export default function EmployeesView({
       email: '',
       phone: '010-0000-0000',
       hire_date: defaultHireDate,
-      status: '대기',
+      status: '재직',
       avatar_color: 'indigo',
       role: '일반직원',
     });
@@ -1505,9 +1505,7 @@ export default function EmployeesView({
                     onChange={(e) => setFormData({ ...formData, status: e.target.value })}
                     className="w-full p-2.5 border border-slate-300 rounded-xl bg-white font-semibold"
                   >
-                    <option value="재직">재직 (일반 근무)</option>
-                    <option value="대기">대기 (즉시 투입 가능 가용)</option>
-                    <option value="투입중">프로젝트 투입중</option>
+                    <option value="재직">재직</option>
                     <option value="휴직">휴직</option>
                     <option value="퇴사">퇴사</option>
                   </select>

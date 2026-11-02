@@ -673,8 +673,8 @@ public class GroupwareService {
         e.setRoleCode(role.getCode());
         e.setRole(role.getLabel());
         require(
-            Set.of("재직", "휴직", "퇴사", "대기", "투입중").contains(Objects.toString(e.getStatus(), "")),
-            "직원 상태를 확인하세요.");
+            Set.of("재직", "휴직", "퇴사").contains(Objects.toString(e.getStatus(), "")),
+            "직원 상태는 재직/휴직/퇴사 중 하나여야 합니다.");
         range(e.getLeaveTotal(), 0, 366, "총 연차");
         range(e.getLeaveRemaining(), 0, e.getLeaveTotal(), "잔여 연차");
         Object pw = input.get("password");
@@ -695,7 +695,7 @@ public class GroupwareService {
         if (!creating && e.getId().equals(actor.getId()))
           require(
               RoleCode.ROLE_ADMIN.getCode().equals(e.getRoleCode())
-                  && Set.of("재직", "대기", "투입중").contains(e.getStatus())
+                  && "재직".equals(e.getStatus())
                   && Boolean.TRUE.equals(e.getAccountEnabled()),
               "본인의 관리자 권한·활성 상태는 제거할 수 없습니다.");
       }

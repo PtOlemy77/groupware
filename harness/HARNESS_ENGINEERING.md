@@ -23,14 +23,16 @@ flowchart LR
 ## 2. 4단계 표준 업무 프로세스
 
 ### [1단계] 기능 명세 (Specification)
+
 - **목적**: 요구사항의 모호성을 제거하고, 개발 시작 전 완료 기준(Acceptance Criteria)을 확정합니다.
-- **산출물**: 기능 명세서 (`docs/spec/SPEC-*.md` 또는 작업 티켓)
+- **산출물**: 기능 명세서 (`docs/spec/prd.md` 또는 작업 티켓)
 - **원칙**:
   - `Given - When - Then` (BDD 스타일)의 구체적인 동작 명시
   - 대상 사용자 역할(Role) 및 접근 권한(`ROLE_ADMIN`, `ROLE_EXEC`, `ROLE_PM`, `ROLE_STAFF`) 사전 정의
   - 기존 연계 기능 중 변경되어서는 안 되는 '보존 범위(Invariant)' 명시
 
 ### [2단계] 계약 설계 (Design & Contract)
+
 - **목적**: 프론트엔드와 백엔드 간의 인터페이스 계약을 선행 정의하여 불일치를 방지합니다.
 - **산출물**: DB ERD, DDL 마이그레이션 스크립트, TypeScript 인터페이스, REST API 명세
 - **원칙**:
@@ -39,6 +41,7 @@ flowchart LR
   - **낙관적 락(Version) 필드 필수**: 동시 수정 충돌 방지를 위해 모든 엔티티에 `version` 유지
 
 ### [3단계] 격리 구현 (Isolated Implementation)
+
 - **목적**: 요청받은 특정 기능 외에 인접 컴포넌트나 공통 로직이 오염되지 않도록 격리하여 수정합니다.
 - **원칙**:
   - **최소 수정 원칙 (Minimal Diff)**: 요청 범위 외의 불필요한 포맷 변경이나 리팩토링 금지
@@ -46,6 +49,7 @@ flowchart LR
   - **전역 알림 모달화**: 네이티브 `window.alert()` / `window.confirm()` 사용을 금지하고, 디자인 시스템과 일체화된 비동기 `useModal()` (`showAlert`, `showConfirm`) 사용
 
 ### [4단계] 하네스 테스트 및 검증 (Harness Testing & Gate)
+
 - **목적**: 코드가 작성된 직후 자동화된 검증 파이프라인을 통과하는지 확인 후 병합합니다.
 - **검증 항목**:
   1. **타입 안전성 하네스**: `npx tsc --noEmit` ➔ 컴파일 에러 0건
@@ -66,4 +70,3 @@ flowchart LR
    - [`DataInitializer.java`](file:///Users/ugwang-il/study/groupware/backend/src/main/java/com/nexus/groupware/config/DataInitializer.java)는 DB에 레코드가 존재할 경우 절대 기존 데이터를 덮어쓰지 않아야 함.
 3. **작업 완료 전 하네스 셀프 체크 필수**:
    - 커밋 전 반드시 프론트엔드 타입 체크 및 백엔드 컴파일을 수행하고 이상 없을 때만 커밋/푸시를 수행함.
-
