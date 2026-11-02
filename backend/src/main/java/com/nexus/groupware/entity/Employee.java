@@ -94,6 +94,12 @@ public class Employee extends VersionedEntity {
   @Column(name = "session_version")
   private Long sessionVersion = 0L;
 
+  @Column(name = "recognized_career_years", columnDefinition = "integer default 0")
+  private Integer recognizedCareerYears = 0;
+
+  @Column(name = "recognized_career_months", columnDefinition = "integer default 0")
+  private Integer recognizedCareerMonths = 0;
+
   @com.fasterxml.jackson.annotation.JsonIgnore
   public Long getSessionVersion() {
     return sessionVersion;
@@ -336,5 +342,21 @@ public class Employee extends VersionedEntity {
 
   public void setPassword(String password) {
     this.password = password;
+  }
+
+  public Integer getRecognizedCareerYears() {
+    return recognizedCareerYears != null ? recognizedCareerYears : 0;
+  }
+
+  public void setRecognizedCareerYears(Integer recognizedCareerYears) {
+    this.recognizedCareerYears = recognizedCareerYears != null ? recognizedCareerYears : 0;
+  }
+
+  public Integer getRecognizedCareerMonths() {
+    return recognizedCareerMonths != null ? recognizedCareerMonths : 0;
+  }
+
+  public void setRecognizedCareerMonths(Integer recognizedCareerMonths) {
+    this.recognizedCareerMonths = recognizedCareerMonths != null ? recognizedCareerMonths : 0;
   }
 }

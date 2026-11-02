@@ -38,7 +38,7 @@ public class GroupwareService {
               fields(
                   "emp_no name department_code department position_code position email phone"
                       + " hire_date status status_code leave_remaining leave_total skills avatar_color role role_code"
-                      + " account_enabled"),
+                      + " account_enabled recognized_career_years recognized_career_months"),
           "projects",
               fields(
                   "code name client_name department department_code pm_name pm_id start_date end_date status status_code progress budget"
@@ -575,7 +575,9 @@ public class GroupwareService {
             "competency_score",
             "peer_score",
             "target_year",
-            "sort_order"))
+            "sort_order",
+            "recognized_career_years",
+            "recognized_career_months"))
       if (patch.get(key) != null)
         try {
           new BigDecimal(patch.get(key).toString()).intValueExact();
@@ -685,6 +687,8 @@ public class GroupwareService {
         e.setStatus(status.getLabel());
         range(e.getLeaveTotal(), 0, 366, "총 연차");
         range(e.getLeaveRemaining(), 0, e.getLeaveTotal(), "잔여 연차");
+        range(e.getRecognizedCareerYears(), 0, 70, "인정 경력(년)");
+        range(e.getRecognizedCareerMonths(), 0, 11, "인정 경력(개월)");
         Object pw = input.get("password");
         if (pw != null && !pw.toString().isEmpty()) {
           AuthService.validatePassword(pw.toString());

@@ -220,6 +220,8 @@ export interface Employee {
   avatar_color: string;
   role?: string;
   role_code?: RoleCode;
+  recognized_career_years?: number;
+  recognized_career_months?: number;
 }
 
 export interface Project {

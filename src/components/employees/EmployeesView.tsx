@@ -69,40 +69,91 @@ function getEmpNoFromHireDate(hireDate?: string, defaultNo?: string): string {
 }
 
 export interface TenureInfo {
-  yearsOrder: number; // N년차 (한국식: 당해연도 - 입사연도 + 1)
-  fullYears: number;  // 만 N년
-  fullMonths: number; // 만 N개월
-  tenureText: string; // "N년 M개월" 또는 "N개월"
+  yearsOrder: number; // 사내 N년차 (한국식: 당해연도 - 입사연도 + 1)
+  fullYears: number;  // 사내 만 N년 근속
+  fullMonths: number; // 사내 만 N개월 근속
+  tenureText: string; // 사내 근속 기간: "N년 M개월" 또는 "N개월"
+  actualYearsOrder: number; // 인정 경력 + 사내 근속 합산 실제 N년차
+  recognizedText: string; // 인정 경력: "N년 M개월"
+  totalCareerMonths: number; // 통산 총 경력 개월수 (인정 경력 + 사내 근속)
+  totalCareerText: string; // 통산 총 경력: "N년 M개월"
 }
 
-// 입사일 기준 몇 년차인지 및 만 근속 기간 자동 계산 헬퍼
-export function calcTenure(hireDate?: string, targetDate = new Date()): TenureInfo {
+// 입사일 기준 사내 근속 및 인정 경력 합산 실제 연차 자동 계산 헬퍼
+export function calcTenure(
+  hireDate?: string,
+  recognizedYears: number = 0,
+  recognizedMonths: number = 0,
+  targetDate = new Date()
+): TenureInfo {
+  const recY = Math.max(0, Number(recognizedYears) || 0);
+  const recM = Math.max(0, Math.min(11, Number(recognizedMonths) || 0));
+  const recognizedTotalMonths = recY * 12 + recM;
+
+  const recognizedText =
+    recY > 0 && recM > 0
+      ? `${recY}년 ${recM}개월`
+      : recY > 0
+      ? `${recY}년`
+      : recM > 0
+      ? `${recM}개월`
+      : '0년';
+
   if (!hireDate || !hireDate.includes('-')) {
-    return { yearsOrder: 1, fullYears: 0, fullMonths: 0, tenureText: '-' };
+    const actualYearsOrder = Math.max(1, recY + 1);
+    return {
+      yearsOrder: 1,
+      fullYears: 0,
+      fullMonths: 0,
+      tenureText: '-',
+      actualYearsOrder,
+      recognizedText,
+      totalCareerMonths: recognizedTotalMonths,
+      totalCareerText: recognizedText,
+    };
   }
   const parts = hireDate.split('-').map(Number);
   if (parts.length < 3 || isNaN(parts[0]) || isNaN(parts[1]) || isNaN(parts[2])) {
-    return { yearsOrder: 1, fullYears: 0, fullMonths: 0, tenureText: '-' };
+    const actualYearsOrder = Math.max(1, recY + 1);
+    return {
+      yearsOrder: 1,
+      fullYears: 0,
+      fullMonths: 0,
+      tenureText: '-',
+      actualYearsOrder,
+      recognizedText,
+      totalCareerMonths: recognizedTotalMonths,
+      totalCareerText: recognizedText,
+    };
   }
   const [hYear, hMonth, hDay] = parts;
   const tYear = targetDate.getFullYear();
   const tMonth = targetDate.getMonth() + 1;
   const tDay = targetDate.getDate();
 
-  // 1. 한국식 N년차 (입사 당해연도가 1년차)
+  // 1. 한국식 사내 N년차 (입사 당해연도가 1년차)
   const yearsOrder = Math.max(1, tYear - hYear + 1);
 
-  // 2. 만 근속 기간 계산
-  let totalMonths = (tYear - hYear) * 12 + (tMonth - hMonth);
+  // 2. 사내 만 근속 기간 계산
+  let internalMonths = (tYear - hYear) * 12 + (tMonth - hMonth);
   if (tDay < hDay) {
-    totalMonths -= 1;
+    internalMonths -= 1;
   }
-  if (totalMonths < 0) {
-    return { yearsOrder, fullYears: 0, fullMonths: 0, tenureText: '입사 예정' };
+  if (internalMonths < 0) {
+    return {
+      yearsOrder,
+      fullYears: 0,
+      fullMonths: 0,
+      tenureText: '입사 예정',
+      actualYearsOrder: Math.max(1, recY + 1),
+      recognizedText,
+      totalCareerMonths: recognizedTotalMonths,
+      totalCareerText: recognizedText,
+    };
   }
 
-  const fullYears = Math.floor(totalMonths / 12);
-  const remainingMonths = totalMonths % 12;
+  const fullYears = Math.floor(internalMonths / 12);
+  const remainingMonths = internalMonths % 12;
 
   let tenureText = '';
   if (fullYears > 0 && remainingMonths > 0) {
@@ -113,11 +164,32 @@ export function calcTenure(hireDate?: string, targetDate = new Date()): TenureIn
     tenureText = `${remainingMonths}개월`;
   }
 
+  // 3. 실제 연차 = 사내 연차 + 인정 경력(년) + (잔여 개월수 합산 12개월 이상 시 보정)
+  const extraYearsFromMonths = Math.floor((remainingMonths + recM) / 12);
+  const actualYearsOrder = yearsOrder + recY + extraYearsFromMonths;
+
+  // 4. 통산 총 경력 (인정 경력 + 사내 근속)
+  const totalCareerMonths = internalMonths + recognizedTotalMonths;
+  const totalYears = Math.floor(totalCareerMonths / 12);
+  const totalRemMonths = totalCareerMonths % 12;
+  let totalCareerText = '';
+  if (totalYears > 0 && totalRemMonths > 0) {
+    totalCareerText = `${totalYears}년 ${totalRemMonths}개월`;
+  } else if (totalYears > 0) {
+    totalCareerText = `${totalYears}년`;
+  } else {
+    totalCareerText = `${totalRemMonths}개월`;
+  }
+
   return {
     yearsOrder,
     fullYears,
-    fullMonths: totalMonths,
+    fullMonths: internalMonths,
     tenureText,
+    actualYearsOrder,
+    recognizedText,
+    totalCareerMonths,
+    totalCareerText,
   };
 }
 
@@ -489,6 +561,8 @@ export default function EmployeesView({
       status: '재직',
       avatar_color: 'indigo',
       role: '일반직원',
+      recognized_career_years: 0,
+      recognized_career_months: 0,
     });
     setModalOpen(true);
   };
@@ -512,6 +586,8 @@ export default function EmployeesView({
       position_code: matchedPos?.code || emp.position_code || 'POS_STAFF',
       position: matchedPos?.label || emp.position || '담당',
       role: normalizeUserRole(emp.role, emp.position),
+      recognized_career_years: emp.recognized_career_years ?? 0,
+      recognized_career_months: emp.recognized_career_months ?? 0,
     });
     setModalOpen(true);
   };
@@ -545,6 +621,8 @@ export default function EmployeesView({
 
       const payload = {
         ...formData,
+        recognized_career_years: Math.max(0, Number(formData.recognized_career_years) || 0),
+        recognized_career_months: Math.max(0, Math.min(11, Number(formData.recognized_career_months) || 0)),
         ...(initialPassword ? { password: initialPassword } : {}),
         emp_no: formData.emp_no || getEmpNoFromHireDate(formData.hire_date, formData.emp_no),
         email: finalEmail,
@@ -1561,22 +1639,98 @@ export default function EmployeesView({
                 </div>
               </div>
 
-              {/* 입사일 기준 자동 계산 연차 / 근속 정보 카드 (상세정보에서 확인) */}
-              {formData.hire_date && (() => {
-                const tenure = calcTenure(formData.hire_date);
-                return (
-                  <div className="p-2.5 rounded-xl bg-indigo-50/70 border border-indigo-100 flex items-center justify-between">
-                    <span className="text-slate-600 font-medium flex items-center gap-1.5 text-xs">
-                      <span className="w-1.5 h-1.5 rounded-full bg-indigo-500"></span>
-                      근속 정보 <span className="text-slate-400 font-normal">(입사일 기준 자동 산정)</span>
+              {/* 인정 경력 (외부 경력 인정 기간) */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">
+                    인정 경력 (년)
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      min={0}
+                      max={70}
+                      value={formData.recognized_career_years ?? 0}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          recognized_career_years: Math.max(0, parseInt(e.target.value) || 0),
+                        })
+                      }
+                      className="w-full p-2.5 pr-8 border border-slate-300 rounded-xl font-semibold"
+                      placeholder="0"
+                    />
+                    <span className="absolute right-3 top-2.5 text-xs text-slate-400 select-none pointer-events-none">
+                      년
                     </span>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-black text-indigo-700 bg-white border border-indigo-200 px-2 py-0.5 rounded-lg shadow-2xs">
-                        {tenure.yearsOrder}년차
+                  </div>
+                </div>
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">
+                    인정 경력 (개월)
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      min={0}
+                      max={11}
+                      value={formData.recognized_career_months ?? 0}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          recognized_career_months: Math.min(
+                            11,
+                            Math.max(0, parseInt(e.target.value) || 0)
+                          ),
+                        })
+                      }
+                      className="w-full p-2.5 pr-10 border border-slate-300 rounded-xl font-semibold"
+                      placeholder="0"
+                    />
+                    <span className="absolute right-3 top-2.5 text-xs text-slate-400 select-none pointer-events-none">
+                      개월
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* 인정경력 + 사내 근속 합산 실제 연차 계산 안내 카드 */}
+              {formData.hire_date && (() => {
+                const tenure = calcTenure(
+                  formData.hire_date,
+                  formData.recognized_career_years || 0,
+                  formData.recognized_career_months || 0
+                );
+                return (
+                  <div className="p-3 rounded-2xl bg-indigo-50/70 border border-indigo-200 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-indigo-600"></span>
+                        실제 연차 계산 <span className="text-slate-500 font-normal">(인정경력 + 사내근속)</span>
                       </span>
-                      <span className="text-xs font-semibold text-slate-700">
-                        만 {tenure.tenureText} 근속
-                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs font-black text-indigo-700 bg-white border border-indigo-300 px-2 py-0.5 rounded-lg shadow-2xs">
+                          실제 {tenure.actualYearsOrder}년차
+                        </span>
+                        <span className="text-[11px] font-semibold text-slate-500">
+                          (사내 {tenure.yearsOrder}년차)
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="pt-2 border-t border-indigo-100/90 grid grid-cols-3 gap-1 text-[11px] text-slate-600">
+                      <div>
+                        <span className="text-slate-400 block text-[10px]">인정 경력</span>
+                        <strong className="text-slate-800 font-semibold">{tenure.recognizedText}</strong>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 block text-[10px]">사내 근속</span>
+                        <strong className="text-slate-800 font-semibold">만 {tenure.tenureText}</strong>
+                      </div>
+                      <div>
+                        <span className="text-indigo-600 block text-[10px] font-bold">통산 총 경력</span>
+                        <strong className="text-indigo-950 font-extrabold">{tenure.totalCareerText}</strong>
+                      </div>
                     </div>
                   </div>
                 );
