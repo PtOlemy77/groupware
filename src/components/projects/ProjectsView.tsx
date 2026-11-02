@@ -776,22 +776,24 @@ export default function ProjectsView({
                           </span>
                         </button>
 
-                        {/* 주간/월간 보고 작성/조회 바로가기 버튼 (별도 메뉴 연동) */}
-                        <button
-                          onClick={() => {
-                            if (onNavigateToReports) {
-                              onNavigateToReports(prj.id);
-                            } else {
-                              setReportTargetProjectId(prj.id);
-                              setSubTab('reports');
-                            }
-                          }}
-                          className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-bold bg-slate-100 text-slate-700 hover:bg-slate-800 hover:text-white border border-slate-200 transition shadow-2xs"
-                          title="해당 프로젝트의 PM 금주/차주 주간·월간보고 메뉴로 이동"
-                        >
-                          <FileText className="w-3.5 h-3.5" />
-                          <span>주간/월간보고</span>
-                        </button>
+                        {/* 주간/월간 보고 작성/조회 바로가기 버튼 (종료/완료 프로젝트는 제외) */}
+                        {normStatus !== '완료' && (
+                          <button
+                            onClick={() => {
+                              if (onNavigateToReports) {
+                                onNavigateToReports(prj.id);
+                              } else {
+                                setReportTargetProjectId(prj.id);
+                                setSubTab('reports');
+                              }
+                            }}
+                            className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-bold bg-slate-100 text-slate-700 hover:bg-slate-800 hover:text-white border border-slate-200 transition shadow-2xs"
+                            title="해당 프로젝트의 PM 금주/차주 주간·월간보고 메뉴로 이동"
+                          >
+                            <FileText className="w-3.5 h-3.5" />
+                            <span>주간/월간보고</span>
+                          </button>
+                        )}
                       </div>
 
                       <div className="flex items-center gap-1">

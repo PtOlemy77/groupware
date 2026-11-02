@@ -105,11 +105,21 @@ export default function WeeklyMonthlyReportView({
   const canConsolidateAsDirector = isExecutiveOrAbove(currentUser);
   const isCeo = currentUser.position_code === 'POS_CEO';
 
-  // 로그인한 사용자가 담당하는 프로젝트 찾기 (우선 매핑)
+  // 종료된(완료) 프로젝트는 주간/월간보고 대상에서 제외
+  const activeProjects = useMemo(() => {
+    return projects.filter(
+      (p) => normalizeProjectStatus(p.status) !== '완료' && p.status_code !== 'STAGE_DONE'
+    );
+  }, [projects]);
+
+  // 로그인한 사용자가 담당하는 활성 프로젝트 찾기 (우선 매핑)
   const myDefaultProject = useMemo(() => {
-    return projects.find(p => p.pm_id === currentUser.id)
-      || projects.find(p => p.member_ids?.includes(currentUser.id)) || projects[0];
-  }, [projects, currentUser.id]);
+    return (
+      activeProjects.find((p) => p.pm_id === currentUser.id) ||
+      activeProjects.find((p) => p.member_ids?.includes(currentUser.id)) ||
+      activeProjects[0]
+    );
+  }, [activeProjects, currentUser.id]);
 
   // 뷰 모드: 메뉴 진입 시 즉시 작성할 수 있도록 PM 및 이사는 'pm_edit'를 기본으로 활성화
   // (대표이사 사장님은 전체 종합 보고서 승인용 'consolidated'로 진입)
@@ -117,7 +127,7 @@ export default function WeeklyMonthlyReportView({
     initialSelectedProjectId ? 'pm_edit' : isCeo ? 'consolidated' : 'pm_edit'
   );
   const [selectedProjectId, setSelectedProjectId] = useState<number>(
-    initialSelectedProjectId || myDefaultProject?.id || (projects[0]?.id ?? 0)
+    initialSelectedProjectId || myDefaultProject?.id || (activeProjects[0]?.id ?? 0)
   );
   const [saving, setSaving] = useState(false);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
@@ -142,7 +152,7 @@ export default function WeeklyMonthlyReportView({
     );
   }, [approvals, reportType, selectedPeriodKey]);
 
-  // 현재 보고서 상태 구성 (DB 레코드가 있으면 파싱하고, 새로 추가된 프로젝트도 자동 병합)
+  // 현재 보고서 상태 구성 (종료된 프로젝트는 제외하고, 진행 중인 프로젝트만 병합)
   const currentReport = useMemo<ConsolidatedReportPayload>(() => {
     let parsed: Partial<ConsolidatedReportPayload> = {};
     if (matchedApproval && matchedApproval.items_json && matchedApproval.items_json.trim().startsWith('{')) {
@@ -160,7 +170,7 @@ export default function WeeklyMonthlyReportView({
       });
     }
 
-    const mergedItems: ProjectReportItem[] = projects.map((prj) => {
+    const mergedItems: ProjectReportItem[] = activeProjects.map((prj) => {
       const saved = savedItemsMap.get(prj.id);
       if (saved) {
         return {
@@ -187,7 +197,7 @@ export default function WeeklyMonthlyReportView({
       confirmedByCeoAt: parsed.confirmedByCeoAt || '',
       items: mergedItems,
     };
-  }, [matchedApproval, projects, reportType, currentPeriodObj]);
+  }, [matchedApproval, activeProjects, reportType, currentPeriodObj]);
 
   // 로컬 편집 상태
   const [draftReport, setDraftReport] = useState<ConsolidatedReportPayload>(currentReport);
@@ -553,7 +563,7 @@ export default function WeeklyMonthlyReportView({
             <div className="divide-y divide-slate-200">
               {draftReport.items.map((item) => {
                 const isThisItemPm =
-                  projects.find(p => p.id === item.projectId)?.pm_id === currentUser.id ||
+                  activeProjects.find(p => p.id === item.projectId)?.pm_id === currentUser.id ||
                   isSystemAdmin(currentUser);
 
                 return (
@@ -715,6 +725,12 @@ export default function WeeklyMonthlyReportView({
                   </div>
                 );
               })}
+
+              {draftReport.items.length === 0 && (
+                <div className="p-12 text-center text-slate-400 text-xs font-medium">
+                  현재 보고 대상인 진행 중인 프로젝트가 없습니다. (종료된 프로젝트 제외)
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -723,7 +739,8 @@ export default function WeeklyMonthlyReportView({
       {/* =================================================================== */}
       {/* 모드 B: 개별 프로젝트 PM 작성 뷰 (PM이 본인 프로젝트 금주/차주 작성) */}
       {/* =================================================================== */}
-      {viewMode === 'pm_edit' && selectedItem && (
+      {viewMode === 'pm_edit' && (
+        selectedItem ? (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
           {/* 좌측 4칸: 프로젝트 선택 목록 */}
           <div className="lg:col-span-4 bg-white rounded-2xl border border-slate-200 p-4 shadow-2xs space-y-2.5">
@@ -736,7 +753,7 @@ export default function WeeklyMonthlyReportView({
 
             {draftReport.items.map((it) => {
               const active = it.projectId === selectedItem.projectId;
-              const isMine = projects.find(p => p.id === it.projectId)?.pm_id === currentUser.id;
+              const isMine = activeProjects.find(p => p.id === it.projectId)?.pm_id === currentUser.id;
               return (
                 <div
                   key={it.projectId}
@@ -785,7 +802,7 @@ export default function WeeklyMonthlyReportView({
             {/* 담당 PM 권한 체크 (담당 PM 본인 또는 사업본부장(이사)/관리자는 작성 가능) */}
             {(() => {
               const isSelectedPm =
-                projects.find(p => p.id === selectedItem.projectId)?.pm_id === currentUser.id ||
+                activeProjects.find(p => p.id === selectedItem.projectId)?.pm_id === currentUser.id ||
                 canConsolidateAsDirector ||
                 isSystemAdmin(currentUser);
 
@@ -1033,6 +1050,11 @@ export default function WeeklyMonthlyReportView({
             })()}
           </div>
         </div>
+        ) : (
+          <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center text-slate-400 text-xs font-medium">
+            현재 주간/월간보고를 작성할 진행 중인 프로젝트가 없습니다. (종료된 프로젝트 제외)
+          </div>
+        )
       )}
     </div>
   );
