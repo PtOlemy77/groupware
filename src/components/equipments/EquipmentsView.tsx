@@ -134,6 +134,7 @@ export default function EquipmentsView({
         emp_id: undefined,
         emp_no: '',
         assigned_to: '미배정',
+        department_code: 'DEPT_MGMT',
         department: '경영지원팀',
         status: '유휴',
       }));
@@ -147,6 +148,7 @@ export default function EquipmentsView({
         emp_id: emp.id,
         emp_no: emp.emp_no,
         assigned_to: emp.name,
+        department_code: emp.department_code || 'DEPT_MGMT',
         department: emp.department,
         status: '사용중',
       }));

@@ -7,6 +7,8 @@ import { useModal } from '@/contexts/ModalContext';
 import React, { useState, useMemo } from 'react';
 import {
   Project,
+  ProjectStageCode,
+  PROJECT_STAGE_CODES,
   AuthUser,
   isPmOrAbove,
   isExecutiveOrAbove,
@@ -203,9 +205,16 @@ export default function ProjectsView({
     const totalBudget = Number(formData.budget) || 0;
     const ourBudget = Math.round(totalBudget * (shareRate / 100));
 
+    const stageObj = PROJECT_STAGE_CODES.find(
+      (s) => s.code === formData.status_code || s.label === formData.status
+    );
+
     const finalData = {
       ...formData,
+      department_code: 'DEPT_BIZ',
       department: '사업본부', // 프로젝트는 항상 사업본부 전담
+      status_code: stageObj?.code || 'STAGE_EXEC',
+      status: stageObj?.label || formData.status || '프로젝트 수행',
       budget: totalBudget,
       share_rate: shareRate,
       our_budget: ourBudget,
@@ -932,14 +941,22 @@ export default function ProjectsView({
                 <div>
                   <label className="block font-bold text-slate-700 mb-1">사업관리 진행 단계</label>
                   <select
-                    value={formData.status || '프로젝트 수행'}
-                    onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+                    value={formData.status_code || (formData.status === '발주예상' ? 'STAGE_ORDER' : formData.status === '제안준비중' ? 'STAGE_PROPOSAL' : formData.status === '완료' ? 'STAGE_DONE' : 'STAGE_EXEC')}
+                    onChange={(e) => {
+                      const sc = PROJECT_STAGE_CODES.find((s) => s.code === e.target.value);
+                      setFormData({
+                        ...formData,
+                        status_code: e.target.value as ProjectStageCode,
+                        status: sc?.label || '프로젝트 수행',
+                      });
+                    }}
                     className="w-full p-2.5 rounded-xl border border-indigo-300 bg-indigo-50/20 font-bold text-indigo-900"
                   >
-                    <option value="발주예상">1. 발주예상 (예산반영/공고 대기)</option>
-                    <option value="제안준비중">2. 제안준비중 (제안서 작성/입찰)</option>
-                    <option value="프로젝트 수행">3. 프로젝트 수행 (계약체결/과제수행)</option>
-                    <option value="완료">4. 완료 (검수완료/종결)</option>
+                    {PROJECT_STAGE_CODES.map((sc) => (
+                      <option key={sc.code} value={sc.code}>
+                        {sc.sort_order}. {sc.label}
+                      </option>
+                    ))}
                   </select>
                 </div>
                 <div>

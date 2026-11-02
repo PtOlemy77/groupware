@@ -1,5 +1,9 @@
 package com.nexus.groupware.entity;
 
+import com.nexus.groupware.code.DepartmentCode;
+import com.nexus.groupware.code.PositionCode;
+import com.nexus.groupware.code.RoleCode;
+import com.nexus.groupware.code.StatusCode;
 import jakarta.persistence.*;
 
 @Entity
@@ -37,6 +41,9 @@ public class Employee extends VersionedEntity {
   @Column(name = "hire_date", nullable = false)
   @Convert(converter = IsoDateConverter.class)
   private String hireDate;
+
+  @Column(name = "status_code", columnDefinition = "varchar(50) default 'STATUS_ACTIVE'")
+  private String statusCode = "STATUS_ACTIVE";
 
   @Column(nullable = false)
   private String status = "재직";
@@ -116,19 +123,29 @@ public class Employee extends VersionedEntity {
       String role) {
     this.empNo = empNo;
     this.name = name;
-    this.departmentCode = departmentCode;
-    this.department = department;
-    this.positionCode = positionCode;
-    this.position = position;
+    if (departmentCode != null && !departmentCode.isBlank()) {
+      this.setDepartmentCode(departmentCode);
+    } else if (department != null && !department.isBlank()) {
+      this.setDepartment(department);
+    } else {
+      this.setDepartmentCode("DEPT_RND");
+    }
+    if (positionCode != null && !positionCode.isBlank()) {
+      this.setPositionCode(positionCode);
+    } else if (position != null && !position.isBlank()) {
+      this.setPosition(position);
+    } else {
+      this.setPositionCode("POS_STAFF");
+    }
     this.email = email;
     this.phone = phone;
     this.hireDate = hireDate;
-    this.status = status;
+    this.setStatus(status != null ? status : "재직");
     this.leaveRemaining = leaveRemaining;
     this.leaveTotal = leaveTotal;
     this.skills = skills;
     this.avatarColor = avatarColor;
-    this.role = role;
+    this.setRole(role != null ? role : "일반직원");
     this.password = null;
   }
 
@@ -162,6 +179,11 @@ public class Employee extends VersionedEntity {
 
   public void setDepartmentCode(String departmentCode) {
     this.departmentCode = departmentCode;
+    if (departmentCode != null && !departmentCode.isBlank()) {
+      try {
+        this.department = DepartmentCode.fromCodeOrLabel(departmentCode).getLabel();
+      } catch (Exception ignored) {}
+    }
   }
 
   public String getDepartment() {
@@ -170,6 +192,11 @@ public class Employee extends VersionedEntity {
 
   public void setDepartment(String department) {
     this.department = department;
+    if (department != null && !department.isBlank()) {
+      try {
+        this.departmentCode = DepartmentCode.fromCodeOrLabel(department).getCode();
+      } catch (Exception ignored) {}
+    }
   }
 
   public String getPositionCode() {
@@ -178,6 +205,11 @@ public class Employee extends VersionedEntity {
 
   public void setPositionCode(String positionCode) {
     this.positionCode = positionCode;
+    if (positionCode != null && !positionCode.isBlank()) {
+      try {
+        this.position = PositionCode.fromCodeOrLabel(positionCode).getLabel();
+      } catch (Exception ignored) {}
+    }
   }
 
   public String getPosition() {
@@ -186,6 +218,11 @@ public class Employee extends VersionedEntity {
 
   public void setPosition(String position) {
     this.position = position;
+    if (position != null && !position.isBlank()) {
+      try {
+        this.positionCode = PositionCode.fromCodeOrLabel(position).getCode();
+      } catch (Exception ignored) {}
+    }
   }
 
   public String getEmail() {
@@ -212,12 +249,30 @@ public class Employee extends VersionedEntity {
     this.hireDate = hireDate;
   }
 
+  public String getStatusCode() {
+    return statusCode;
+  }
+
+  public void setStatusCode(String statusCode) {
+    this.statusCode = statusCode;
+    if (statusCode != null && !statusCode.isBlank()) {
+      try {
+        this.status = StatusCode.fromCodeOrLabel(statusCode).getLabel();
+      } catch (Exception ignored) {}
+    }
+  }
+
   public String getStatus() {
     return status;
   }
 
   public void setStatus(String status) {
     this.status = status;
+    if (status != null && !status.isBlank()) {
+      try {
+        this.statusCode = StatusCode.fromCodeOrLabel(status).getCode();
+      } catch (Exception ignored) {}
+    }
   }
 
   public Double getLeaveRemaining() {

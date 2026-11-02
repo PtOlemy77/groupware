@@ -171,6 +171,35 @@ export interface AuthUser {
   role_code?: RoleCode;
 }
 
+export type StatusCode = 'STATUS_ACTIVE' | 'STATUS_LEAVE' | 'STATUS_RETIRED';
+
+export interface StatusCodeInfo {
+  code: StatusCode;
+  label: '재직' | '휴직' | '퇴사';
+  sort_order: number;
+}
+
+export const EMP_STATUS_CODES: StatusCodeInfo[] = [
+  { code: 'STATUS_ACTIVE', label: '재직', sort_order: 1 },
+  { code: 'STATUS_LEAVE', label: '휴직', sort_order: 2 },
+  { code: 'STATUS_RETIRED', label: '퇴사', sort_order: 3 },
+];
+
+export type ProjectStageCode = 'STAGE_ORDER' | 'STAGE_PROPOSAL' | 'STAGE_EXEC' | 'STAGE_DONE';
+
+export interface ProjectStageCodeInfo {
+  code: ProjectStageCode;
+  label: '발주예상' | '제안준비중' | '프로젝트 수행' | '완료';
+  sort_order: number;
+}
+
+export const PROJECT_STAGE_CODES: ProjectStageCodeInfo[] = [
+  { code: 'STAGE_ORDER', label: '발주예상', sort_order: 1 },
+  { code: 'STAGE_PROPOSAL', label: '제안준비중', sort_order: 2 },
+  { code: 'STAGE_EXEC', label: '프로젝트 수행', sort_order: 3 },
+  { code: 'STAGE_DONE', label: '완료', sort_order: 4 },
+];
+
 export interface Employee {
   version?: number;
   id: number;
@@ -184,6 +213,7 @@ export interface Employee {
   phone: string;
   hire_date: string;
   status: string;
+  status_code?: StatusCode;
   leave_remaining?: number;
   leave_total?: number;
   skills?: string;
@@ -197,6 +227,7 @@ export interface Project {
   id: number;
   code: string;
   name: string;
+  department_code?: string;
   department: string;
   pm_name: string;
   pm_id?: number;
@@ -204,6 +235,7 @@ export interface Project {
   start_date: string;
   end_date: string;
   status: string;
+  status_code?: ProjectStageCode;
   progress: number;
   budget: number;
   share_rate?: number; // 당사 지분율 (%)
@@ -228,6 +260,7 @@ export interface Equipment {
   emp_id?: number;
   emp_no?: string;
   assigned_to: string;
+  department_code?: string;
   department: string;
   purchase_date: string;
   price: number;
@@ -287,6 +320,7 @@ export interface Approval {
   title: string;
   requester: string;
   requester_position?: string;
+  department_code?: string;
   department: string;
   created_at: string;
   status: string;

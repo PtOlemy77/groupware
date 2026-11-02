@@ -1,5 +1,7 @@
 package com.nexus.groupware.entity;
 
+import com.nexus.groupware.code.DepartmentCode;
+import com.nexus.groupware.code.ProjectStageCode;
 import jakarta.persistence.*;
 
 @Entity
@@ -16,8 +18,11 @@ public class Project extends VersionedEntity {
   @Column(nullable = false)
   private String name;
 
+  @Column(name = "department_code", columnDefinition = "varchar(50) default 'DEPT_BIZ'")
+  private String departmentCode = "DEPT_BIZ";
+
   @Column(nullable = false)
-  private String department;
+  private String department = "사업본부";
 
   @Column(name = "pm_name", nullable = false)
   private String pmName;
@@ -30,8 +35,11 @@ public class Project extends VersionedEntity {
   @Convert(converter = IsoDateConverter.class)
   private String endDate;
 
+  @Column(name = "status_code", columnDefinition = "varchar(50) default 'STAGE_EXEC'")
+  private String statusCode = "STAGE_EXEC";
+
   @Column(nullable = false)
-  private String status = "진행중";
+  private String status = "프로젝트 수행";
 
   @Column(nullable = false)
   private Integer progress = 0;
@@ -144,11 +152,11 @@ public class Project extends VersionedEntity {
       String description) {
     this.code = code;
     this.name = name;
-    this.department = department;
+    this.setDepartment(department);
     this.pmName = pmName;
     this.startDate = startDate;
     this.endDate = endDate;
-    this.status = status;
+    this.setStatus(status);
     this.progress = progress;
     this.budget = budget;
     this.shareRate = shareRate != null ? shareRate : 100.0;
@@ -184,12 +192,30 @@ public class Project extends VersionedEntity {
     this.name = name;
   }
 
+  public String getDepartmentCode() {
+    return departmentCode;
+  }
+
+  public void setDepartmentCode(String departmentCode) {
+    this.departmentCode = departmentCode;
+    if (departmentCode != null && !departmentCode.isBlank()) {
+      try {
+        this.department = DepartmentCode.fromCodeOrLabel(departmentCode).getLabel();
+      } catch (Exception ignored) {}
+    }
+  }
+
   public String getDepartment() {
     return department;
   }
 
   public void setDepartment(String department) {
     this.department = department;
+    if (department != null && !department.isBlank()) {
+      try {
+        this.departmentCode = DepartmentCode.fromCodeOrLabel(department).getCode();
+      } catch (Exception ignored) {}
+    }
   }
 
   public String getPmName() {
@@ -216,12 +242,30 @@ public class Project extends VersionedEntity {
     this.endDate = endDate;
   }
 
+  public String getStatusCode() {
+    return statusCode;
+  }
+
+  public void setStatusCode(String statusCode) {
+    this.statusCode = statusCode;
+    if (statusCode != null && !statusCode.isBlank()) {
+      try {
+        this.status = ProjectStageCode.fromCodeOrLabel(statusCode).getLabel();
+      } catch (Exception ignored) {}
+    }
+  }
+
   public String getStatus() {
     return status;
   }
 
   public void setStatus(String status) {
     this.status = status;
+    if (status != null && !status.isBlank()) {
+      try {
+        this.statusCode = ProjectStageCode.fromCodeOrLabel(status).getCode();
+      } catch (Exception ignored) {}
+    }
   }
 
   public Integer getProgress() {

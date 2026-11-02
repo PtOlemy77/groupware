@@ -1,5 +1,6 @@
 package com.nexus.groupware.entity;
 
+import com.nexus.groupware.code.DepartmentCode;
 import jakarta.persistence.*;
 
 @Entity
@@ -33,6 +34,9 @@ public class Equipment extends VersionedEntity {
 
   @Column(name = "assigned_to", nullable = false)
   private String assignedTo = "미배정";
+
+  @Column(name = "department_code", columnDefinition = "varchar(50) default 'DEPT_MGMT'")
+  private String departmentCode = "DEPT_MGMT";
 
   @Column(nullable = false)
   private String department = "경영지원팀";
@@ -70,7 +74,7 @@ public class Equipment extends VersionedEntity {
     this.empId = empId;
     this.empNo = empNo;
     this.assignedTo = assignedTo;
-    this.department = department;
+    this.setDepartment(department);
     this.purchaseDate = purchaseDate;
     this.price = price;
     this.notes = notes;
@@ -174,12 +178,30 @@ public class Equipment extends VersionedEntity {
     this.assignedTo = assignedTo;
   }
 
+  public String getDepartmentCode() {
+    return departmentCode;
+  }
+
+  public void setDepartmentCode(String departmentCode) {
+    this.departmentCode = departmentCode;
+    if (departmentCode != null && !departmentCode.isBlank()) {
+      try {
+        this.department = DepartmentCode.fromCodeOrLabel(departmentCode).getLabel();
+      } catch (Exception ignored) {}
+    }
+  }
+
   public String getDepartment() {
     return department;
   }
 
   public void setDepartment(String department) {
     this.department = department;
+    if (department != null && !department.isBlank()) {
+      try {
+        this.departmentCode = DepartmentCode.fromCodeOrLabel(department).getCode();
+      } catch (Exception ignored) {}
+    }
   }
 
   public String getPurchaseDate() {

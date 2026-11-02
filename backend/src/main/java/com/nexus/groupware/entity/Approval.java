@@ -1,5 +1,6 @@
 package com.nexus.groupware.entity;
 
+import com.nexus.groupware.code.DepartmentCode;
 import jakarta.persistence.*;
 
 @Entity
@@ -25,8 +26,11 @@ public class Approval extends VersionedEntity {
   @Column(name = "requester_position", columnDefinition = "varchar(50) default '과장'")
   private String requesterPosition = "과장";
 
+  @Column(name = "department_code", columnDefinition = "varchar(50) default 'DEPT_BIZ'")
+  private String departmentCode = "DEPT_BIZ";
+
   @Column(nullable = false)
-  private String department;
+  private String department = "사업본부";
 
   @Column(name = "created_at", nullable = false)
   @Convert(converter = IsoDateConverter.class)
@@ -127,7 +131,7 @@ public class Approval extends VersionedEntity {
     this.title = title;
     this.requester = requester;
     this.requesterPosition = requesterPosition;
-    this.department = department;
+    this.setDepartment(department);
     this.createdAt = createdAt;
     this.status = status;
     this.amount = amount;
@@ -188,12 +192,30 @@ public class Approval extends VersionedEntity {
     this.requesterPosition = requesterPosition;
   }
 
+  public String getDepartmentCode() {
+    return departmentCode;
+  }
+
+  public void setDepartmentCode(String departmentCode) {
+    this.departmentCode = departmentCode;
+    if (departmentCode != null && !departmentCode.isBlank()) {
+      try {
+        this.department = DepartmentCode.fromCodeOrLabel(departmentCode).getLabel();
+      } catch (Exception ignored) {}
+    }
+  }
+
   public String getDepartment() {
     return department;
   }
 
   public void setDepartment(String department) {
     this.department = department;
+    if (department != null && !department.isBlank()) {
+      try {
+        this.departmentCode = DepartmentCode.fromCodeOrLabel(department).getCode();
+      } catch (Exception ignored) {}
+    }
   }
 
   public String getCreatedAt() {

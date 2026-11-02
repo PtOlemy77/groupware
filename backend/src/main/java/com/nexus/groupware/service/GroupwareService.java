@@ -36,16 +36,16 @@ public class GroupwareService {
           "employees",
               fields(
                   "emp_no name department_code department position_code position email phone"
-                      + " hire_date status leave_remaining leave_total skills avatar_color role role_code"
+                      + " hire_date status status_code leave_remaining leave_total skills avatar_color role role_code"
                       + " account_enabled"),
           "projects",
               fields(
-                  "code name department pm_name pm_id start_date end_date status progress budget"
+                  "code name department department_code pm_name pm_id start_date end_date status status_code progress budget"
                       + " share_rate consortium_partners members member_ids priority description"
                       + " yearly_revenue_json"),
           "equipments",
               fields(
-                  "asset_no category model_name serial_no status emp_id department purchase_date"
+                  "asset_no category model_name serial_no status emp_id department department_code purchase_date"
                       + " price notes"),
           "business_deals",
               fields(
@@ -58,7 +58,7 @@ public class GroupwareService {
           "approvals",
               fields(
                   "category title project_id approver_id amount project_name vendor payment_method"
-                      + " purpose items_json reviewer_comment"),
+                      + " purpose items_json reviewer_comment department department_code"),
           "common_codes",
               fields("group_code group_name code code_name sort_order is_active extra_value"));
 
@@ -672,9 +672,13 @@ public class GroupwareService {
                     : input.containsKey("role") ? Objects.toString(input.get("role"), e.getRole()) : e.getRoleCode());
         e.setRoleCode(role.getCode());
         e.setRole(role.getLabel());
-        require(
-            Set.of("재직", "휴직", "퇴사").contains(Objects.toString(e.getStatus(), "")),
-            "직원 상태는 재직/휴직/퇴사 중 하나여야 합니다.");
+        var status =
+            StatusCode.fromCodeOrLabel(
+                input.containsKey("status_code")
+                    ? Objects.toString(input.get("status_code"), e.getStatusCode())
+                    : input.containsKey("status") ? Objects.toString(input.get("status"), e.getStatus()) : e.getStatusCode());
+        e.setStatusCode(status.getCode());
+        e.setStatus(status.getLabel());
         range(e.getLeaveTotal(), 0, 366, "총 연차");
         range(e.getLeaveRemaining(), 0, e.getLeaveTotal(), "잔여 연차");
         Object pw = input.get("password");
@@ -710,11 +714,20 @@ public class GroupwareService {
         require(
             BigDecimal.valueOf(p.getShareRate()).stripTrailingZeros().scale() <= 2,
             "지분율은 소수 둘째 자리까지 입력하세요.");
-        require(
-            Set.of("발주예상", "제안준비중", "프로젝트 수행", "완료", "진행중", "검토중", "보류")
-                .contains(Objects.toString(p.getStatus(), "")),
-            "프로젝트 상태를 확인하세요.");
-        p.setDepartment(DepartmentCode.fromCodeOrLabel(p.getDepartment()).getLabel());
+        var pdep =
+            DepartmentCode.fromCodeOrLabel(
+                input.containsKey("department_code")
+                    ? p.getDepartmentCode()
+                    : input.containsKey("department") ? p.getDepartment() : p.getDepartmentCode());
+        p.setDepartmentCode(pdep.getCode());
+        p.setDepartment(pdep.getLabel());
+        var pstage =
+            ProjectStageCode.fromCodeOrLabel(
+                input.containsKey("status_code")
+                    ? Objects.toString(input.get("status_code"), p.getStatusCode())
+                    : input.containsKey("status") ? Objects.toString(input.get("status"), p.getStatus()) : p.getStatusCode());
+        p.setStatusCode(pstage.getCode());
+        p.setStatus(pstage.getLabel());
         Employee pm =
             input.containsKey("pm_id") && p.getPmId() != null
                 ? employee(p.getPmId())
@@ -757,14 +770,20 @@ public class GroupwareService {
         range(e.getPrice(), 0, Integer.MAX_VALUE, "취득금액");
         if (e.getEmpId() != null) {
           Employee owner = employee(e.getEmpId());
-          require("재직".equals(owner.getStatus()), "재직 중인 직원을 선택하세요.");
+          require(StatusCode.STATUS_ACTIVE.getCode().equals(owner.getStatusCode()) || "재직".equals(owner.getStatus()), "재직 중인 직원을 선택하세요.");
           e.setEmpNo(owner.getEmpNo());
           e.setAssignedTo(owner.getName());
           e.setDepartment(owner.getDepartment());
+          e.setDepartmentCode(owner.getDepartmentCode());
         } else {
           e.setEmpNo(null);
           e.setAssignedTo("미배정");
-          e.setDepartment(DepartmentCode.fromCodeOrLabel(e.getDepartment()).getLabel());
+          var edep = DepartmentCode.fromCodeOrLabel(
+              input.containsKey("department_code")
+                  ? e.getDepartmentCode()
+                  : input.containsKey("department") ? e.getDepartment() : e.getDepartmentCode());
+          e.setDepartmentCode(edep.getCode());
+          e.setDepartment(edep.getLabel());
           require(!"사용중".equals(e.getStatus()), "사용중 자산은 담당 직원을 지정하세요.");
         }
       }
@@ -890,6 +909,12 @@ public class GroupwareService {
       Approval a, Map<String, Object> input, Employee actor, boolean creating) {
     required(a.getTitle(), "문서명");
     range(a.getAmount(), 0, Integer.MAX_VALUE, "문서금액");
+    var adep = DepartmentCode.fromCodeOrLabel(
+        input.containsKey("department_code")
+            ? a.getDepartmentCode()
+            : input.containsKey("department") ? a.getDepartment() : a.getDepartmentCode());
+    a.setDepartmentCode(adep.getCode());
+    a.setDepartment(adep.getLabel());
     if (a.getApproverId() != null)
       require(AuthService.executive(employee(a.getApproverId())), "최종 결재자는 임원 권한자여야 합니다.");
     if (a.getProjectId() != null)

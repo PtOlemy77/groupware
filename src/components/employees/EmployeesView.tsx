@@ -10,6 +10,8 @@ import {
   Approval,
   AuthUser,
   RoleCode,
+  StatusCode,
+  EMP_STATUS_CODES,
   USER_ROLE_CODES,
   getRoleCode,
   normalizeUserRole,
@@ -454,6 +456,9 @@ export default function EmployeesView({
 
       const deptObj = DEPARTMENT_CODES.find((d) => d.code === formData.department_code);
       const posObj = POSITION_CODES.find((p) => p.code === formData.position_code);
+      const statusObj = EMP_STATUS_CODES.find(
+        (s) => s.code === formData.status_code || s.label === formData.status
+      );
 
       const roleCode = getRoleCode(formData.role_code || formData.role);
       const roleInfo = USER_ROLE_CODES.find((r) => r.code === roleCode);
@@ -469,6 +474,8 @@ export default function EmployeesView({
         position: posObj?.label || formData.position || '담당',
         role_code: roleCode,
         role: roleInfo?.label || formData.role || '일반직원',
+        status_code: statusObj?.code || formData.status_code || 'STATUS_ACTIVE',
+        status: statusObj?.label || formData.status || '재직',
       };
 
       const targetId = editingEmp ? editingEmp.id : formData.id;
@@ -1416,13 +1423,22 @@ export default function EmployeesView({
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">근무 / 재직 상태</label>
                   <select
-                    value={formData.status || '재직'}
-                    onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+                    value={formData.status_code || (formData.status === '휴직' ? 'STATUS_LEAVE' : formData.status === '퇴사' ? 'STATUS_RETIRED' : 'STATUS_ACTIVE')}
+                    onChange={(e) => {
+                      const sc = EMP_STATUS_CODES.find((s) => s.code === e.target.value);
+                      setFormData({
+                        ...formData,
+                        status_code: e.target.value as StatusCode,
+                        status: sc?.label || '재직',
+                      });
+                    }}
                     className="w-full p-2.5 border border-slate-300 rounded-xl bg-white font-semibold"
                   >
-                    <option value="재직">재직</option>
-                    <option value="휴직">휴직</option>
-                    <option value="퇴사">퇴사</option>
+                    {EMP_STATUS_CODES.map((sc) => (
+                      <option key={sc.code} value={sc.code}>
+                        {sc.label}
+                      </option>
+                    ))}
                   </select>
                 </div>
               </div>
