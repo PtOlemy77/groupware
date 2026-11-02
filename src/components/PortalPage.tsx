@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowUpRight, ArrowRight, ChevronDown, Menu, X, ScanLine, Sprout, Zap, Layers3, MoveUpRight, Check } from 'lucide-react';
+import { ArrowUpRight, ArrowRight, ChevronDown, Menu, X, ScanLine, Sprout, Zap, Layers3, Phone, Mail, MapPin, Printer, Check } from 'lucide-react';
 import './portal.css';
+import PortalNotices from './PortalNotices';
 
 type DomainId = 'survey' | 'agriculture' | 'safety';
 const domains = [
@@ -31,7 +32,7 @@ export default function PortalPage() {
     window.addEventListener('keydown', onKey);
     return () => { document.body.style.overflow = previous; window.removeEventListener('keydown', onKey); trigger.current?.focus(); };
   }, [selected]);
-  const nav = [{ href: '#about', label: '회사소개' }, { href: '#expertise', label: '전문분야' }, { href: '#services', label: 'SI / SM 서비스' }];
+  const nav = [{ href: '#about', label: '회사소개' }, { href: '#expertise', label: '전문분야' }, { href: '#services', label: 'SI / SM 서비스' }, { href: '#notices', label: '공지사항' }];
   return (
     <div className="spatial-portal" id="top">
       <a className="portal-skip" href="#main-content">본문 바로가기</a>
@@ -71,9 +72,10 @@ export default function PortalPage() {
           <div className="section-label"><span>03 — WHAT WE DO</span><span className="tiny-cross">+</span></div>
           <div className="services-layout"><div className="services-intro"><h2>구축의 시작부터<br />운영의 내일까지.</h2><p>무엇을 만들어야 하는지 정확히 정의하고,<br />현장에서 제대로 작동하는지 끝까지 살핍니다.</p><div className="service-mark"><Layers3 size={36} strokeWidth={1} /><span>END-TO-END<br /><b>IT PARTNERSHIP</b></span></div></div><div className="service-list"><article><span className="service-number">01</span><div><span className="service-en">SYSTEM INTEGRATION</span><h3>업무의 규칙과 예외까지 설계합니다.</h3><p>현장의 용어, 데이터의 관계, 처리 절차와 예외를 요구사항으로 구체화합니다.<br />개발과 통합을 거쳐, 실제 업무 시나리오로 시스템의 완성도를 검증합니다.</p><div className="service-steps"><span>분석 · 설계</span><ArrowRight size={13} /><span>개발 · 통합</span><ArrowRight size={13} /><span>검증 · 전환</span></div></div><span className="service-monogram">SI</span></article><article><span className="service-number">02</span><div><span className="service-en">SYSTEM MANAGEMENT</span><h3>업무의 변화를 이해하고 운영합니다.</h3><p>장애가 업무에 미치는 영향과 변경이 필요한 이유를 함께 살핍니다.<br />업무 규칙과 현장의 변화에 맞춰 유지관리와 개선의 우선순위를 정합니다.</p><div className="service-steps"><span>운영 · 모니터링</span><ArrowRight size={13} /><span>유지관리</span><ArrowRight size={13} /><span>개선 · 고도화</span></div></div><span className="service-monogram">SM</span></article></div></div>
         </section>
-        <section id="contact" className="portal-contact"><div className="contact-grid" /><div className="portal-container"><div><p className="portal-eyebrow"><span /> LET’S BUILD WHAT’S NEXT</p><h2>AI 시대의 시스템 파트너,<br />기술과 도메인을 함께 보세요.</h2><p>어떤 업무를 바꾸고, 어떤 문제를 해결해야 할까요?<br />스패셜티와 현장의 과제부터 이야기해 보세요.</p></div><a href="http://www.spatialt.co.kr/" target="_blank" rel="noopener noreferrer" className="contact-link"><span>기존 홈페이지에서<br /><b>연락처 확인하기</b></span><MoveUpRight size={32} strokeWidth={1.3} /><small>SPATIALT.CO.KR</small></a></div></section>
+        <PortalNotices />
+        <section id="contact" className="portal-contact"><div className="contact-grid" /><div className="portal-container"><div><p className="portal-eyebrow"><span /> LET’S BUILD WHAT’S NEXT</p><h2>AI 시대의 시스템 파트너,<br />기술과 도메인을 함께 보세요.</h2><p>어떤 업무를 바꾸고, 어떤 문제를 해결해야 할까요?<br />스패셜티와 현장의 과제부터 이야기해 보세요.</p></div><address className="portal-contact-info"><p className="contact-info-label">CONTACT US</p><a href="tel:0632119651" className="contact-phone"><Phone size={18} />063-211-9651</a><a href="mailto:pym@spatialt.co.kr"><Mail size={16} />pym@spatialt.co.kr</a><p><Printer size={16} /><span>FAX &nbsp;063-211-9653</span></p><p><MapPin size={17} /><span>전북 전주시 덕진구 만성북로 51-25<br />3015호 스패셜티<br /><small>(스페이스온 지식산업센터)</small></span></p></address></div></section>
       </main>
-      <footer className="portal-footer portal-container"><div className="footer-main"><a href="#top" className="footer-brand">SPATIAL<span>T</span><small>(주)스패셜티</small></a><p>AI 시대의 경쟁력, 도메인에 대한 깊은 이해.<br />측량 · 농업 · 전기안전 SI / SM 전문기업</p><a href="#groupware">임직원 그룹웨어 <ArrowUpRight size={15} /></a></div><div className="footer-bottom"><span>© {new Date().getFullYear()} SPATIAL T. All rights reserved.</span><span>DOMAIN EXPERT. TECHNOLOGY PARTNER.</span><a className="portal-privacy-link" href="#privacy">개인정보 처리방침</a><a href="#top">BACK TO TOP ↑</a></div></footer>
+      <footer className="portal-footer portal-container"><div className="footer-main"><a href="#top" className="footer-brand">SPATIAL<span>T</span><small>(주)스패셜티</small></a><p>AI 시대의 경쟁력, 도메인에 대한 깊은 이해.<br />측량 · 농업 · 전기안전 SI / SM 전문기업<br /><span className="footer-company-info">대표이사 권우석 · 사업자등록번호 538-86-01435</span></p><a href="#groupware">임직원 그룹웨어 <ArrowUpRight size={15} /></a></div><div className="footer-bottom"><span>© {new Date().getFullYear()} SPATIAL T. All rights reserved.</span><span>DOMAIN EXPERT. TECHNOLOGY PARTNER.</span><a className="portal-privacy-link" href="#privacy">개인정보 처리방침</a><a href="#top">BACK TO TOP ↑</a></div></footer>
       {domain && <div className="domain-modal-backdrop" onClick={() => setSelected(null)}><section className="domain-modal" role="dialog" aria-modal="true" aria-labelledby="domain-title" aria-describedby="domain-description" onClick={event => event.stopPropagation()}><button ref={closeButton} className="domain-modal-close" aria-label="상세 내용 닫기" onClick={() => setSelected(null)}><X /></button><img src={domain.image} alt="" /><div className="domain-modal-body"><p className="domain-en">{domain.en}</p><h2 id="domain-title">{domain.name}</h2><h3>{domain.headline}</h3><p id="domain-description">{domain.description}</p><ul>{domain.details.map(detail => <li key={detail}><Check size={17} />{detail}</li>)}</ul><p className="domain-note">프로젝트의 세부 범위와 제공 기능은 업무 분석을 통해 협의합니다.</p></div></section></div>}
     </div>
   );

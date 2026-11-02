@@ -8,6 +8,7 @@ import org.springframework.security.config.annotation.web.configurers.AbstractHt
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.web.access.intercept.AuthorizationFilter;
 import org.springframework.security.web.csrf.HttpSessionCsrfTokenRepository;
 
@@ -25,7 +26,9 @@ public class SecurityConfig {
     csrf.setHeaderName("X-CSRF-TOKEN");
     http.csrf(c -> c.csrfTokenRepository(csrf))
         .authorizeHttpRequests(a ->
-            a.requestMatchers("/api/auth/csrf", "/api/auth/login", "/api/health", "/error")
+            a.requestMatchers(HttpMethod.GET, "/api/portal/notices", "/api/portal/notices/*")
+                .permitAll()
+                .requestMatchers("/api/auth/csrf", "/api/auth/login", "/api/health", "/error")
                 .permitAll()
                 .anyRequest()
                 .authenticated())
