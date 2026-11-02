@@ -258,6 +258,9 @@ public class Employee extends VersionedEntity {
 
   public void setRole(String role) {
     this.role = role;
+    if (role != null) {
+      this.roleCode = com.nexus.groupware.code.RoleCode.fromCodeOrLabel(role).getCode();
+    }
   }
 
   public String getRoleCode() {
@@ -266,6 +269,9 @@ public class Employee extends VersionedEntity {
 
   public void setRoleCode(String roleCode) {
     this.roleCode = roleCode;
+    if (roleCode != null) {
+      this.role = com.nexus.groupware.code.RoleCode.fromCodeOrLabel(roleCode).getLabel();
+    }
   }
 
   @com.fasterxml.jackson.annotation.JsonIgnore

@@ -1501,10 +1501,11 @@ export default function EmployeesView({
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">근무 / 재직 상태</label>
                   <select
-                    value={formData.status || '대기'}
+                    value={formData.status || '재직'}
                     onChange={(e) => setFormData({ ...formData, status: e.target.value })}
                     className="w-full p-2.5 border border-slate-300 rounded-xl bg-white font-semibold"
                   >
+                    <option value="재직">재직 (일반 근무)</option>
                     <option value="대기">대기 (즉시 투입 가능 가용)</option>
                     <option value="투입중">프로젝트 투입중</option>
                     <option value="휴직">휴직</option>
