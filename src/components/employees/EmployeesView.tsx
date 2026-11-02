@@ -75,9 +75,9 @@ export default function EmployeesView({
   onRefresh,
 }: Props) {
   const [searchQuery, setSearchQuery] = useState('');
-  const [deptFilter, setDeptFilter] = useState('전체');
+  const [deptFilter, setDeptFilter] = useState('ALL');
   const [availabilityFilter, setAvailabilityFilter] = useState<'전체' | '투입대기' | '투입중' | '부서고유업무' | '휴직' | '퇴사'>('전체');
-  const [positionFilter, setPositionFilter] = useState('전체');
+  const [positionFilter, setPositionFilter] = useState('ALL');
 
   // 프로젝트가 조직도 및 투입현황에 표시될 활성 상태인지 판별 ('프로젝트 수행', '제안준비중', '진행중', '검토중' 또는 계약품의서가 등록된 과제)
   const isActiveProject = (prj: Project): boolean => {
@@ -308,16 +308,13 @@ export default function EmployeesView({
       const avail = getEmployeeAvailability(emp);
 
       const matchDept =
-        deptFilter === '전체' ||
-        cleanDeptName(emp.department) === cleanDeptName(deptFilter) ||
-        emp.department_code === deptFilter ||
-        DEPARTMENT_CODES.find((d) => d.code === emp.department_code)?.label === deptFilter ||
-        DEPARTMENT_CODES.find((d) => d.label === deptFilter)?.code === emp.department_code;
+        deptFilter === 'ALL' || emp.department_code === deptFilter;
 
       const matchAvailability =
         availabilityFilter === '전체' || avail.status === availabilityFilter;
 
-      const matchPosition = positionFilter === '전체' || emp.position === positionFilter;
+      const matchPosition =
+        positionFilter === 'ALL' || emp.position_code === positionFilter;
 
       const empNo = getEmpNoFromHireDate(emp.hire_date, emp.emp_no);
       const q = searchQuery.toLowerCase().trim();
@@ -337,7 +334,7 @@ export default function EmployeesView({
     return list.sort((a, b) => {
       if (
         sortBy === 'position' ||
-        (deptFilter === '사업본부' && sortBy !== 'name' && sortBy !== 'hire_date')
+        (deptFilter === 'DEPT_BIZ' && sortBy !== 'name' && sortBy !== 'hire_date')
       ) {
         const cmp = compareEmployeesByPositionAndHireDate(a, b);
         return sortOrder === 'asc' ? cmp : -cmp;
@@ -636,7 +633,7 @@ export default function EmployeesView({
             />
           </div>
 
-          {/* 부서 필터 */}
+          {/* 부서 필터 (코드 기반 관리) */}
           <select
             value={deptFilter}
             onChange={(e) => {
@@ -645,15 +642,15 @@ export default function EmployeesView({
             }}
             className="px-2.5 py-1.5 text-xs rounded-lg border border-slate-300 bg-white font-medium"
           >
-            <option value="전체">전체 부서</option>
+            <option value="ALL">전체 부서</option>
             {DEPARTMENT_CODES.map((d) => (
-              <option key={d.code} value={d.label}>
+              <option key={d.code} value={d.code}>
                 {d.label}
               </option>
             ))}
           </select>
 
-          {/* 직급 필터 */}
+          {/* 직급 필터 (코드 기반 관리) */}
           <select
             value={positionFilter}
             onChange={(e) => {
@@ -662,9 +659,9 @@ export default function EmployeesView({
             }}
             className="px-2.5 py-1.5 text-xs rounded-lg border border-slate-300 bg-white font-medium"
           >
-            <option value="전체">전체 직급</option>
+            <option value="ALL">전체 직급</option>
             {POSITION_CODES.map((p) => (
-              <option key={p.code} value={p.label}>
+              <option key={p.code} value={p.code}>
                 {p.label}
               </option>
             ))}
@@ -755,15 +752,13 @@ export default function EmployeesView({
             {/* 트리 뷰 본체 (계층 트리 가이드라인 & 사각 [-]/[+] 토글 버튼) */}
             <div className="max-h-[750px] overflow-y-auto pr-1 text-[12px] font-sans text-slate-700 space-y-1">
               {DEPARTMENT_CODES.map((dept) => {
-                const isDeptSelected = deptFilter === dept.label && !searchQuery;
+                const isDeptSelected = deptFilter === dept.code && !searchQuery;
                 const deptEmps = employees.filter(
-                  (e) =>
-                    cleanDeptName(e.department) === cleanDeptName(dept.label) ||
-                    e.department_code === dept.code
+                  (e) => e.department_code === dept.code
                 );
                 const isExpanded = !!expandedDepts[dept.code];
                 // 프로젝트는 오직 '사업본부' 밑에만 생길 수 있음
-                const isBizDept = dept.code === 'DEPT_BIZ' || cleanDeptName(dept.label) === '사업본부';
+                const isBizDept = dept.code === 'DEPT_BIZ';
                 const deptProjects = isBizDept
                   ? projects
                       .filter(isActiveProject)
@@ -793,7 +788,7 @@ export default function EmployeesView({
                           : 'hover:bg-slate-50 text-slate-900 font-bold'
                       }`}
                       onClick={() => {
-                        setDeptFilter(dept.label);
+                        setDeptFilter(dept.code);
                         setSearchQuery('');
                         setCurrentPage(1);
                       }}
@@ -829,7 +824,7 @@ export default function EmployeesView({
                               key={emp.id}
                               onClick={() => {
                                 setSearchQuery(emp.name);
-                                setDeptFilter(dept.label);
+                                setDeptFilter(dept.code);
                                 setCurrentPage(1);
                               }}
                               onDoubleClick={() => canEdit && openEditModal(emp)}
@@ -1075,8 +1070,15 @@ export default function EmployeesView({
               {availabilityFilter !== '전체' && (
                 <span className="text-indigo-600 font-semibold">[{availabilityFilter}]</span>
               )}
-              {deptFilter !== '전체' && (
-                <span className="text-slate-700 font-semibold">[{deptFilter}]</span>
+              {deptFilter !== 'ALL' && (
+                <span className="text-slate-700 font-semibold">
+                  [{DEPARTMENT_CODES.find((d) => d.code === deptFilter)?.label || deptFilter}]
+                </span>
+              )}
+              {positionFilter !== 'ALL' && (
+                <span className="text-slate-700 font-semibold">
+                  [{POSITION_CODES.find((p) => p.code === positionFilter)?.label || positionFilter}]
+                </span>
               )}
             </div>
             <div className="text-[11px] text-slate-400">
