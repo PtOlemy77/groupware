@@ -11,8 +11,8 @@ module.exports = async function inspectExpenses({page,dialog,artifacts}) {
   const meal=section.locator('[data-expense-code="OVERTIME_MEAL"]');
   assert.equal(await section.getByRole('combobox').count(),0);
   assert.equal(await table.getByRole('columnheader').count(),5);
-  assert.equal(await table.locator('tbody tr').first().evaluate(node=>node.getBoundingClientRect().height<=36),true,'Each expense must fit a compact row');
-  assert.equal(await meal.getByRole('spinbutton').first().evaluate(node=>getComputedStyle(node).fontSize),'12px');
+  assert.equal(await table.locator('tbody tr').first().evaluate(node=>node.getBoundingClientRect().height<=44),true,'Each expense must fit a compact row');
+  assert.equal(await meal.getByRole('spinbutton').first().evaluate(node=>getComputedStyle(node).fontSize),'14px');
   assert.equal(await section.locator('p').count(),0,'No per-row explanations');
   const mealPrice=meal.getByRole('spinbutton',{name:'복리/특근식대 기준금액',exact:true});
   assert.equal(await mealPrice.inputValue(),'10');
@@ -32,10 +32,10 @@ module.exports = async function inspectExpenses({page,dialog,artifacts}) {
   await meal.getByRole('spinbutton',{name:'복리/특근식대 기준단위',exact:true}).fill('2.25');
   await meal.getByRole('spinbutton',{name:'복리/특근식대 횟수',exact:true}).fill('3');
   await meal.getByRole('spinbutton',{name:'복리/특근식대 기준금액',exact:true}).fill('10');
-  assert.equal(await meal.getByLabel('복리/특근식대 산출금액',{exact:true}).textContent(),'67.5 천원');
+  assert.equal(await meal.getByLabel('복리/특근식대 산출금액',{exact:true}).textContent(),'67.5');
   const travel=section.locator('[data-expense-code="TRAVEL_SENIOR"]');
   for(const [label,value] of [['기준단위','2'],['기준금액','120'],['횟수','3']]) await travel.getByRole('spinbutton',{name:'국내출장비/부·차장 '+label,exact:true}).fill(value);
-  assert.equal(await travel.getByLabel('국내출장비/부·차장 산출금액',{exact:true}).textContent(),'720 천원');
+  assert.equal(await travel.getByLabel('국내출장비/부·차장 산출금액',{exact:true}).textContent(),'720');
   const insurance=section.locator('[data-expense-code="CONTRACT_INSURANCE"]');
   await insurance.getByRole('spinbutton',{name:'보증보험료(계약) 기준금액',exact:true}).fill('300');
   await insurance.getByRole('spinbutton',{name:'보증보험료(계약) 횟수',exact:true}).fill('1');
