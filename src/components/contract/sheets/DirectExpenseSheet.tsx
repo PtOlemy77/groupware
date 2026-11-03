@@ -2,7 +2,7 @@
 import React from 'react';
 import { useModal } from '@/contexts/ModalContext';
 import type { DirectExpenseItem } from '@/types/groupware';
-import { EXPENSE_TEMPLATES, calculateExpense, expenseRows, expenseMoney, compactExpenseFactors, updateCompactExpense, type ExpenseContext } from '@/lib/direct-expenses';
+import { EXPENSE_TEMPLATES, applyReferenceExpenseDefaults, calculateExpense, expenseRows, expenseMoney, compactExpenseFactors, updateCompactExpense, type ExpenseContext } from '@/lib/direct-expenses';
 
 interface Props {
   items: DirectExpenseItem[];
@@ -21,6 +21,10 @@ export default function DirectExpenseSheet({ items, onChangeItems, context, read
     if (!await showConfirm('직접경비 금액을 모두 초기화하시겠습니까?', { isDanger: true, confirmText: '초기화' })) return;
     onChangeItems(rows.map(row => row.calculation ? calculateExpense({ ...row, unitPrice: 0, calculation: { ...row.calculation, inputs: { ...row.calculation.inputs, rate: 0, dailyCost: 0, lodgingCost: 0, transportCost: 0 } } }, context) : { ...row, unitPrice: 0, amount: 0 }));
   };
+  const applyDefaults = async () => {
+    if (!await showConfirm('엑셀에 기준단가가 있는 항목의 기준금액을 적용합니다. 기존 기준금액은 변경되며 기준단위와 횟수는 유지됩니다.', { confirmText: '적용' })) return;
+    onChangeItems(applyReferenceExpenseDefaults(items, context));
+  };
   const numberField = (row: DirectExpenseItem, index: number, field: 'base' | 'unitPrice' | 'count', label: string, value: number) => (
     <input aria-label={`${row.account} ${label}`} type="number" min="0" step="any" value={value === 0 ? '' : value} placeholder="0" disabled={readOnly}
       onChange={event => update(index, field, Math.max(0, Number(event.target.value) || 0))}
@@ -30,6 +34,7 @@ export default function DirectExpenseSheet({ items, onChangeItems, context, read
     <div className="flex flex-wrap items-center justify-between gap-2">
       <h3 className="text-[12px] font-bold text-slate-800">직접경비</h3>
       <div className="flex items-center gap-3"><span>합계 <strong data-testid="direct-expense-total" className="font-bold tabular-nums text-indigo-700">{total.toLocaleString()} 천원</strong></span>
+        {!readOnly && <button type="button" onClick={applyDefaults} className="border border-slate-300 px-2 py-1 text-[12px] text-slate-600">기본단가 적용</button>}
         {!readOnly && <button type="button" onClick={reset} className="border border-slate-300 px-2 py-1 text-[12px] text-slate-600">금액 초기화</button>}
       </div>
     </div>

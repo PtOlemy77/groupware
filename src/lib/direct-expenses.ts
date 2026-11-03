@@ -83,9 +83,28 @@ export function calculateExpense(row: DirectExpenseItem, context: ExpenseContext
   }
   return { ...row, calculation: { ...calc, base }, qty, unitPrice, amount: expenseMoney(qty * unitPrice), basis };
 }
+// 직접경비 D6/D7/D14/D15/D22/D23/D26/D31 및 단가표 E48/F48 (천원).
+// 단가가 아닌 해당 계약의 비용 총액·인원·공수는 기본값으로 복사하지 않는다.
+export const EXPENSE_REFERENCE_DEFAULTS: Record<string, { unitPrice: number } | { ratePercent: number }> = {
+  OVERTIME_MEAL: { unitPrice: 10 }, MEETING: { unitPrice: 70 },
+  LOCAL_TRAVEL: { unitPrice: 50 }, PM_LOCAL_TRAVEL: { unitPrice: 200 },
+  SUPPLIES_FURNITURE: { unitPrice: 100 }, SUPPLIES_OFFICE: { unitPrice: 15 },
+  DEPRECIATION_IT: { unitPrice: 20 }, SW_RENT: { unitPrice: 50 },
+  TRAVEL_SENIOR: { unitPrice: 187.8 }, TRAVEL_STAFF: { unitPrice: 178.8 },
+  CONTRACT_INSURANCE: { ratePercent: 0.3 }, WARRANTY_INSURANCE: { ratePercent: 0.27 }, ADVANCE_INSURANCE: { ratePercent: 0.42 },
+};
+export function referenceExpenseUnitPrice(template: ExpenseTemplate, context: ExpenseContext): number | undefined {
+  const reference = EXPENSE_REFERENCE_DEFAULTS[template.code];
+  if (!reference) return undefined;
+  return 'unitPrice' in reference ? reference.unitPrice : expenseMoney(context.SUPPLY * reference.ratePercent / 100);
+}
 export function createExpense(template: ExpenseTemplate, context: ExpenseContext): DirectExpenseItem {
-  const base = template.source === 'MANUAL' ? 1 : context[template.source];
-  return calculateExpense({ id: `expense_${template.code}`, account: template.account, qty: 0, unitPrice: 0, amount: 0, basis: '', note: '', calculation: { categoryCode: template.code, method: template.method, source: template.source, base, inputs: template.method === 'TRAVEL' ? {trips:1} : template.method === 'RATE' ? {} : {multiplier:1} } }, context);
+  const source = template.method === 'PRODUCT' ? template.source : 'MANUAL';
+  const base = source === 'MANUAL' ? 1 : context[source];
+  return calculateExpense({ id: `expense_${template.code}`, account: template.account, qty: 0,
+    unitPrice: referenceExpenseUnitPrice(template, context) ?? 0, amount: 0, basis: '', note: '',
+    calculation: { categoryCode: template.code, method: 'PRODUCT', source, base, inputs: {multiplier:0} },
+  }, context);
 }
 export function expenseRows(items: DirectExpenseItem[], context: ExpenseContext): DirectExpenseItem[] {
   const used = new Set<number>();
@@ -113,4 +132,12 @@ export function updateCompactExpense(row: DirectExpenseItem, context: ExpenseCon
     ...row.calculation, categoryCode: row.calculation?.categoryCode || template?.code || row.id,
     method: 'PRODUCT', source, base: factors.base, inputs: { ...row.calculation?.inputs, multiplier: factors.count },
   } }, context);
+}
+
+export function applyReferenceExpenseDefaults(items: DirectExpenseItem[], context: ExpenseContext): DirectExpenseItem[] {
+  return expenseRows(items, context).map((row, index) => {
+    const template = EXPENSE_TEMPLATES[index];
+    const price = template ? referenceExpenseUnitPrice(template, context) : undefined;
+    return price === undefined ? row : updateCompactExpense(row, context, 'unitPrice', price, template);
+  });
 }

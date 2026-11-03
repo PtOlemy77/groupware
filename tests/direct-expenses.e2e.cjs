@@ -14,6 +14,21 @@ module.exports = async function inspectExpenses({page,dialog,artifacts}) {
   assert.equal(await table.locator('tbody tr').first().evaluate(node=>node.getBoundingClientRect().height<=36),true,'Each expense must fit a compact row');
   assert.equal(await meal.getByRole('spinbutton').first().evaluate(node=>getComputedStyle(node).fontSize),'12px');
   assert.equal(await section.locator('p').count(),0,'No per-row explanations');
+  const mealPrice=meal.getByRole('spinbutton',{name:'복리/특근식대 기준금액',exact:true});
+  assert.equal(await mealPrice.inputValue(),'10');
+  assert.equal(await meal.getByRole('spinbutton',{name:'복리/특근식대 횟수',exact:true}).inputValue(),'');
+  assert.equal(await section.locator('[data-expense-code="SUPPLIES_OFFICE"]').getByRole('spinbutton',{name:'소모품비/전산,사무,기타 기준금액',exact:true}).inputValue(),'15');
+  assert.equal(await section.locator('[data-expense-code="TRAVEL_SENIOR"]').getByRole('spinbutton',{name:'국내출장비/부·차장 기준금액',exact:true}).inputValue(),'187.8');
+  await mealPrice.fill('0');
+  await section.getByRole('button',{name:'기본단가 적용',exact:true}).click();
+  await page.getByRole('dialog').last().getByRole('button',{name:'취소',exact:true}).click();
+  assert.equal(await mealPrice.inputValue(),'');
+  await section.getByRole('button',{name:'기본단가 적용',exact:true}).click();
+  await page.getByRole('dialog').last().getByRole('button',{name:'적용',exact:true}).click();
+  assert.equal(await mealPrice.inputValue(),'10');
+  assert.equal(await section.getByTestId('direct-expense-total').textContent(),'0 천원');
+  // 입력한 0이 저장 후 기본단가로 덮어써지지 않는지 재조회 단계에서 확인한다.
+  await section.locator('[data-expense-code="SW_RENT"]').getByRole('spinbutton',{name:'임차료/SW 기준금액',exact:true}).fill('0');
   await meal.getByRole('spinbutton',{name:'복리/특근식대 기준단위',exact:true}).fill('2.25');
   await meal.getByRole('spinbutton',{name:'복리/특근식대 횟수',exact:true}).fill('3');
   await meal.getByRole('spinbutton',{name:'복리/특근식대 기준금액',exact:true}).fill('10');
@@ -23,6 +38,7 @@ module.exports = async function inspectExpenses({page,dialog,artifacts}) {
   assert.equal(await travel.getByLabel('국내출장비/부·차장 산출금액',{exact:true}).textContent(),'720 천원');
   const insurance=section.locator('[data-expense-code="CONTRACT_INSURANCE"]');
   await insurance.getByRole('spinbutton',{name:'보증보험료(계약) 기준금액',exact:true}).fill('300');
+  await insurance.getByRole('spinbutton',{name:'보증보험료(계약) 횟수',exact:true}).fill('1');
   const expected=1087.5;
   assert.equal(await section.getByTestId('direct-expense-total').textContent(),expected.toLocaleString()+' 천원');
   await section.getByRole('button',{name:'금액 초기화',exact:true}).click();
