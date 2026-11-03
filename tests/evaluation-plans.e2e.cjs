@@ -29,6 +29,10 @@ module.exports=async({browser,mutate,base,artifacts})=>{
   const p=owner.page;
   await p.getByRole('button',{name:'수행목표 작성',exact:true}).click();let d=p.getByRole('dialog',{name:'수행평가 작성',exact:true});
   await d.getByLabel('목표 제목',{exact:true}).fill('화면 수행목표');
+  await d.press('Escape');
+  await p.locator('[data-global-modal]').getByRole('button',{name:'취소',exact:true}).click();
+  assert.equal(await d.isVisible(),true);
+  assert.equal(await d.getByLabel('목표 제목',{exact:true}).inputValue(),'화면 수행목표');
   for(let i=1;i<=3;i++)await d.getByLabel(`지표 ${i} 목표`,{exact:true}).fill('합성 산출물 100% 완료');
   await d.getByLabel('계획 공수 '+month,{exact:true}).fill('0.5');
   let plan=await action(p,'목표 제출','/submit');let id=plan.id;
@@ -38,12 +42,18 @@ module.exports=async({browser,mutate,base,artifacts})=>{
   d=await open(p);await d.getByLabel('지표 1 목표',{exact:true}).fill('합성 검수 통과율 100%');plan=await action(p,'목표 제출','/submit');assert.equal(plan.state,'SUBMITTED');
   rd=await open(reviewer.page);await rd.getByLabel('검토 의견',{exact:true}).fill('목표 검토 완료');plan=await action(reviewer.page,'목표 승인','/approve','승인');assert.equal(plan.state,'APPROVED');
   const hash=plan.goals_hash,goals=plan.goals;
+  await p.reload();await p.getByRole('button',{name:'화면 수행목표 상세',exact:true}).waitFor();
+  await p.screenshot({path:path.join(artifacts,'evaluation-list-desktop.png'),fullPage:true});
   d=await open(p);assert.equal(await d.getByLabel('목표 제목',{exact:true}).isDisabled(),true);assert.equal(await d.getByLabel('지표 1 배점',{exact:true}).isDisabled(),true);assert.equal(await d.getByLabel('계획 공수 '+month,{exact:true}).isDisabled(),true);
   for(const width of [390,768]){
    await p.setViewportSize({width,height:900});
    assert.equal(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),true);
    const box=await d.boundingBox();assert.ok(box.x>=0&&box.x+box.width<=width+1);
+   const inputs=await d.getByRole('list',{name:'수행목표 입력',exact:true}).boundingBox();assert.ok(inputs.x>=0 && inputs.x+inputs.width<=width+1);
+   assert.equal(await d.evaluate(el=>el.scrollWidth<=el.clientWidth+1),true);
    await p.screenshot({path:path.join(artifacts,`evaluation-locked-${width}.png`)});
+   await d.getByLabel('지표 1 목표',{exact:true}).scrollIntoViewIfNeeded();
+   await p.screenshot({path:path.join(artifacts,`evaluation-goals-${width}.png`)});
   }
   await p.setViewportSize({width:1440,height:1000});
   for(let i=1;i<=3;i++){await d.getByLabel(`지표 ${i} 실적값`,{exact:true}).fill('100');await d.getByLabel(`지표 ${i} 실적 증빙`,{exact:true}).fill('합성 증빙 · 사내 검증 문서 위치');}
@@ -56,7 +66,7 @@ module.exports=async({browser,mutate,base,artifacts})=>{
   assert.ok((await list(reviewer)).plans.some(row=>row.id===id));assert.ok((await list(executive)).plans.some(row=>row.id===id));
   await other.page.getByLabel('수행평가 검색',{exact:true}).fill('화면 수행목표');await other.page.getByText('조회 가능한 수행평가가 없습니다.',{exact:true}).waitFor();
   const poolSession=await session(pool);await poolSession.page.getByRole('button',{name:'인재풀 월별 목표 작성',exact:true}).click();
-  const pd=poolSession.page.getByRole('dialog',{name:'수행평가 작성',exact:true});assert.equal(await pd.getByRole('table',{name:'수행목표 입력',exact:true}).locator('tbody tr').count(),5);
+  const pd=poolSession.page.getByRole('dialog',{name:'수행평가 작성',exact:true});assert.equal(await pd.getByRole('list',{name:'수행목표 입력',exact:true}).getByRole('listitem').count(),5);
   await pd.getByLabel('목표 검토자',{exact:true}).selectOption(String(pm.id));await pd.getByLabel('목표 제목',{exact:true}).fill('합성 인재풀 목표');await action(poolSession.page,'초안 저장','/api/evaluation-plans');
   // A disabled server configuration sends the menu back to the preserved legacy screen.
   await other.page.route('**/api/evaluation-plans/config',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({enabled:false})}));

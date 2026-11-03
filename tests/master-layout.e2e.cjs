@@ -2,6 +2,7 @@ const assert = require('node:assert/strict');
 const path = require('node:path');
 module.exports = async function auditMasterLayout({page,mutate,base,artifacts}) {
   const root=page.getByTestId('master-data-view');
+  const tab = (name, exact = true) => root.getByRole('tab',{name,exact}).or(root.getByRole('button',{name,exact}));
   const group='AUDIT_LAYOUT_LONG_GROUP_IDENTIFIER_2026';
   const groupName='합성 기준정보 화면 가독성 확인을 위한 긴 그룹 명칭';
   const code='LONG_CODE_IDENTIFIER_FOR_LAYOUT_REVIEW';
@@ -9,7 +10,7 @@ module.exports = async function auditMasterLayout({page,mutate,base,artifacts}) 
   const description='합성 화면 검증 설명입니다. '.repeat(35).trim();
   const record=await mutate({module:'common_codes',action:'create',data:{group_code:group,group_name:groupName,code,code_name:name,sort_order:1,is_active:true,extra_value:description}});
   await page.getByTitle('최신 데이터 새로고침',{exact:true}).click();
-  await root.getByRole('button',{name:/공통 코드 관리/}).click();
+  await tab(/공통 코드 관리/,false).click();
   const search=root.getByPlaceholder('코드, 코드명, 그룹명 검색...');
   await search.fill(group);
   const codes=root.getByRole('table',{name:'공통코드 목록',exact:true});
@@ -37,7 +38,7 @@ module.exports = async function auditMasterLayout({page,mutate,base,artifacts}) 
   await page.getByRole('dialog',{name:'변경 내용 확인',exact:true}).getByRole('button',{name:'확인',exact:true}).click();
   await dialog.waitFor({state:'detached'});
   const note='합성 사업 목표매출의 긴 전략 설명입니다. '.repeat(12).trim();
-  await root.getByRole('button',{name:'연도별 사업 목표매출',exact:true}).click();
+  await tab('연도별 사업 목표매출').click();
   await root.getByRole('button',{name:'기준연도 추가',exact:true}).click();
   const targetDialog=page.getByRole('dialog',{name:'신규 연도 사업 목표매출 추가',exact:true});
   await targetDialog.getByPlaceholder('예: 2029',{exact:true}).fill('2030');
@@ -52,7 +53,7 @@ module.exports = async function auditMasterLayout({page,mutate,base,artifacts}) 
   for(const width of [390,768,1024,1440]) {
     await page.setViewportSize({width,height:900});
     for(const label of ['연도별 사업 목표매출','연도별 SW 노임단가',/공통 코드 관리/]) {
-      const button=root.getByRole('group',{name:'기준정보 분류',exact:true}).getByRole('button',{name:label,exact:typeof label==='string'});
+      const button=tab(label,typeof label==='string');
       await button.click();
       assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),true,'Master screen must not overflow '+width+' '+label);
       assert.equal(await button.evaluate(node=>node.scrollWidth<=node.clientWidth+1),true,'Tab label must fit '+width);
@@ -64,10 +65,10 @@ module.exports = async function auditMasterLayout({page,mutate,base,artifacts}) 
   }
   // 새로고침 후 입력값 보존까지 확인하고 합성 코드만 정리한다.
   await page.getByTitle('최신 데이터 새로고침',{exact:true}).click();
-  await root.getByRole('button',{name:'연도별 사업 목표매출',exact:true}).click();
+  await tab('연도별 사업 목표매출').click();
   assert.equal(await root.getByRole('textbox',{name:'2030년도 목표매출 비고',exact:true}).inputValue(),note);
   await page.screenshot({path:path.join(artifacts,'master-targets-desktop.png'),fullPage:true});
-  await root.getByRole('button',{name:'연도별 SW 노임단가',exact:true}).click();
+  await tab('연도별 SW 노임단가').click();
   await page.screenshot({path:path.join(artifacts,'master-prices-desktop.png'),fullPage:true});
   await mutate({module:'common_codes',action:'delete',id:record.id,version:record.version});
   await page.getByTitle('최신 데이터 새로고침',{exact:true}).click();

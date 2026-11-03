@@ -4,8 +4,14 @@ import { apiFetch } from '@/lib/api';
 import { useModal } from '@/contexts/ModalContext';
 
 import React, { useState, useMemo } from 'react';
-import { Evaluation, AuthUser, isExecutiveOrAbove, Employee, DEPARTMENT_CODES, POSITION_CODES } from '@/types/groupware';
-import { Award, Search, Plus, Edit3, Trash2, CheckCircle2, User } from 'lucide-react';
+import { Evaluation, AuthUser, isExecutiveOrAbove, Employee } from '@/types/groupware';
+import { Award, Plus, Edit3, Trash2 } from 'lucide-react';
+import {
+  Button, Modal, Card, Badge,
+  TabGroup,
+  PageHeaderBar,
+  SearchInput,
+} from '@/components/common';
 
 interface Props {
   evaluations: Evaluation[];
@@ -122,49 +128,49 @@ export default function EvaluationsView({ evaluations, currentUser, employees = 
 
   return (
     <div className="space-y-6">
-      {/* Search and Filters */}
-      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <div className="relative">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
-            <input
-              type="text"
+      {/* 공통 검색 및 필터 툴바 */}
+      <PageHeaderBar
+        left={
+          <>
+            <SearchInput
               placeholder="평가대상자, 사번, 피드백 검색..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9 pr-3 py-1.5 text-xs rounded-lg border border-slate-300 w-64 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+              onClear={() => setSearchQuery('')}
+              className="w-full sm:w-64"
             />
-          </div>
 
-          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg text-xs">
-            {['전체', 'S', 'A', 'B', 'C', 'D'].map((g) => (
-              <button
-                key={g}
-                onClick={() => setGradeFilter(g)}
-                className={`px-2.5 py-1 rounded-md font-medium transition ${
-                  gradeFilter === g ? 'bg-white text-indigo-600 shadow-2xs font-bold' : 'text-slate-600'
-                }`}
-              >
-                {g} 등급
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {canEdit && (
-          <button
-            onClick={openCreateModal}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs transition"
-          >
-            <Plus className="w-3.5 h-3.5" /> 인사평가 작성
-          </button>
-        )}
-      </div>
+            <TabGroup
+              items={['전체', 'S', 'A', 'B', 'C', 'D'].map((g) => ({
+                key: g,
+                label: g === '전체' ? '전체 등급' : `${g} 등급`,
+              }))}
+              activeKey={gradeFilter}
+              onChange={(g) => setGradeFilter(g)}
+              variant="segmented"
+              size="sm"
+              className="max-w-full flex-wrap"
+            />
+          </>
+        }
+        right={
+          canEdit ? (
+            <Button
+              variant="primary"
+              size="sm"
+              icon={<Plus className="w-3.5 h-3.5" />}
+              onClick={openCreateModal}
+            >
+              인사평가 작성
+            </Button>
+          ) : undefined
+        }
+      />
 
       {/* Evaluations Table */}
-      <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-2xs">
+      <Card padding="none">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs text-slate-700">
+          <table className="w-full min-w-[980px] text-left text-sm text-slate-700">
             <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-semibold uppercase tracking-wider">
               <tr>
                 <th className="px-5 py-3.5">평가대상자</th>
@@ -198,38 +204,28 @@ export default function EvaluationsView({ evaluations, currentUser, employees = 
                     {ev.total_score}
                   </td>
                   <td className="px-5 py-3.5 text-center">
-                    <span
-                      className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${
-                        ev.grade === 'S'
-                          ? 'bg-purple-100 text-purple-700 border border-purple-200'
-                          : ev.grade === 'A'
-                          ? 'bg-emerald-100 text-emerald-700 border border-emerald-200'
-                          : 'bg-blue-100 text-blue-700 border border-blue-200'
-                      }`}
-                    >
-                      {ev.grade}
-                    </span>
+                    <Badge variant={ev.grade === 'S' ? 'purple' : ev.grade === 'A' ? 'success' : 'info'}>{ev.grade}</Badge>
                   </td>
-                  <td className="px-5 py-3.5 text-slate-600 max-w-xs truncate">{ev.feedback}</td>
+                  <td className="px-5 py-3.5 text-slate-600 min-w-48 max-w-xs whitespace-pre-wrap break-words">{ev.feedback}</td>
                   {canEdit && (
                     <td className="px-5 py-3.5 text-center">
                       <div className="flex items-center justify-center gap-1">
-                        <button
+                        <Button variant="ghost" size="sm"
                           title="평가 수정"
                           aria-label="평가 수정"
                           onClick={() => openEditModal(ev)}
-                          className="p-1 text-slate-400 hover:text-indigo-600 rounded"
+                          className="text-slate-400 hover:text-indigo-600"
                         >
                           <Edit3 className="w-3.5 h-3.5" />
-                        </button>
-                        <button
+                        </Button>
+                        <Button variant="ghost" size="sm"
                           title="평가 삭제"
                           aria-label="평가 삭제"
                           onClick={() => handleDelete(ev.id)}
-                          className="p-1 text-slate-400 hover:text-rose-600 rounded"
+                          className="text-slate-400 hover:text-rose-600"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                        </Button>
                       </div>
                     </td>
                   )}
@@ -238,21 +234,17 @@ export default function EvaluationsView({ evaluations, currentUser, employees = 
             </tbody>
           </table>
         </div>
-      </div>
+      </Card>
 
-      {/* Modal */}
-      {modalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
-          <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full max-h-[90dvh] overflow-y-auto p-6 border border-slate-200">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
-              <h3 className="font-bold text-base text-slate-900">
-                {editingEv ? '인사평가 수정' : '인사평가 작성'}
-              </h3>
-              <button onClick={() => setModalOpen(false)} className="text-slate-400 hover:text-slate-700">✕</button>
-            </div>
-
-            <form onSubmit={handleSave} className="space-y-3 text-xs">
-              <div className="grid grid-cols-2 gap-3">
+      <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)}
+        title={editingEv ? '인사평가 수정' : '인사평가 작성'} description="기존 종합평가 점수와 피드백을 관리합니다."
+        icon={<Award size={20} />} size="lg" closeOnBackdrop={false} closeOnEsc={false}
+        footer={<>
+          <Button variant="secondary" onClick={() => setModalOpen(false)}>취소</Button>
+          <Button type="submit" form="legacy-evaluation-form">{editingEv ? '수정 완료' : '평가 등록'}</Button>
+        </>}>
+            <form id="legacy-evaluation-form" onSubmit={handleSave} className="space-y-4 text-sm">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">
                     평가 대상 직원 선택 ({employees.length}명)
@@ -276,7 +268,7 @@ export default function EvaluationsView({ evaluations, currentUser, employees = 
                           });
                         }
                       }}
-                      className="w-full p-2 border border-slate-300 rounded-lg font-bold bg-white text-slate-800"
+                      className="w-full min-w-0 px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 text-sm font-bold bg-white text-slate-800"
                     >
                       {employees.map((emp) => (
                         <option key={emp.emp_no} value={emp.emp_no}>
@@ -290,13 +282,13 @@ export default function EvaluationsView({ evaluations, currentUser, employees = 
                       required
                       value={formData.emp_name || ''}
                       onChange={(e) => setFormData({ ...formData, emp_name: e.target.value })}
-                      className="w-full p-2 border border-slate-300 rounded-lg font-bold"
+                      className="w-full min-w-0 px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 text-sm font-bold"
                     />
                   )}
                 </div>
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">사번 / 직급</label>
-                  <div className="p-2 bg-slate-50 border border-slate-200 rounded-lg font-mono text-slate-700 font-bold flex items-center justify-between">
+                  <div className="p-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-700 flex flex-wrap gap-2 items-center justify-between">
                     <span>{formData.emp_no || '-'}</span>
                     <span className="text-xs font-sans text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded">
                       {formData.department} · {formData.position}
@@ -305,7 +297,7 @@ export default function EvaluationsView({ evaluations, currentUser, employees = 
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">KPI 점수 (50%)</label>
                   <input
@@ -314,7 +306,7 @@ export default function EvaluationsView({ evaluations, currentUser, employees = 
                     max="100"
                     value={formData.kpi_score || 0}
                     onChange={(e) => setFormData({ ...formData, kpi_score: Number(e.target.value) })}
-                    className="w-full p-2 border border-slate-300 rounded-lg text-center font-bold"
+                    className="w-full min-w-0 px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 text-sm text-center font-bold"
                   />
                 </div>
                 <div>
@@ -325,7 +317,7 @@ export default function EvaluationsView({ evaluations, currentUser, employees = 
                     max="100"
                     value={formData.competency_score || 0}
                     onChange={(e) => setFormData({ ...formData, competency_score: Number(e.target.value) })}
-                    className="w-full p-2 border border-slate-300 rounded-lg text-center font-bold"
+                    className="w-full min-w-0 px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 text-sm text-center font-bold"
                   />
                 </div>
                 <div>
@@ -336,7 +328,7 @@ export default function EvaluationsView({ evaluations, currentUser, employees = 
                     max="100"
                     value={formData.peer_score || 0}
                     onChange={(e) => setFormData({ ...formData, peer_score: Number(e.target.value) })}
-                    className="w-full p-2 border border-slate-300 rounded-lg text-center font-bold"
+                    className="w-full min-w-0 px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 text-sm text-center font-bold"
                   />
                 </div>
               </div>
@@ -347,30 +339,13 @@ export default function EvaluationsView({ evaluations, currentUser, employees = 
                   rows={3}
                   value={formData.feedback || ''}
                   onChange={(e) => setFormData({ ...formData, feedback: e.target.value })}
-                  className="w-full p-2 border border-slate-300 rounded-lg"
+                  className="w-full min-w-0 px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 text-sm"
                   placeholder="성과 및 개발 필요 역량 작성"
                 />
               </div>
 
-              <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setModalOpen(false)}
-                  className="px-4 py-2 rounded-lg text-xs text-slate-600 hover:bg-slate-100"
-                >
-                  취소
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 rounded-lg text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs"
-                >
-                  {editingEv ? '수정 완료' : '평가 등록'}
-                </button>
-              </div>
             </form>
-          </div>
-        </div>
-      )}
+      </Modal>
     </div>
   );
 }

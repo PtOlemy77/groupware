@@ -27,7 +27,7 @@ const TAB_TITLES: Partial<Record<TabKey, { label: string; sub: string }>> = {
   projects: { label: '프로젝트 관리', sub: '과제수행 · 계약품의 · 투입공수' },
   reports: { label: '주간/월간 보고', sub: 'PM 금주/차주 작성 · 이사 취합/보완 · 사장님 최종 보고' },
   employees: { label: '직원 관리', sub: '임직원 명부 및 조직도' },
-  equipments: { label: 'IT 자산 관리', sub: 'IT 자산/워크스테이션/서버' },
+  equipments: { label: 'IT 자산 관리', sub: '모니터 · 데스크탑 · 노트북' },
   evaluations: { label: '인사 평가 관리', sub: 'KPI/역량/다면평가 등급' },
   master_data: { label: '기준정보 관리', sub: '연도별 SW 기술자 노임단가 및 사내 공통 코드 관리' },
 };
@@ -113,15 +113,9 @@ export default function Header({
           </div>
         </div>
 
-        {/* Portal Link */}
-        <a
-          href="#top"
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-700 hover:text-indigo-600 hover:bg-slate-100 border border-slate-200 transition"
-          title="스패셜티 공개 포털 메인으로 이동"
-          aria-label="스패셜티 포털"
-        >
-          <Globe className="w-3.5 h-3.5 text-indigo-600" />
-          <span className="hidden sm:inline">스패셜티 포털</span>
+        <a href="#top" aria-label="스패셜티 포털" title="스패셜티 공개 포털로 이동"
+          className="flex items-center justify-center rounded-xl border border-slate-200 px-3 py-1.5 text-slate-600 transition hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/25">
+          <Globe className="h-4 w-4" />
         </a>
 
         {/* Refresh button */}

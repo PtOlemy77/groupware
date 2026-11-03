@@ -2,6 +2,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 module.exports = async function auditScreens({ page, browser, mutate, base, artifacts }) {
+  const tab = (root, name, exact = true) => root.getByRole('tab', {name,exact}).or(root.getByRole('button', {name,exact}));
   const checks = [];
   const pass = name => { checks.push(name); console.log('UI PASS: ' + name); };
   const nav = async label => {
@@ -62,7 +63,7 @@ module.exports = async function auditScreens({ page, browser, mutate, base, arti
   assert.equal(await contractDialog.getByTestId('direct-expense-total').textContent(),'0 천원');
   await save(contractDialog,'계약품의서 저장');
   pass('직접경비 전체 항목·M/M/출장/보험 계산·모바일·저장 재조회·초기화 취소/실행');
-  await nav('주간/월간 보고'); await page.getByRole('button',{name:'개별 프로젝트 PM 보고 작성',exact:true}).click();
+  await nav('주간/월간 보고'); await tab(page,/개별(?: 프로젝트)? PM 보고 작성/,false).click();
   await page.locator('textarea').first().fill('화면검증 수행실적');
   const reportResponse=page.waitForResponse(response=>response.url().endsWith('/api/groupware')&&response.request().method()==='POST');
   await page.getByRole('button',{name:'PM 보고 저장 및 제출',exact:true}).click();
@@ -143,17 +144,20 @@ module.exports = async function auditScreens({ page, browser, mutate, base, arti
   dialog=page.getByRole('dialog',{name:'신규 자산 등록',exact:true}); await dialog.getByLabel('자산 관리 번호', {exact:true}).fill('AUDIT-ASSET'); await dialog.getByPlaceholder(/MacBook Pro/).fill('화면검증 노트북'); await save(dialog,'등록 완료');
   await page.getByPlaceholder('자산번호, 모델명, 지급직원명 검색...').fill('AUDIT-ASSET');
   await page.getByText('화면검증 노트북',{exact:true}).waitFor();
-  await page.getByTitle('자산 정보 수정',{exact:true}).click(); dialog=page.getByRole('dialog',{name:'자산 정보 수정',exact:true}); await dialog.getByPlaceholder(/MacBook Pro/).fill('화면검증 노트북 수정'); await save(dialog,'수정 완료');
+  await page.getByTitle('자산 정보 수정',{exact:true}).click(); dialog=page.getByRole('dialog',{name:'자산 정보 수정',exact:true}); await dialog.getByPlaceholder(/MacBook Pro/).fill('화면검증 노트북 수정');
+  await dialog.press('Escape');await page.locator('[data-global-modal]').getByRole('button',{name:'취소',exact:true}).click();
+  assert.equal(await dialog.getByPlaceholder(/MacBook Pro/).inputValue(),'화면검증 노트북 수정');
+  await save(dialog,'수정 완료');
   await page.getByText('화면검증 노트북 수정',{exact:true}).waitFor();
   await page.getByTitle('자산 삭제',{exact:true}).click(); await page.getByRole('dialog').getByRole('button',{name:'취소',exact:true}).click();
   await page.getByTitle('자산 삭제',{exact:true}).click(); await page.getByRole('dialog').getByRole('button',{name:'삭제',exact:true}).click(); await page.getByText('화면검증 노트북 수정',{exact:true}).waitFor({state:'detached'}); await clearAlert(); pass('자산 등록·검색·수정·삭제 취소/실행');
-  await nav('인사 평가'); await page.getByRole('button',{name:'기존 종합평가',exact:true}).click(); await page.getByRole('button',{name:'인사평가 작성',exact:true}).click();
+  await nav('인사 평가'); await page.getByRole('tab',{name:'기존 종합평가',exact:true}).click(); await page.getByRole('button',{name:'인사평가 작성',exact:true}).click();
   dialog=page.getByRole('dialog',{name:'인사평가 작성',exact:true}); await dialog.getByLabel('KPI 점수 (50%)',{exact:true}).fill('95'); await dialog.getByLabel('역량 점수 (30%)',{exact:true}).fill('95'); await dialog.getByLabel('다면 점수 (20%)',{exact:true}).fill('95'); await dialog.getByPlaceholder('성과 및 개발 필요 역량 작성').fill('화면검증 평가'); await save(dialog,'평가 등록');
   await page.getByPlaceholder('평가대상자, 사번, 피드백 검색...').fill('화면검증 평가'); await page.getByText('화면검증 평가',{exact:true}).waitFor();
   await page.getByTitle('평가 수정',{exact:true}).click(); dialog=page.getByRole('dialog',{name:'인사평가 수정',exact:true}); await dialog.getByPlaceholder('성과 및 개발 필요 역량 작성').fill('화면검증 평가 수정'); await save(dialog,'수정 완료');
   await page.getByTitle('평가 삭제',{exact:true}).click(); await page.getByRole('dialog').getByRole('button',{name:'삭제',exact:true}).click(); await page.getByText('화면검증 평가 수정',{exact:true}).waitFor({state:'detached'}); await clearAlert(); pass('인사평가 등록·점수·검색·수정·삭제');
-  await nav('기준정보 관리'); await page.getByRole('button',{name:'연도별 SW 노임단가',exact:true}).click(); await page.getByRole('button',{name:/단가표 저장/}).first().waitFor();
-  await page.getByRole('button',{name:/공통 코드 관리/}).click(); await page.getByRole('button',{name:'신규 코드 추가',exact:true}).click();
+  await nav('기준정보 관리'); await tab(page,'연도별 SW 노임단가').click(); await page.getByRole('button',{name:/단가표 저장/}).first().waitFor();
+  await tab(page,/공통 코드 관리/,false).click(); await page.getByRole('button',{name:'신규 코드 추가',exact:true}).click();
   dialog=page.getByRole('dialog',{name:'신규 공통 코드 등록',exact:true}); await dialog.getByPlaceholder('예: DEPARTMENT').fill('AUDIT_UI'); await dialog.getByPlaceholder('예: 부서',{exact:true}).fill('화면 검증'); await dialog.getByPlaceholder('예: DEPT_BIZ').fill('TEST'); await dialog.getByPlaceholder('예: 사업본부',{exact:true}).fill('화면 검증 코드'); await save(dialog,'저장');
   await page.getByPlaceholder('코드, 코드명, 그룹명 검색...').fill('AUDIT_UI'); await page.getByText('화면 검증 코드',{exact:true}).waitFor();
   const codeRow=page.locator('tbody tr').filter({hasText:'화면 검증 코드'});
@@ -177,7 +181,7 @@ module.exports = async function auditScreens({ page, browser, mutate, base, arti
       pass(label+' 역할의 관리 버튼 제한');
     }finally{await context.close();}
   }
-  await nav('프로젝트 관리'); await page.getByRole('button',{name:/직원별 연간 투입공수/}).click();
+  await nav('프로젝트 관리'); await tab(page,/직원별 연간 투입공수/,false).click();
   await page.getByPlaceholder('성명, 직급, 참여 프로젝트 검색...').fill('담당검증');
   await page.getByRole('button',{name:'2027년도',exact:true}).click(); await page.getByRole('button',{name:'2026년도',exact:true}).click(); pass('직원별 연간 공수 화면·연도 전환·검색');
   for(const label of ['통합 대시보드','프로젝트 관리','주간/월간 보고','자산 관리','인사 평가','기준정보 관리']){
