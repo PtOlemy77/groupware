@@ -4,7 +4,9 @@ module.exports = async function inspectExpenses({page,dialog,artifacts}) {
   await dialog.getByRole('button',{name:'직접경비',exact:true}).click();
   assert.equal(await dialog.getByRole('button',{name:'입금계획',exact:true}).count(),0);
   const section=dialog.getByRole('region',{name:'직접경비 산출',exact:true});
-  assert.ok(await section.locator('[data-expense-code]').count()>40);
+  const table=section.getByRole('table',{name:'직접경비 세부 항목',exact:true});
+  assert.equal(await table.locator('tr[data-expense-code]').count(),44);
+  assert.equal(await section.locator('article').count(),0);
   assert.equal(await section.getByTestId('direct-expense-total').textContent(),'0 천원');
   const meal=section.locator('[data-expense-code="OVERTIME_MEAL"]');
   await meal.getByRole('combobox').selectOption('MANUAL');
@@ -25,9 +27,14 @@ module.exports = async function inspectExpenses({page,dialog,artifacts}) {
   assert.equal(await section.getByTestId('direct-expense-total').textContent(),expected.toLocaleString()+' 천원');
   for(const width of [390,768]) {
     await page.setViewportSize({width,height:900});
+    const scroll=section.getByRole('region',{name:'직접경비 목록 가로 스크롤',exact:true});
+    assert.equal(await scroll.evaluate(node=>{node.scrollLeft=node.scrollWidth;const reached=node.scrollLeft+node.clientWidth>=node.scrollWidth-1;node.scrollLeft=0;return reached;}),true);
+    assert.equal(await table.getByRole('columnheader',{name:'계정과목',exact:true}).count(),1);
     assert.equal(await section.evaluate(node=>node.scrollWidth>node.clientWidth+1),false,'Expense inputs must fit '+width);
   }
   await page.setViewportSize({width:1440,height:1000});
+  await meal.scrollIntoViewIfNeeded();
+  await page.screenshot({path:path.join(artifacts,'direct-expense-list.png')});
   await meal.screenshot({path:path.join(artifacts,'direct-expense-meal.png')});
   await travel.screenshot({path:path.join(artifacts,'direct-expense-travel.png')});
   return expected;
