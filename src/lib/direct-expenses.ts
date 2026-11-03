@@ -96,3 +96,21 @@ export function expenseRows(items: DirectExpenseItem[], context: ExpenseContext)
   });
   return [...standard, ...items.filter((_, index) => !used.has(index)).map(row => calculateExpense(row, context))];
 }
+
+// 간단 입력 화면은 기존 상세 산출값을 읽기만 하며, 해당 행을 편집할 때만 곱셈식으로 전환한다.
+export function compactExpenseFactors(row: DirectExpenseItem, template?: ExpenseTemplate) {
+  const calc = row.calculation;
+  if (calc?.method === 'RATE') return { base: 1, unitPrice: row.amount, count: 1, unit: '식' };
+  const source = calc?.source || 'MANUAL';
+  const label = source === 'TOTAL_MM' || source === 'OUR_MM' ? 'MM' : source === 'HEADCOUNT' || calc?.method === 'TRAVEL' ? '명' : source === 'MONTHS' ? '개월' : template?.baseLabel;
+  const unit = label?.includes('M/M') ? 'MM' : label?.includes('인원') ? '명' : label?.includes('개월') ? '개월' : label === '부수' ? '부' : label === '권수' ? '권' : label === '건수' ? '건' : label === '횟수' ? '회' : label === 'MM' || label === '명' ? label : '식';
+  return { base: calc?.base ?? row.qty, unitPrice: row.unitPrice, count: calc?.inputs[calc.method === 'TRAVEL' ? 'trips' : 'multiplier'] ?? 1, unit };
+}
+export function updateCompactExpense(row: DirectExpenseItem, context: ExpenseContext, field: 'base' | 'unitPrice' | 'count', value: number, template?: ExpenseTemplate): DirectExpenseItem {
+  const factors = { ...compactExpenseFactors(row, template), [field]: value };
+  const source = field !== 'base' && row.calculation?.method !== 'RATE' ? row.calculation?.source || 'MANUAL' : 'MANUAL';
+  return calculateExpense({ ...row, unitPrice: factors.unitPrice, calculation: {
+    ...row.calculation, categoryCode: row.calculation?.categoryCode || template?.code || row.id,
+    method: 'PRODUCT', source, base: factors.base, inputs: { ...row.calculation?.inputs, multiplier: factors.count },
+  } }, context);
+}

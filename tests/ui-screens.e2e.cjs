@@ -55,7 +55,7 @@ module.exports = async function auditScreens({ page, browser, mutate, base, arti
   await projectCard.getByRole('button',{name:'계약품의서',exact:true}).click();
   contractDialog=page.getByRole('dialog').last(); await contractDialog.getByRole('button',{name:'직접경비',exact:true}).click();
   assert.equal(await contractDialog.getByTestId('direct-expense-total').textContent(),expenseTotal.toLocaleString()+' 천원');
-  assert.equal(await contractDialog.getByRole('spinbutton',{name:'복리/특근식대 월 식수',exact:true}).inputValue(),'3');
+  assert.equal(await contractDialog.getByRole('spinbutton',{name:'복리/특근식대 횟수',exact:true}).inputValue(),'3');
   await contractDialog.getByRole('button',{name:'금액 초기화',exact:true}).click();
   await page.getByRole('dialog').last().getByRole('button',{name:'초기화',exact:true}).click();
   assert.equal(await contractDialog.getByTestId('direct-expense-total').textContent(),'0 천원');
