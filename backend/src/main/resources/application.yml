@@ -32,6 +32,8 @@ spring:
     multipart:
       max-request-size: 2MB
 app:
+  evaluation-plans:
+    enabled: ${EVALUATION_PLANS_ENABLED:true}
   bootstrap:
     enabled: ${BOOTSTRAP_ENABLED:false}
     email: ${BOOTSTRAP_ADMIN_EMAIL:}

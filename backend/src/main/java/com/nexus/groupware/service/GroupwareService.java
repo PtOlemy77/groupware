@@ -23,6 +23,7 @@ public class GroupwareService {
   private final EquipmentRepository equipment;
   private final BusinessDealRepository deals;
   private final EvaluationRepository evaluations;
+  private final com.nexus.groupware.evaluation.EvaluationPlanService evaluationPlans;
   private final ApprovalRepository approvals;
   private final CommonCodeRepository codes;
   private final HolidayRepository holidays;
@@ -79,12 +80,14 @@ public class GroupwareService {
       AuditEventRepository logs,
       AuthService auth,
       PasswordEncoder pw,
-      ObjectMapper mapper) {
+      ObjectMapper mapper,
+      com.nexus.groupware.evaluation.EvaluationPlanService evaluationPlans) {
     employees = e;
     projects = p;
     equipment = q;
     deals = d;
     evaluations = v;
+    this.evaluationPlans = evaluationPlans;
     approvals = a;
     codes = c;
     holidays = h;
@@ -350,7 +353,7 @@ public class GroupwareService {
             "deals",
             exec ? deals.count() : deals.countByOwnerId(actor.getId()),
             "evaluations",
-            exec ? evaluations.count() : evaluations.countByEmployeeId(actor.getId()),
+            (exec ? evaluations.count() : evaluations.countByEmployeeId(actor.getId())) + evaluationPlans.visibleCount(actor),
             "approvals",
             approvalCount));
     if (Set.of("equipments", "business_deals", "evaluations", "approvals").contains(scope))
@@ -531,7 +534,7 @@ public class GroupwareService {
     apply(module, entity, data);
     validate(module, entity, data, actor, creating);
     repositories.get(module).saveAndFlush(entity);
-    if (entity instanceof Project p) syncProject(p);
+    if (entity instanceof Project p) { syncProject(p); evaluationPlans.syncProjectAssignments(p); }
     repositories.get(module).flush();
     log(actor, module, action, recordId(entity), entity);
     return response(module, entity);
@@ -1361,6 +1364,7 @@ public class GroupwareService {
                     .collect(java.util.stream.Collectors.joining(", ")));
           }
           projects.saveAndFlush(p);
+          evaluationPlans.syncProjectAssignments(p);
         });
       }
     }
@@ -1526,6 +1530,7 @@ public class GroupwareService {
         p.setYearlyRevenueJson("{}");
       }
       projects.saveAndFlush(p);
+      evaluationPlans.syncProjectAssignments(p);
       a.setProjectId(p.getId());
       a.setProjectName(p.getName());
       doc.put("linkedProjectId", p.getId());
@@ -1561,6 +1566,7 @@ public class GroupwareService {
     p.setYearlyRevenueJson(deal.getYearlyRevenueJson());
     validate("projects", p, Map.of("pm_id", p.getPmId()), actor, true);
     projects.saveAndFlush(p);
+    evaluationPlans.syncProjectAssignments(p);
     deal.setStage("수주확정");
     deal.setConvertedProjectId(p.getId());
     deals.flush();
@@ -1574,6 +1580,7 @@ public class GroupwareService {
       permit(!e.getId().equals(actor.getId()));
       throw error(HttpStatus.CONFLICT, "직원 이력 보존을 위해 삭제 대신 퇴사·계정 비활성 처리를 사용하세요.");
     }
+    if (entity instanceof Project p) evaluationPlans.assertProjectDeletable(p.getId());
     if (entity instanceof Project p)
       require(
           approvals.findAll().stream().noneMatch(a -> Objects.equals(a.getProjectId(), p.getId())),
