@@ -402,8 +402,10 @@ public class GroupwareService {
 
   private Long id(Object raw) {
     if (raw == null) return null;
+    String s = raw.toString().trim();
+    if (s.isEmpty() || "null".equalsIgnoreCase(s) || "undefined".equalsIgnoreCase(s)) return null;
     try {
-      long n = new BigDecimal(raw.toString()).longValueExact();
+      long n = new BigDecimal(s).longValueExact();
       require(n > 0, "ID가 올바르지 않습니다.");
       return n;
     } catch (ArithmeticException | NumberFormatException e) {
@@ -785,12 +787,15 @@ public class GroupwareService {
         if (input.containsKey("pm_id")) {
           Long pid = id(input.get("pm_id"));
           if (pid != null) pm = employee(pid);
+        } else if (input.containsKey("pm_name")) {
+          String pname = Objects.toString(input.get("pm_name"), "").trim();
+          if (!pname.isBlank()) {
+            try {
+              pm = employeeByName(pname);
+            } catch (Exception ignored) {}
+          }
         } else if (p.getPmId() != null) {
           pm = employee(p.getPmId());
-        } else if (input.containsKey("pm_name") && p.getPmName() != null && !p.getPmName().isBlank()) {
-          try {
-            pm = employeeByName(p.getPmName().trim());
-          } catch (Exception ignored) {}
         }
         if (pm != null) {
           permit(AuthService.executive(actor) || pm.getId().equals(actor.getId()) || AuthService.pm(actor));
@@ -798,7 +803,7 @@ public class GroupwareService {
           p.setPmId(pm.getId());
           p.setPmName(pm.getName());
         } else {
-          permit(AuthService.executive(actor) || AuthService.pm(actor));
+          permit(AuthService.executive(actor) || AuthService.pm(actor) || (p.getPmId() != null && p.getPmId().equals(actor.getId())));
           p.setPmId(null);
           p.setPmName("");
         }

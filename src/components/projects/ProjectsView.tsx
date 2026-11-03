@@ -232,8 +232,13 @@ export default function ProjectsView({
     const resolvedStatus = stageObj?.label || formData.status || '프로젝트 수행';
     const autoProgress = calcPeriodProgress(formData.start_date, formData.end_date, resolvedStatus);
 
+    const finalPmId = formData.pm_id ? Number(formData.pm_id) : null;
+    const finalPmName = finalPmId ? (formData.pm_name || '') : '';
+
     const finalData = {
       ...formData,
+      pm_id: finalPmId,
+      pm_name: finalPmName,
       department_code: 'DEPT_BIZ',
       department: '사업본부', // 프로젝트는 항상 사업본부 전담
       status_code: stageObj?.code || 'STAGE_EXEC',
@@ -247,19 +252,30 @@ export default function ProjectsView({
       yearly_revenue_json: JSON.stringify(multiYearBreakdown),
     };
 
-    await apiFetch('/api/groupware', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        module: 'projects',
-        action: editingPrj ? 'update' : 'create',
-        id: editingPrj?.id,
-        data: finalData,
-      }),
-    });
+    try {
+      await apiFetch('/api/groupware', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          module: 'projects',
+          action: editingPrj ? 'update' : 'create',
+          id: editingPrj?.id,
+          version: editingPrj?.version,
+          data: finalData,
+        }),
+      });
 
-    setModalOpen(false);
-    await onRefresh();
+      setModalOpen(false);
+      await onRefresh();
+      await showAlert(
+        editingPrj
+          ? `[${finalData.name}] 프로젝트 정보가 수정되었습니다.`
+          : `[${finalData.name}] 프로젝트가 등록되었습니다.`,
+        { type: 'success' }
+      );
+    } catch (err: any) {
+      await showAlert(err?.message || '프로젝트 저장에 실패했습니다.', { type: 'error' });
+    }
   };
 
   const handleDelete = async (id: number) => {
@@ -1146,7 +1162,7 @@ export default function ProjectsView({
                     onChange={(e) => {
                       const val = e.target.value;
                       if (!val) {
-                        setFormData({ ...formData, pm_id: undefined, pm_name: '' });
+                        setFormData({ ...formData, pm_id: null as any, pm_name: '' });
                       } else {
                         const emp = employees.find((x) => x.id === Number(val));
                         setFormData({ ...formData, pm_id: emp?.id, pm_name: emp?.name || '' });
