@@ -1,7 +1,7 @@
 'use client';
 import { unitPrice as configuredPrice } from '@/lib/api';
 
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   ManpowerPlanItem,
   Employee,
@@ -12,17 +12,13 @@ import {
   Plus,
   Trash2,
   Users,
-  Search,
-  Check,
   RotateCcw,
   RefreshCw,
   User,
-  Wand2,
   X,
   ChevronDown,
   Sparkles,
   Calendar,
-  Layers,
 } from 'lucide-react';
 
 interface Props {
@@ -89,17 +85,6 @@ export function getContractMonthList(startDate?: string, endDate?: string): Cont
   }
   return list;
 }
-
-const ROLE_PRESETS = [
-  '총괄 PM / 아키텍트',
-  'GIS 플랫폼 PL',
-  '공간DB 설계/구축',
-  'WebGIS 프론트엔드',
-  '백엔드 API 개발',
-  '품질관리 / DB검수',
-  '3D 디지털트윈 모델링',
-  '사업관리 / 제안PM',
-];
 
 // 한글 초성 리스트
 const CHOSUNG_LIST = [
@@ -184,14 +169,10 @@ export default function ManpowerSheet({
     return monthList.filter((m) => m.year === selectedYear);
   }, [monthList, selectedYear]);
 
-  // 직접 숫자 타이핑 편집 중인 셀 { rowId, mIdx }
-  const [editingCell, setEditingCell] = useState<{ rowId: string; mIdx: number } | null>(null);
-  const [cellInputValue, setCellInputValue] = useState<string>('');
-
   const totalMM = items.reduce((sum, it) => sum + it.totalMM, 0);
   const totalLaborCost = items.reduce((sum, it) => sum + it.laborCost, 0);
 
-  // 빈 행 추가 (전체 사업 개월 수에 맞춰 기본 1.0 편성)
+  // 빈 행 추가 (기본 1.0 편성)
   const handleAddBlankItem = () => {
     const defaultEmp = employees[0];
     const months = Array(totalMonths).fill(1);
@@ -263,17 +244,18 @@ export default function ManpowerSheet({
     onChangeItems(updated);
   };
 
-  // 월별 셀 원클릭 순환 토글 (0 -> 1 -> 0.5 -> 0)
-  const handleCycleMonthCell = (id: string, mIdx: number) => {
+  // 원클릭 초간단 셀 토글 (0이면 1.0으로, 0보다 크면 0으로 토글)
+  const handleToggleCell = (id: string, mIdx: number) => {
     if (readOnly) return;
     const target = items.find((it) => it.id === id);
     if (!target) return;
     const cur = target.months[mIdx] ?? 0;
-    const nextVal = cur === 1 ? 0.5 : cur === 0.5 ? 0 : 1;
+    // 0 -> 1.0 -> 0.5 -> 0 3단계 순환 (가장 쉽고 유연함)
+    const nextVal = cur === 0 ? 1 : cur === 1 ? 0.5 : 0;
     handleMonthChange(id, mIdx, nextVal);
   };
 
-  // 현재 화면(선택 연도 또는 전체) 기준 전원 공수 일괄 채우기
+  // 현재 화면(선택 연도 또는 전체) 기준 전원 공수 일괄 채우기 (1.0 채우기 or 0 초기화)
   const handleBatchFillAll = (value: number) => {
     if (readOnly) return;
     const targetIndices = visibleMonths.map((m) => m.index);
@@ -293,15 +275,21 @@ export default function ManpowerSheet({
     onChangeItems(updated);
   };
 
-  // 특정 직원 행의 현재 화면(선택 연도 또는 전체) 공수 일괄 채우기
-  const handleBatchFillRow = (id: string, value: number) => {
+  // 특정 직원 행의 현재 화면(선택 연도 또는 전체) 공수 1.0 일괄 채우기 / 토글
+  const handleBatchFillRow = (id: string) => {
     if (readOnly) return;
+    const target = items.find((it) => it.id === id);
+    if (!target) return;
     const targetIndices = visibleMonths.map((m) => m.index);
+    // 이미 다 1.0이면 0으로 비우고, 아니면 1.0으로 채움
+    const allFilled = targetIndices.every((idx) => (target.months[idx] ?? 0) === 1);
+    const nextVal = allFilled ? 0 : 1;
+
     const updated = items.map((it) => {
       if (it.id !== id) return it;
       const nextMonths = Array.from({ length: totalMonths }, (_, i) => it.months[i] ?? 0);
       targetIndices.forEach((idx) => {
-        nextMonths[idx] = value;
+        nextMonths[idx] = nextVal;
       });
       const nextTotalMM = Math.round(nextMonths.reduce((a, b) => a + b, 0) * 100) / 100;
       return {
@@ -350,39 +338,39 @@ export default function ManpowerSheet({
   };
 
   return (
-    <div className="space-y-4">
-      {/* 1. 상단 인건비 요약 및 툴바 */}
-      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs flex flex-wrap items-center justify-between gap-3">
+    <div className="space-y-3">
+      {/* 1. 상단 인건비 요약 및 액션 툴바 */}
+      <div className="bg-white px-4 py-3 rounded-2xl border border-slate-200 shadow-2xs flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
-            <Users className="w-5 h-5" />
+          <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold">
+            <Users className="w-4 h-4" />
           </div>
           <div>
-            <h3 className="font-bold text-sm text-slate-900 flex items-center gap-2">
+            <h3 className="font-bold text-xs text-slate-900 flex items-center gap-2">
               <span>투입인력 및 인건비 산출</span>
-              <span className="text-[11px] font-mono font-bold bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full">
-                {items.length}명 편성
+              <span className="text-[10px] font-mono font-bold bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full">
+                {items.length}명
               </span>
             </h3>
-            <p className="text-xs text-slate-500 mt-0.5">
-              공수 셀 <strong>클릭(1.0 ↔ 0.5 ↔ 0)</strong>, <strong>우클릭(0.5)</strong>, <strong>마우스휠(±0.1)</strong>, <strong>더블클릭(직접입력)</strong>이 가능합니다.
+            <p className="text-[11px] text-slate-500">
+              월별 셀을 클릭하면 <strong className="text-indigo-600">[1.0 ↔ 0.5 ↔ 0]</strong> 간편 입력됩니다.
             </p>
           </div>
         </div>
 
         <div className="flex items-center gap-2.5 flex-wrap">
-          {/* 총 합계 정보 */}
-          <div className="flex items-center gap-2.5 bg-indigo-50/70 border border-indigo-200 px-3.5 py-1.5 rounded-xl text-xs">
+          {/* 총 합계 정보 (가로 공간 압축) */}
+          <div className="flex items-center gap-2 bg-indigo-50/70 border border-indigo-200 px-3 py-1.5 rounded-xl text-xs">
             <div>
-              <span className="text-slate-500">총 M/M:</span>{' '}
-              <strong className="text-indigo-950 font-mono font-bold text-sm">
+              <span className="text-slate-500 text-[11px]">총 M/M:</span>{' '}
+              <strong className="text-indigo-950 font-mono font-black">
                 {totalMM.toFixed(1)}
               </strong>
             </div>
             <span className="text-slate-300">|</span>
             <div>
-              <span className="text-slate-500">당사 인건비:</span>{' '}
-              <strong className="text-indigo-700 font-mono font-bold text-sm">
+              <span className="text-slate-500 text-[11px]">인건비 합계:</span>{' '}
+              <strong className="text-indigo-700 font-mono font-black">
                 {totalLaborCost.toLocaleString()}천원
               </strong>
             </div>
@@ -394,25 +382,25 @@ export default function ManpowerSheet({
                 <button
                   type="button"
                   onClick={handleRefreshAllUnitPrices}
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-white hover:bg-slate-50 text-indigo-700 border border-indigo-200 shadow-2xs transition"
+                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-semibold bg-white hover:bg-slate-50 text-indigo-700 border border-indigo-200 shadow-2xs transition"
                   title="모든 편성 인력의 단가를 사내 표준 노임단가로 일괄 재적용"
                 >
-                  <RefreshCw className="w-3.5 h-3.5 text-indigo-600" /> 노임단가 일괄 최신화
+                  <RefreshCw className="w-3 h-3 text-indigo-600" /> 단가 최신화
                 </button>
               )}
               <button
                 type="button"
                 onClick={handleAddBlankItem}
-                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs transition"
+                className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs transition"
               >
-                <Plus className="w-3.5 h-3.5" /> 직원 투입 행 추가
+                <Plus className="w-3.5 h-3.5" /> 직원 추가
               </button>
               {items.length > 0 && (
                 <button
                   type="button"
                   onClick={() => onChangeItems([])}
-                  className="p-2 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 border border-slate-200 transition"
-                  title="전체 비우기"
+                  className="p-1.5 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 border border-slate-200 transition"
+                  title="전체 목록 비우기"
                 >
                   <RotateCcw className="w-3.5 h-3.5" />
                 </button>
@@ -423,34 +411,35 @@ export default function ManpowerSheet({
       </div>
 
       {/* 2. 메인 투입인력 테이블 카드 */}
-      <div className="bg-white rounded-2xl border border-slate-200 overflow-visible shadow-2xs">
-        {/* 다년/연차 사업 지원: 연도별 탭 & 일괄 1.0 채우기 헤더 바 */}
-        <div className="px-4 py-2.5 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2.5 rounded-t-2xl">
-          <div className="flex items-center gap-1.5">
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-2xs overflow-hidden">
+        {/* 상단 컨트롤 바: 연도 탭 & 원클릭 일괄 채우기 */}
+        <div className="px-3.5 py-2 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2">
+          {/* 다년/연차 사업 지원: 연도별 탭 */}
+          <div className="flex items-center gap-1">
             <span className="text-[11px] font-bold text-slate-500 flex items-center gap-1 mr-1">
               <Calendar className="w-3.5 h-3.5 text-indigo-600" />
-              <span>사업 기간 보기:</span>
+              <span>기간:</span>
             </span>
 
             {/* 전체 기간 탭 */}
             <button
               type="button"
               onClick={() => setSelectedYear('all')}
-              className={`px-3 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1 ${
+              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1 ${
                 selectedYear === 'all'
                   ? 'bg-indigo-600 text-white shadow-2xs'
                   : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
               }`}
             >
-              <span>전체 기간</span>
+              <span>전체</span>
               <span
-                className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
+                className={`text-[10px] px-1 py-0.2 rounded-full font-mono ${
                   selectedYear === 'all'
                     ? 'bg-indigo-700 text-indigo-100'
                     : 'bg-slate-100 text-slate-500'
                 }`}
               >
-                {totalMonths}개월
+                {totalMonths}M
               </span>
             </button>
 
@@ -463,103 +452,102 @@ export default function ManpowerSheet({
                   key={yr}
                   type="button"
                   onClick={() => setSelectedYear(yr)}
-                  className={`px-3 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1 ${
+                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1 ${
                     isSelected
                       ? 'bg-indigo-600 text-white shadow-2xs'
                       : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
                   }`}
                 >
                   <span>
-                    {uniqueYears.length > 1 ? `${idx + 1}차년도 (${yr}년)` : `${yr}년`}
+                    {uniqueYears.length > 1 ? `${idx + 1}차(${yr})` : `${yr}년`}
                   </span>
                   <span
-                    className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
+                    className={`text-[10px] px-1 py-0.2 rounded-full font-mono ${
                       isSelected
                         ? 'bg-indigo-700 text-indigo-100'
                         : 'bg-slate-100 text-slate-500'
                     }`}
                   >
-                    {countInYear}개월
+                    {countInYear}M
                   </span>
                 </button>
               );
             })}
           </div>
 
-          {/* 일괄 채우기 퀵 액션 (전체 1.0 채우기 기능) */}
+          {/* 초간단 채우기 퀵 액션 (복잡한 버튼 대신 딱 2개만 깔끔하게 배치) */}
           {!readOnly && items.length > 0 && (
-            <div className="flex items-center gap-1 text-xs">
-              <span className="text-[11px] font-semibold text-slate-500 mr-1">
-                [{selectedYear === 'all' ? '전체 기간' : `${selectedYear}년`}] 공수 일괄:
-              </span>
+            <div className="flex items-center gap-1.5">
               <button
                 type="button"
                 onClick={() => handleBatchFillAll(1.0)}
-                className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-600 text-emerald-800 hover:text-white border border-emerald-300 font-bold transition shadow-2xs cursor-pointer"
+                className="flex items-center gap-1 px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-2xs transition cursor-pointer"
                 title={`${selectedYear === 'all' ? '전체 기간' : `${selectedYear}년도`}의 모든 직원 공수를 1.0으로 일괄 설정`}
               >
-                <Sparkles className="w-3.5 h-3.5" />
+                <Sparkles className="w-3 h-3" />
                 <span>전원 1.0 채우기</span>
               </button>
               <button
                 type="button"
-                onClick={() => handleBatchFillAll(0.5)}
-                className="px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-600 text-indigo-800 hover:text-white border border-indigo-200 font-bold transition cursor-pointer"
-                title={`${selectedYear === 'all' ? '전체 기간' : `${selectedYear}년도`}의 모든 직원 공수를 0.5로 설정`}
-              >
-                <span>전원 0.5</span>
-              </button>
-              <button
-                type="button"
                 onClick={() => handleBatchFillAll(0)}
-                className="px-2.5 py-1 rounded-lg bg-white hover:bg-rose-50 text-slate-600 hover:text-rose-600 border border-slate-200 font-medium transition cursor-pointer"
+                className="px-2.5 py-1 rounded-lg bg-white hover:bg-rose-50 text-slate-600 hover:text-rose-600 border border-slate-200 font-semibold text-xs transition cursor-pointer"
                 title={`${selectedYear === 'all' ? '전체 기간' : `${selectedYear}년도`}의 모든 직원 공수를 0으로 비우기`}
               >
-                <span>비우기(0)</span>
+                <span>전원 비우기(0)</span>
               </button>
             </div>
           )}
         </div>
 
+        {/* 메인 테이블 (가로 너비 슬림화로 12개월 전체가 글자 짤림 없이 쏙 들어감) */}
         <div className="overflow-x-auto">
-          <table className="w-full text-xs text-left">
-            <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200 uppercase text-[11px] tracking-wider">
+          <table className="w-full text-xs text-left border-collapse">
+            <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200 uppercase text-[11px]">
               <tr>
-                <th className="px-3 py-3 w-44 sticky left-0 bg-slate-50 z-10">성명 (초성 검색)</th>
-                <th className="px-2.5 py-3 w-28">직급 / 등급</th>
-                <th className="px-2.5 py-3 w-44">담당 역할 / 행 채우기</th>
+                <th className="px-2.5 py-2.5 w-36 bg-slate-50 z-10 whitespace-nowrap">
+                  성명 / 채우기
+                </th>
+                <th className="px-2 py-2.5 w-24 whitespace-nowrap">
+                  직급 / 등급
+                </th>
                 {visibleMonths.map((m) => (
                   <th
                     key={m.index}
-                    className="px-1 py-2 text-center min-w-[46px] border-l border-slate-200 bg-slate-50/80"
+                    className="px-0.5 py-1.5 text-center min-w-[36px] max-w-[42px] border-l border-slate-200 bg-slate-50/90"
                   >
-                    <div className="text-[10px] text-indigo-600 font-semibold leading-tight">
+                    <div className="text-[9px] text-indigo-600 font-semibold leading-tight">
                       {m.yearMonth}
                     </div>
-                    <div className="text-[11px] font-mono font-bold text-slate-700">
+                    <div className="text-[10px] font-mono font-bold text-slate-700 leading-tight">
                       {m.label}
                     </div>
                   </th>
                 ))}
-                <th className="px-2.5 py-3 text-right w-16 bg-indigo-50/40 border-l border-slate-200">
+                <th className="px-2 py-2.5 text-center w-14 bg-indigo-50/40 border-l border-slate-200 whitespace-nowrap">
                   총 MM
                 </th>
-                <th className="px-2.5 py-3 text-right w-24">월단가(천원)</th>
-                <th className="px-2.5 py-3 text-right w-28 bg-indigo-50/40">인건비(천원)</th>
-                {!readOnly && <th className="px-2 py-3 w-10 text-center">삭제</th>}
+                {/* 사용자 요청: 월단가와 인건비를 한 열로 통합 */}
+                <th className="px-2 py-2.5 text-right w-28 bg-slate-50 border-l border-slate-200 whitespace-nowrap">
+                  단가 / 인건비 (천원)
+                </th>
+                {!readOnly && (
+                  <th className="px-1.5 py-2.5 w-8 text-center border-l border-slate-200">
+                    삭제
+                  </th>
+                )}
               </tr>
             </thead>
 
             <tbody className="divide-y divide-slate-100 text-slate-800">
               {items.length === 0 ? (
                 <tr>
-                  <td colSpan={visibleMonths.length + 7} className="py-12 text-center text-slate-400">
-                    <Users className="w-8 h-8 mx-auto text-slate-300 mb-2" />
+                  <td colSpan={visibleMonths.length + 5} className="py-10 text-center text-slate-400">
+                    <Users className="w-7 h-7 mx-auto text-slate-300 mb-1.5" />
                     <p className="text-xs font-semibold">편성된 투입 인력이 없습니다.</p>
                     <button
                       type="button"
                       onClick={handleAddBlankItem}
-                      className="mt-3 px-3.5 py-1.5 rounded-xl text-xs font-bold bg-indigo-50 text-indigo-700 hover:bg-indigo-600 hover:text-white transition inline-flex items-center gap-1.5 shadow-2xs"
+                      className="mt-2.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-indigo-50 text-indigo-700 hover:bg-indigo-600 hover:text-white transition inline-flex items-center gap-1 shadow-2xs"
                     >
                       <Plus className="w-3.5 h-3.5" /> 직원 투입 행 추가하기
                     </button>
@@ -570,62 +558,72 @@ export default function ManpowerSheet({
                   const isDropdownOpen = activeDropdownRowId === it.id;
                   const query = rowSearchQueries[it.id] ?? '';
 
-                  // 검색어(이름 or 초성)로 필터링된 사내 직원 목록
                   const matchedEmployees = employees.filter((emp) =>
                     matchNameOrChosung(emp.name, query)
                   );
 
-                  // 직급 및 기술등급 뱃지 스타일
                   const gradeBadgeClass =
                     it.grade === '특급'
-                      ? 'bg-purple-100 text-purple-800 border-purple-200'
+                      ? 'bg-purple-50 text-purple-700 border-purple-200'
                       : it.grade === '고급'
-                      ? 'bg-indigo-100 text-indigo-800 border-indigo-200'
+                      ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
                       : it.grade === '중급'
-                      ? 'bg-blue-100 text-blue-800 border-blue-200'
-                      : 'bg-slate-100 text-slate-800 border-slate-200';
+                      ? 'bg-blue-50 text-blue-700 border-blue-200'
+                      : 'bg-slate-50 text-slate-700 border-slate-200';
 
                   return (
                     <tr key={it.id} className="hover:bg-slate-50/60 transition">
-                      {/* 성명: 인라인 초성/이름 검색 팝오버 드롭다운 */}
-                      <td className="px-3 py-2.5 relative">
+                      {/* 성명 검색 & 행별 원클릭 1.0 채우기 버튼 */}
+                      <td className="px-2 py-2 relative">
                         {readOnly ? (
                           <span className="font-bold text-slate-900 text-xs">{it.name}</span>
                         ) : (
                           <div className="relative">
-                            <div className="relative flex items-center">
-                              <input
-                                type="text"
-                                value={isDropdownOpen ? query : it.name || ''}
-                                placeholder="이름/초성(ㄱㅅㅊ)"
-                                onFocus={() => {
-                                  setActiveDropdownRowId(it.id);
-                                  setRowSearchQueries((prev) => ({
-                                    ...prev,
-                                    [it.id]: '',
-                                  }));
-                                }}
-                                onChange={(e) => {
-                                  const val = e.target.value;
-                                  setRowSearchQueries((prev) => ({
-                                    ...prev,
-                                    [it.id]: val,
-                                  }));
-                                  if (!isDropdownOpen) setActiveDropdownRowId(it.id);
-                                }}
-                                className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs font-bold text-slate-900 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 focus:outline-none bg-white placeholder:text-slate-400 placeholder:font-normal"
-                              />
-                              <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2 pointer-events-none" />
+                            <div className="flex items-center gap-1">
+                              <div className="relative flex-1">
+                                <input
+                                  type="text"
+                                  value={isDropdownOpen ? query : it.name || ''}
+                                  placeholder="이름/초성"
+                                  onFocus={() => {
+                                    setActiveDropdownRowId(it.id);
+                                    setRowSearchQueries((prev) => ({
+                                      ...prev,
+                                      [it.id]: '',
+                                    }));
+                                  }}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    setRowSearchQueries((prev) => ({
+                                      ...prev,
+                                      [it.id]: val,
+                                    }));
+                                    if (!isDropdownOpen) setActiveDropdownRowId(it.id);
+                                  }}
+                                  className="w-full px-2 py-1 border border-slate-200 rounded-lg text-xs font-bold text-slate-900 focus:border-indigo-500 focus:outline-none bg-white placeholder:text-slate-400 placeholder:font-normal"
+                                />
+                                <ChevronDown className="w-3 h-3 text-slate-400 absolute right-1.5 top-2 pointer-events-none" />
+                              </div>
+
+                              {/* 사용자 요청: 행별 초간단 원클릭 1.0 채우기 버튼 */}
+                              <button
+                                type="button"
+                                onClick={() => handleBatchFillRow(it.id)}
+                                className="px-1.5 py-1 rounded bg-slate-100 hover:bg-indigo-600 hover:text-white text-slate-700 text-[10px] font-bold transition border border-slate-200 whitespace-nowrap cursor-pointer"
+                                title="이 직원의 모든 월을 1.0으로 채우기 / 비우기"
+                              >
+                                1.0
+                              </button>
                             </div>
 
-                            {/* 초성/이름 실시간 검색 드롭다운 레이어 */}
+                            {/* 초성/이름 검색 팝오버 */}
                             {isDropdownOpen && (
                               <div
-                                className="absolute left-0 top-full mt-1 w-64 bg-white rounded-xl shadow-xl border border-slate-200 py-1.5 z-50 max-h-56 overflow-y-auto"
+                                className="absolute left-0 top-full mt-1 w-56 bg-white rounded-xl shadow-xl border border-slate-200 py-1 z-50 max-h-52 overflow-y-auto"
                                 onMouseDown={(e) => e.preventDefault()}
                               >
-                                <div className="px-2.5 py-1 text-[10px] font-bold text-slate-400 border-b border-slate-100 flex items-center justify-between">
-                                  <span>사내 임직원 검색 결과 ({matchedEmployees.length}명)</span>
+                                <div className="px-2 py-1 text-[10px] font-bold text-slate-400 border-b border-slate-100 flex items-center justify-between">
+                                  <span>임직원 검색 ({matchedEmployees.length}명)</span>
                                   <button
                                     type="button"
                                     onClick={() => setActiveDropdownRowId(null)}
@@ -635,8 +633,8 @@ export default function ManpowerSheet({
                                   </button>
                                 </div>
                                 {matchedEmployees.length === 0 ? (
-                                  <div className="px-3 py-3 text-center text-slate-400 text-xs">
-                                    일치하는 직원이 없습니다.
+                                  <div className="px-3 py-2 text-center text-slate-400 text-xs">
+                                    일치 직원 없음
                                   </div>
                                 ) : (
                                   matchedEmployees.map((emp) => {
@@ -645,20 +643,20 @@ export default function ManpowerSheet({
                                       <div
                                         key={emp.id}
                                         onClick={() => handleSelectEmployee(it.id, emp)}
-                                        className={`px-3 py-1.5 flex items-center justify-between cursor-pointer transition text-xs ${
+                                        className={`px-2.5 py-1 flex items-center justify-between cursor-pointer transition text-xs ${
                                           isCurrent
                                             ? 'bg-indigo-600 text-white font-bold'
                                             : 'hover:bg-indigo-50 text-slate-800'
                                         }`}
                                       >
                                         <div className="flex items-center gap-1.5">
-                                          <User className={`w-3.5 h-3.5 ${isCurrent ? 'text-white' : 'text-slate-400'}`} />
-                                          <span className="font-bold text-xs">{emp.name}</span>
-                                          <span className={`text-[11px] ${isCurrent ? 'text-indigo-200' : 'text-slate-500'}`}>
+                                          <User className={`w-3 h-3 ${isCurrent ? 'text-white' : 'text-slate-400'}`} />
+                                          <span className="font-bold">{emp.name}</span>
+                                          <span className={`text-[10px] ${isCurrent ? 'text-indigo-200' : 'text-slate-500'}`}>
                                             {emp.position}
                                           </span>
                                         </div>
-                                        <span className={`text-[10px] ${isCurrent ? 'text-indigo-100' : 'text-slate-400'}`}>
+                                        <span className={`text-[9px] ${isCurrent ? 'text-indigo-100' : 'text-slate-400'}`}>
                                           {cleanDeptName(emp.department)}
                                         </span>
                                       </div>
@@ -671,122 +669,27 @@ export default function ManpowerSheet({
                         )}
                       </td>
 
-                      {/* 직급 / 기술등급 */}
-                      <td className="px-2.5 py-2.5">
-                        <div className="flex items-center gap-1.5">
+                      {/* 직급 / 등급 (담당역할은 직급 밑에 서브텍스트로만 컴팩트하게 노출) */}
+                      <td className="px-2 py-2">
+                        <div className="flex items-center gap-1">
                           <span className="font-black text-slate-900 text-xs">{it.position}</span>
-                          <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold border ${gradeBadgeClass}`}>
+                          <span className={`px-1 py-0.2 rounded text-[9px] font-bold border ${gradeBadgeClass}`}>
                             {it.grade}
                           </span>
                         </div>
-                      </td>
-
-                      {/* 담당 역할 & 행별 원클릭 채우기 */}
-                      <td className="px-2.5 py-2.5">
-                        {readOnly ? (
-                          <span className="text-slate-700 text-xs">{it.role}</span>
-                        ) : (
-                          <div>
-                            <div className="relative">
-                              <input
-                                type="text"
-                                list={`role-presets-${it.id}`}
-                                value={it.role}
-                                onChange={(e) => {
-                                  const val = e.target.value;
-                                  const updated = items.map((m) =>
-                                    m.id === it.id ? { ...m, role: val } : m
-                                  );
-                                  onChangeItems(updated);
-                                }}
-                                className="w-full px-2 py-1 border border-slate-200 rounded-lg text-xs font-medium text-slate-800 focus:border-indigo-500 focus:outline-none"
-                              />
-                              <datalist id={`role-presets-${it.id}`}>
-                                {ROLE_PRESETS.map((r) => (
-                                  <option key={r} value={r} />
-                                ))}
-                              </datalist>
-                            </div>
-
-                            {/* 행별 퀵 채우기 미니 버튼 그룹 */}
-                            <div className="flex items-center gap-1 mt-1">
-                              <span className="text-[10px] text-slate-400 font-medium">채우기:</span>
-                              <button
-                                type="button"
-                                onClick={() => handleBatchFillRow(it.id, 1.0)}
-                                className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-emerald-50 hover:bg-emerald-600 hover:text-white text-emerald-700 transition border border-emerald-200 cursor-pointer"
-                                title={`이 직원의 ${selectedYear === 'all' ? '전체 기간' : `${selectedYear}년`} 모든 월을 1.0으로 채우기`}
-                              >
-                                1.0
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleBatchFillRow(it.id, 0.5)}
-                                className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-indigo-50 hover:bg-indigo-600 hover:text-white text-indigo-700 transition border border-indigo-200 cursor-pointer"
-                                title={`이 직원의 ${selectedYear === 'all' ? '전체 기간' : `${selectedYear}년`} 모든 월을 0.5로 설정`}
-                              >
-                                0.5
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleBatchFillRow(it.id, 0)}
-                                className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-slate-50 hover:bg-rose-600 hover:text-white text-slate-500 transition border border-slate-200 cursor-pointer"
-                                title={`이 직원의 ${selectedYear === 'all' ? '전체 기간' : `${selectedYear}년`} 모든 월을 0으로 비우기`}
-                              >
-                                0
-                              </button>
-                            </div>
+                        {it.role && (
+                          <div className="text-[10px] text-slate-400 truncate max-w-[90px]" title={it.role}>
+                            {it.role}
                           </div>
                         )}
                       </td>
 
-                      {/* 보이는 월별 공수 셀 (클릭 시 1.0 -> 0.5 -> 0, 우클릭 0.5, 휠 증감, 더블클릭 직접입력) */}
+                      {/* 월별 공수 셀 (36px 폭으로 슬림화, 원클릭 1.0 ↔ 0.5 ↔ 0 토글) */}
                       {visibleMonths.map((m) => {
                         const mVal = it.months[m.index] ?? 0;
-                        const isEditingThisCell =
-                          editingCell?.rowId === it.id && editingCell?.mIdx === m.index;
-
-                        if (isEditingThisCell && !readOnly) {
-                          return (
-                            <td
-                              key={m.index}
-                              className="px-0.5 py-2.5 text-center border-l border-slate-100"
-                            >
-                              <input
-                                autoFocus
-                                type="number"
-                                min={0}
-                                max={1}
-                                step={0.1}
-                                value={cellInputValue}
-                                onChange={(e) => setCellInputValue(e.target.value)}
-                                onBlur={() => {
-                                  const num = parseFloat(cellInputValue);
-                                  if (!isNaN(num)) {
-                                    handleMonthChange(it.id, m.index, num);
-                                  }
-                                  setEditingCell(null);
-                                }}
-                                onKeyDown={(e) => {
-                                  if (e.key === 'Enter') {
-                                    const num = parseFloat(cellInputValue);
-                                    if (!isNaN(num)) {
-                                      handleMonthChange(it.id, m.index, num);
-                                    }
-                                    setEditingCell(null);
-                                  } else if (e.key === 'Escape') {
-                                    setEditingCell(null);
-                                  }
-                                }}
-                                className="w-10 h-7 rounded text-center text-xs font-mono font-bold bg-white border-2 border-indigo-600 text-indigo-900 focus:outline-none shadow-sm"
-                              />
-                            </td>
-                          );
-                        }
-
                         const cellBg =
                           mVal >= 1
-                            ? 'bg-indigo-600 text-white font-black shadow-2xs'
+                            ? 'bg-indigo-600 text-white font-black'
                             : mVal > 0
                             ? 'bg-indigo-100 text-indigo-900 font-bold border border-indigo-200'
                             : 'bg-slate-50 text-slate-300 hover:bg-slate-100 border border-transparent';
@@ -794,34 +697,16 @@ export default function ManpowerSheet({
                         return (
                           <td
                             key={m.index}
-                            className="px-0.5 py-2.5 text-center border-l border-slate-100"
+                            className="px-0.5 py-1.5 text-center border-l border-slate-100"
                           >
                             <button
                               type="button"
                               disabled={readOnly}
-                              onClick={() => handleCycleMonthCell(it.id, m.index)}
-                              onContextMenu={(e) => {
-                                if (readOnly) return;
-                                e.preventDefault();
-                                handleMonthChange(it.id, m.index, 0.5);
-                              }}
-                              onDoubleClick={(e) => {
-                                if (readOnly) return;
-                                e.preventDefault();
-                                setEditingCell({ rowId: it.id, mIdx: m.index });
-                                setCellInputValue(String(mVal));
-                              }}
-                              onWheel={(e) => {
-                                if (readOnly) return;
-                                e.preventDefault();
-                                const delta = e.deltaY < 0 ? 0.1 : -0.1;
-                                const next = Math.round(Math.max(0, Math.min(1, mVal + delta)) * 10) / 10;
-                                handleMonthChange(it.id, m.index, next);
-                              }}
-                              className={`w-9 h-7 rounded-lg text-xs font-mono transition flex items-center justify-center mx-auto select-none ${cellBg} ${
+                              onClick={() => handleToggleCell(it.id, m.index)}
+                              className={`w-7 h-6 rounded text-xs font-mono transition flex items-center justify-center mx-auto select-none ${cellBg} ${
                                 !readOnly ? 'hover:scale-105 active:scale-95 cursor-pointer' : ''
                               }`}
-                              title={`${m.yearMonth} (${m.label}) 공수: ${mVal}\n• 클릭: 1.0 ↔ 0.5 ↔ 0\n• 우클릭: 0.5 즉시적용\n• 더블클릭: 직접 숫자입력\n• 휠스크롤: ±0.1 조절`}
+                              title={`${m.yearMonth} (${m.label}): ${mVal}\n(클릭 시 1.0 ↔ 0.5 ↔ 0)`}
                             >
                               {mVal > 0 ? (Number.isInteger(mVal) ? mVal.toFixed(0) : mVal.toFixed(1)) : '-'}
                             </button>
@@ -830,42 +715,47 @@ export default function ManpowerSheet({
                       })}
 
                       {/* 총 MM */}
-                      <td className="px-2.5 py-2.5 text-right font-mono font-bold text-indigo-950 bg-indigo-50/40 text-xs">
+                      <td className="px-1.5 py-2 text-center font-mono font-black text-indigo-950 bg-indigo-50/40 text-xs border-l border-slate-200">
                         {it.totalMM.toFixed(1)}
                       </td>
 
-                      {/* 월 기준단가 (수정 가능 input) */}
-                      <td className="px-2.5 py-2.5 text-right font-mono text-slate-700 text-xs">
-                        {readOnly ? (
-                          <span>{it.unitPrice.toLocaleString()}</span>
-                        ) : (
-                          <div className="flex items-center justify-end gap-1">
-                            <input
-                              type="number"
-                              min={0}
-                              step={100}
-                              value={it.unitPrice || ''}
-                              onChange={(e) => handleUnitPriceChange(it.id, Number(e.target.value))}
-                              className="w-20 px-1.5 py-1 text-right text-xs font-mono font-bold text-slate-800 bg-white border border-slate-300 rounded-md focus:border-indigo-500 focus:outline-none"
-                              placeholder="단가"
-                            />
-                            <span className="text-[10px] text-slate-400">천원</span>
+                      {/* 사용자 요청: 월단가와 인건비를 한 열로 통합 */}
+                      <td className="px-2 py-1.5 text-right font-mono text-xs border-l border-slate-200">
+                        <div className="flex flex-col items-end gap-0.5">
+                          {/* 윗줄: 월단가 (수정 가능 input) */}
+                          {readOnly ? (
+                            <span className="text-slate-600 font-medium text-[11px]">
+                              {it.unitPrice.toLocaleString()}천원
+                            </span>
+                          ) : (
+                            <div className="flex items-center gap-0.5">
+                              <input
+                                type="number"
+                                min={0}
+                                step={100}
+                                value={it.unitPrice || ''}
+                                onChange={(e) => handleUnitPriceChange(it.id, Number(e.target.value))}
+                                className="w-16 px-1 py-0.5 text-right text-xs font-mono font-bold text-slate-800 bg-white border border-slate-300 rounded focus:border-indigo-500 focus:outline-none"
+                                placeholder="단가"
+                              />
+                              <span className="text-[10px] text-slate-400">천원</span>
+                            </div>
+                          )}
+                          {/* 아랫줄: 계산된 인건비 */}
+                          <div className="text-indigo-700 font-bold text-xs">
+                            {it.laborCost.toLocaleString()}{' '}
+                            <span className="text-[10px] font-normal text-slate-400">천원</span>
                           </div>
-                        )}
-                      </td>
-
-                      {/* 인건비 */}
-                      <td className="px-2.5 py-2.5 text-right font-mono font-bold text-indigo-700 bg-indigo-50/40 text-xs">
-                        {it.laborCost.toLocaleString()}
+                        </div>
                       </td>
 
                       {/* 삭제 버튼 */}
                       {!readOnly && (
-                        <td className="px-2 py-2.5 text-center">
+                        <td className="px-1 py-2 text-center border-l border-slate-200">
                           <button
                             type="button"
                             onClick={() => handleDelete(it.id)}
-                            className="p-1 rounded-lg text-slate-300 hover:text-rose-600 hover:bg-rose-50 transition"
+                            className="p-1 rounded text-slate-300 hover:text-rose-600 hover:bg-rose-50 transition"
                             title="행 삭제"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
