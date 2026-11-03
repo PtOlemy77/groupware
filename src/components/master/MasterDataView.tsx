@@ -2,7 +2,7 @@
 import { readMaster, saveMaster, apiFetch } from '@/lib/api';
 import { useModal } from '@/contexts/ModalContext';
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useLayoutEffect, useRef } from 'react';
 import {
   AuthUser,
   CommonCode,
@@ -10,7 +10,6 @@ import {
   formatCurrencyManwon,
 } from '@/types/groupware';
 import {
-  Sliders,
   Database,
   Calendar,
   Save,
@@ -29,6 +28,28 @@ import {
   Search,
   Filter,
 } from 'lucide-react';
+
+function AutoSizeTextarea(props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
+  const ref = useRef<HTMLTextAreaElement>(null);
+  useLayoutEffect(() => {
+    const field = ref.current;
+    if (!field) return;
+    const resize = () => {
+      field.style.height = 'auto';
+      field.style.height = `${field.scrollHeight + field.offsetHeight - field.clientHeight}px`;
+    };
+    resize();
+    let width = field.clientWidth;
+    const observer = new ResizeObserver(() => {
+      if (field.clientWidth === width) return;
+      width = field.clientWidth;
+      resize();
+    });
+    observer.observe(field);
+    return () => observer.disconnect();
+  }, [props.value]);
+  return <textarea {...props} ref={ref} />;
+}
 
 interface Props {
   currentUser: AuthUser;
@@ -277,6 +298,7 @@ export default function MasterDataView({
   const [codeGroupFilter, setCodeGroupFilter] = useState<string>('전체');
   const [codeSearch, setCodeSearch] = useState<string>('');
   const [codeModalOpen, setCodeModalOpen] = useState(false);
+  const [expandedDescriptions, setExpandedDescriptions] = useState<Set<number>>(new Set());
   const [editingCode, setEditingCode] = useState<CommonCode | null>(null);
   const [codeForm, setCodeForm] = useState<Partial<CommonCode>>({});
 
@@ -356,27 +378,15 @@ export default function MasterDataView({
   };
 
   return (
-    <div data-editor className="space-y-6">
-      {/* 1. 상단 타이틀 배너 */}
-      <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-2xs flex items-center justify-between flex-wrap gap-4">
-        <div>
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-50 border border-indigo-200 text-indigo-700 text-xs font-bold mb-2">
-            <Sliders className="w-3.5 h-3.5" />
-            <span>스패셜티 전사 마스터 기준정보</span>
-          </div>
-          <h1 className="text-xl md:text-2xl font-black text-slate-900 tracking-tight">
-            기준정보 관리
-          </h1>
-          <p className="text-xs text-slate-500 mt-1">
-            계약품의서의 인건비 산출에 적용되는 <strong>연도별 SW 기술자 노임단가</strong> 및 시스템 전반의 <strong>공통 코드</strong>를 중앙에서 통합 관리합니다.
-          </p>
-        </div>
-
+    <div data-editor data-testid="master-data-view" className="min-w-0 space-y-4">
+      {/* 1. 상단 서브탭 전환 바 */}
+      <div className="min-w-0 bg-white p-2.5 sm:p-3 rounded-2xl border border-slate-200 shadow-2xs">
         {/* 탭 전환 버튼 */}
-        <div className="flex items-center gap-1.5 bg-slate-100 p-1.5 rounded-2xl border border-slate-200">
+        <div role="group" aria-label="기준정보 분류" className="grid min-w-0 grid-cols-1 gap-1.5 rounded-xl border border-slate-200 bg-slate-100 p-1.5 lg:flex lg:flex-wrap">
           <button
+            aria-pressed={subTab === 'target_revenue'}
             onClick={() => setSubTab('target_revenue')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition ${
+            className={`flex min-w-0 items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold transition ${
               subTab === 'target_revenue'
                 ? 'bg-white text-indigo-700 shadow-xs'
                 : 'text-slate-600 hover:text-slate-900'
@@ -387,8 +397,9 @@ export default function MasterDataView({
           </button>
 
           <button
+            aria-pressed={subTab === 'unit_prices'}
             onClick={() => setSubTab('unit_prices')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition ${
+            className={`flex min-w-0 items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold transition ${
               subTab === 'unit_prices'
                 ? 'bg-white text-indigo-700 shadow-xs'
                 : 'text-slate-600 hover:text-slate-900'
@@ -399,8 +410,9 @@ export default function MasterDataView({
           </button>
 
           <button
+            aria-pressed={subTab === 'common_codes'}
             onClick={() => setSubTab('common_codes')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition ${
+            className={`flex min-w-0 items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold transition ${
               subTab === 'common_codes'
                 ? 'bg-white text-indigo-700 shadow-xs'
                 : 'text-slate-600 hover:text-slate-900'
@@ -421,23 +433,23 @@ export default function MasterDataView({
 
       {/* 2. 서브탭 1: 연도별 사업 목표매출 관리 (target_revenue) */}
       {subTab === 'target_revenue' && (
-        <div className="space-y-4">
-          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-2xs">
+        <div className="min-w-0 space-y-4">
+          <div className="min-w-0 bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 shadow-2xs">
             <div className="flex items-center justify-between pb-4 border-b border-slate-200 mb-5 flex-wrap gap-3">
               <div>
                 <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
                   <TrendingUp className="w-5 h-5 text-indigo-600" />
                   <span>연도별 전사 사업 목표매출 설정</span>
                 </h3>
-                <p className="text-xs text-slate-500 mt-1">
+                <p className="mt-2 text-sm leading-relaxed text-slate-500">
                   연도별 전사 수주/매출 목표치를 <strong>만원 단위</strong>로 등록·수정합니다. 여기서 설정된 금액은 <strong>통합 대시보드</strong>의 연간 목표 매출액 및 수주 달성률에 즉시 반영됩니다.
                 </p>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex min-w-0 flex-wrap items-center gap-2">
                 <button
                   onClick={() => setShowAddYearModal(true)}
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 transition"
+                  className="inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap px-3 py-2 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 transition"
                 >
                   <Plus className="w-3.5 h-3.5" />
                   <span>기준연도 추가</span>
@@ -445,7 +457,7 @@ export default function MasterDataView({
                 <button
                   onClick={handleSaveTargetRevenues}
                   disabled={savingRevenues}
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs transition"
+                  className="inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap px-4 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs transition"
                 >
                   <Save className="w-3.5 h-3.5" />
                   <span>{savingRevenues ? '저장중...' : '목표매출 저장'}</span>
@@ -454,8 +466,9 @@ export default function MasterDataView({
             </div>
 
             {/* 목표매출 테이블 */}
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs text-slate-700">
+            <div role="region" aria-label="목표매출 표 가로 스크롤" tabIndex={0} className="max-w-full overflow-x-auto">
+              <table aria-label="연도별 목표매출" className="w-full min-w-[1040px] table-fixed text-left text-sm text-slate-700">
+                <colgroup><col className="w-32"/><col className="w-56"/><col className="w-36"/><col className="w-[136px]"/><col/><col className="w-[72px]"/></colgroup>
                 <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider text-[11px]">
                   <tr>
                     <th className="py-3 px-4 w-28">기준 연도</th>
@@ -489,19 +502,19 @@ export default function MasterDataView({
                           }`}
                         >
                           <td className="py-3.5 px-4">
-                            <div className="flex items-center gap-1.5">
+                            <div className="flex flex-wrap items-center gap-1.5">
                               <span className="font-extrabold text-slate-900 text-sm">
                                 {yr}년
                               </span>
                               {isCurrentYear && (
-                                <span className="px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 text-[10px] font-bold">
+                                <span className="whitespace-nowrap px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 text-[10px] font-bold">
                                   당해연도
                                 </span>
                               )}
                             </div>
                           </td>
                           <td className="py-3.5 px-4">
-                            <div className="flex items-center gap-1.5">
+                            <div className="flex flex-wrap items-center gap-1.5">
                               <input
                                 type="number"
                                 step="1000"
@@ -509,9 +522,10 @@ export default function MasterDataView({
                                 onChange={(e) =>
                                   handleTargetRevenueChange(yr, 'targetAmount', e.target.value)
                                 }
-                                className="w-36 text-right font-extrabold text-sm font-mono text-indigo-700 border border-slate-300 rounded-lg px-2.5 py-1.5 focus:ring-2 focus:ring-indigo-500 bg-white"
+                                aria-label={`${yr}년도 목표매출액`}
+                                className="w-40 shrink-0 text-right font-extrabold text-sm font-mono text-indigo-700 border border-slate-300 rounded-lg px-2.5 py-1.5 focus:ring-2 focus:ring-indigo-500 bg-white"
                               />
-                              <span className="text-xs text-slate-500 font-medium">만원</span>
+                              <span className="shrink-0 whitespace-nowrap text-xs text-slate-500 font-medium">만원</span>
                             </div>
                           </td>
                           <td className="py-3.5 px-4 font-mono font-bold text-slate-800 text-sm">
@@ -535,14 +549,15 @@ export default function MasterDataView({
                             )}
                           </td>
                           <td className="py-3.5 px-4">
-                            <input
-                              type="text"
+                            <AutoSizeTextarea
+                              rows={2}
+                              aria-label={`${yr}년도 목표매출 비고`}
                               value={item.note || ''}
                               placeholder="전략 방향 및 비고 메모..."
                               onChange={(e) =>
                                 handleTargetRevenueChange(yr, 'note', e.target.value)
                               }
-                              className="w-full text-xs text-slate-700 border border-slate-200 rounded-lg px-3 py-1.5 focus:border-indigo-500 bg-white"
+                              className="w-full min-w-0 resize-y text-sm leading-relaxed text-slate-700 border border-slate-200 rounded-lg px-3 py-2 focus:border-indigo-500 bg-white"
                             />
                           </td>
                           <td className="py-3.5 px-4 text-center">
@@ -561,11 +576,11 @@ export default function MasterDataView({
               </table>
             </div>
 
-            <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between text-xs text-slate-500 mt-4 rounded-xl">
+            <div className="p-4 bg-slate-50 border-t border-slate-200 flex flex-wrap items-center justify-between gap-3 text-xs leading-relaxed text-slate-500 mt-4 rounded-xl">
               <span>* 입력 단위는 <strong>만원</strong>이며, 예: 250,000만원 = 25.0억원으로 자동 계산됩니다.</span>
               <button
                 onClick={handleSaveTargetRevenues}
-                className="px-4 py-1.5 rounded-lg text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white transition shadow-2xs"
+                className="shrink-0 whitespace-nowrap px-4 py-2 rounded-lg text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white transition shadow-2xs"
               >
                 저장하기
               </button>
@@ -576,10 +591,10 @@ export default function MasterDataView({
 
       {/* 3. 서브탭 2: 연도별 SW 노임단가 관리 */}
       {subTab === 'unit_prices' && (
-        <div className="space-y-4">
+        <div className="min-w-0 space-y-4">
           {/* 상단 툴바: 연도 선택 탭 & 액션 버튼 */}
           <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs flex items-center justify-between flex-wrap gap-3">
-            <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
               <span className="text-xs font-bold text-slate-700 mr-1 flex items-center gap-1">
                 <Calendar className="w-4 h-4 text-indigo-600" />
                 적용 기준연도:
@@ -611,11 +626,11 @@ export default function MasterDataView({
               </button>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
               <button
                 onClick={handleSavePrices}
                 disabled={savingPrices}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs transition"
+                className="inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap px-4 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs transition"
               >
                 <Save className="w-4 h-4" />
                 <span>{selectedYear}년도 단가표 저장</span>
@@ -639,8 +654,8 @@ export default function MasterDataView({
 
           {/* 노임단가 테이블 */}
           <div className="bg-white rounded-2xl border border-slate-200 shadow-2xs overflow-hidden">
-            <div className="p-4 border-b border-slate-100 flex items-center justify-between">
-              <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+            <div className="p-4 border-b border-slate-100 flex flex-wrap items-start justify-between gap-3">
+              <h3 className="text-sm font-bold text-slate-900 flex min-w-0 flex-wrap items-center gap-2">
                 <span>{selectedYear}년도 직급별 SW기술자 노임단가 기준표</span>
                 <span className="text-xs font-mono font-semibold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded">
                   (단위: 천원 / 월)
@@ -651,8 +666,9 @@ export default function MasterDataView({
               </span>
             </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs text-slate-700">
+            <div role="region" aria-label="노임단가 표 가로 스크롤" tabIndex={0} className="max-w-full overflow-x-auto">
+              <table aria-label="연도별 노임단가" className="w-full min-w-[720px] table-fixed text-left text-sm text-slate-700">
+                <colgroup><col className="w-40"/><col className="w-40"/><col className="w-60"/><col className="w-40"/></colgroup>
                 <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider text-[11px]">
                   <tr>
                     <th className="py-3 px-4">사내 직급</th>
@@ -691,9 +707,10 @@ export default function MasterDataView({
                               onChange={(e) =>
                                 handlePriceChange(item.id, 'monthlyPrice', e.target.value)
                               }
-                              className="w-28 text-right font-extrabold text-sm font-mono text-indigo-700 border border-slate-300 rounded-lg px-2.5 py-1.5 focus:ring-2 focus:ring-indigo-500"
+                              aria-label={`${selectedYear}년도 ${item.position} 월 노임단가`}
+                              className="w-36 text-right font-extrabold text-sm font-mono text-indigo-700 border border-slate-300 rounded-lg px-2.5 py-1.5 focus:ring-2 focus:ring-indigo-500"
                             />
-                            <span className="text-xs text-slate-500 font-medium">천원</span>
+                            <span className="shrink-0 whitespace-nowrap text-xs text-slate-500 font-medium">천원</span>
                           </div>
                         </td>
                         <td className="py-3 px-4 text-right font-mono font-bold text-slate-800 text-xs">
@@ -706,11 +723,11 @@ export default function MasterDataView({
               </table>
             </div>
 
-            <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between text-xs text-slate-500">
+            <div className="p-4 bg-slate-50 border-t border-slate-200 flex flex-wrap items-center justify-between gap-3 text-xs leading-relaxed text-slate-500">
               <span>* 월 기준 근무일수는 조달청 및 엔지니어링 표준 기준인 20.9일로 적용됩니다.</span>
               <button
                 onClick={handleSavePrices}
-                className="px-4 py-1.5 rounded-lg text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white transition shadow-2xs"
+                className="shrink-0 whitespace-nowrap px-4 py-2 rounded-lg text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white transition shadow-2xs"
               >
                 변경사항 저장
               </button>
@@ -721,26 +738,26 @@ export default function MasterDataView({
 
       {/* 3. 서브탭 2: 사내 공통 코드 관리 (common_codes) */}
       {subTab === 'common_codes' && (
-        <div className="space-y-4">
+        <div className="min-w-0 space-y-4">
           {/* 그룹 필터 & 검색바 */}
           <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs flex items-center justify-between flex-wrap gap-3">
-            <div className="flex items-center gap-2 flex-wrap">
-              <div className="relative">
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              <div className="relative w-full sm:w-72">
                 <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
                 <input
                   type="text"
                   placeholder="코드, 코드명, 그룹명 검색..."
                   value={codeSearch}
                   onChange={(e) => setCodeSearch(e.target.value)}
-                  className="pl-9 pr-3 py-1.5 text-xs rounded-lg border border-slate-300 w-60 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                  className="w-full min-w-0 pl-9 pr-3 py-2 text-sm rounded-lg border border-slate-300 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
                 />
               </div>
 
               {/* 코드 그룹 필터 */}
-              <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg text-xs">
+              <div className="flex min-w-0 max-w-full flex-wrap items-center gap-1 bg-slate-100 p-1 rounded-lg text-xs">
                 <button
                   onClick={() => setCodeGroupFilter('전체')}
-                  className={`px-2.5 py-1 rounded-md font-semibold transition ${
+                  className={`max-w-full break-all px-2.5 py-1.5 text-left leading-relaxed rounded-md font-semibold transition ${
                     codeGroupFilter === '전체'
                       ? 'bg-white text-indigo-700 shadow-2xs font-bold'
                       : 'text-slate-600 hover:text-slate-900'
@@ -752,7 +769,7 @@ export default function MasterDataView({
                   <button
                     key={grp}
                     onClick={() => setCodeGroupFilter(grp)}
-                    className={`px-2.5 py-1 rounded-md font-semibold transition ${
+                    className={`max-w-full break-all px-2.5 py-1.5 text-left leading-relaxed rounded-md font-semibold transition ${
                       codeGroupFilter === grp
                         ? 'bg-white text-indigo-700 shadow-2xs font-bold'
                         : 'text-slate-600 hover:text-slate-900'
@@ -766,7 +783,7 @@ export default function MasterDataView({
 
             <button
               onClick={() => handleOpenCodeModal()}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs transition"
+              className="inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap px-4 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs transition"
             >
               <Plus className="w-3.5 h-3.5" /> 신규 코드 추가
             </button>
@@ -774,8 +791,9 @@ export default function MasterDataView({
 
           {/* 공통 코드 테이블 */}
           <div className="bg-white rounded-2xl border border-slate-200 shadow-2xs overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs text-slate-700">
+            <div role="region" aria-label="공통코드 표 가로 스크롤" tabIndex={0} className="max-w-full overflow-x-auto">
+              <table aria-label="공통코드 목록" className="w-full min-w-[1040px] table-fixed text-left text-sm text-slate-700">
+                <colgroup><col className="w-[140px]"/><col className="w-32"/><col className="w-32"/><col className="w-52"/><col className="w-20"/><col className="w-[88px]"/><col/><col className="w-24"/></colgroup>
                 <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider text-[11px]">
                   <tr>
                     <th className="py-3 px-4">그룹 코드</th>
@@ -785,22 +803,23 @@ export default function MasterDataView({
                     <th className="py-3 px-4 text-center">정렬 순서</th>
                     <th className="py-3 px-4 text-center">사용 여부</th>
                     <th className="py-3 px-4">부가 정보 / 설명</th>
-                    <th className="py-3 px-4 text-right">관리</th>
+                    <th className="sticky right-0 bg-slate-50 py-3 px-4 text-right">관리</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-slate-100 [&_td]:align-top">
                   {filteredCodes.map((c) => (
-                    <tr key={c.id} className="hover:bg-slate-50/80 transition">
-                      <td className="py-3 px-4 font-mono font-bold text-slate-900">
+                    <React.Fragment key={c.id}>
+                    <tr className="hover:bg-slate-50/80 transition">
+                      <td className="break-all py-3 px-4 font-mono font-semibold leading-relaxed text-slate-900">
                         {c.group_code}
                       </td>
-                      <td className="py-3 px-4 font-semibold text-slate-700">
+                      <td className="break-words py-3 px-4 font-semibold leading-relaxed text-slate-700">
                         {c.group_name}
                       </td>
-                      <td className="py-3 px-4 font-mono font-bold text-indigo-600">
+                      <td className="break-all py-3 px-4 font-mono font-semibold leading-relaxed text-indigo-600">
                         {c.code}
                       </td>
-                      <td className="py-3 px-4 font-bold text-slate-900">
+                      <td className="break-words py-3 px-4 font-semibold leading-relaxed text-slate-900">
                         {c.code_name}
                       </td>
                       <td className="py-3 px-4 text-center font-mono font-semibold text-slate-600">
@@ -818,9 +837,9 @@ export default function MasterDataView({
                         </span>
                       </td>
                       <td className="py-3 px-4 text-slate-500 text-xs">
-                        {c.extra_value || '-'}
+                        {c.extra_value && c.extra_value.length > 160 ? <button type="button" aria-expanded={expandedDescriptions.has(c.id)} aria-controls={`code-description-${c.id}`} onClick={() => setExpandedDescriptions(previous => { const next = new Set(previous); next.has(c.id) ? next.delete(c.id) : next.add(c.id); return next; })} className="rounded-lg border border-indigo-200 bg-indigo-50 px-2.5 py-1.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-100">부가 정보 {expandedDescriptions.has(c.id) ? '접기' : '펼치기'}</button> : <span className="whitespace-pre-wrap break-words text-sm leading-relaxed">{c.extra_value || '-'}</span>}
                       </td>
-                      <td className="py-3 px-4 text-right">
+                      <td className="sticky right-0 bg-white py-3 px-4 text-right shadow-[-3px_0_6px_-4px_#94a3b8]">
                         <div className="flex items-center justify-end gap-1">
                           <button
                             onClick={() => handleOpenCodeModal(c)}
@@ -839,10 +858,12 @@ export default function MasterDataView({
                         </div>
                       </td>
                     </tr>
+                    </React.Fragment>
                   ))}
                 </tbody>
               </table>
             </div>
+            {filteredCodes.filter(c => c.extra_value && c.extra_value.length > 160 && expandedDescriptions.has(c.id)).map(c => <div key={c.id} className="min-w-0 border-t border-slate-200 bg-slate-50 p-4"><h4 className="mb-2 break-words text-sm font-semibold text-slate-800">{c.code_name}</h4><div id={`code-description-${c.id}`} className="whitespace-pre-wrap break-all text-sm leading-relaxed text-slate-600">{c.extra_value}</div></div>)}
           </div>
         </div>
       )}
@@ -850,13 +871,13 @@ export default function MasterDataView({
       {/* 코드 등록/수정 모달 */}
       {codeModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200">
+          <div className="max-h-[90dvh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-slate-200 bg-white p-4 shadow-2xl sm:p-6">
             <h3 className="text-base font-bold text-slate-900 mb-4 pb-2 border-b border-slate-100">
               {editingCode ? '공통 코드 수정' : '신규 공통 코드 등록'}
             </h3>
 
-            <form onSubmit={handleSaveCode} className="space-y-3.5 text-xs">
-              <div className="grid grid-cols-2 gap-3">
+            <form onSubmit={handleSaveCode} className="space-y-4 text-sm">
+              <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
                   <label className="block font-bold text-slate-700 mb-1">그룹 코드</label>
                   <input
@@ -867,25 +888,25 @@ export default function MasterDataView({
                     onChange={(e) =>
                       setCodeForm({ ...codeForm, group_code: e.target.value })
                     }
-                    className="w-full p-2.5 rounded-xl border border-slate-300 font-mono font-bold"
+                    className="w-full min-w-0 p-2.5 rounded-xl border border-slate-300 font-mono font-bold"
                   />
                 </div>
                 <div>
                   <label className="block font-bold text-slate-700 mb-1">그룹 명칭</label>
-                  <input
-                    type="text"
+                  <AutoSizeTextarea
+                    rows={2}
                     required
                     placeholder="예: 부서"
                     value={codeForm.group_name || ''}
                     onChange={(e) =>
                       setCodeForm({ ...codeForm, group_name: e.target.value })
                     }
-                    className="w-full p-2.5 rounded-xl border border-slate-300 font-semibold"
+                    className="w-full min-w-0 p-2.5 rounded-xl border border-slate-300 font-semibold"
                   />
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
                   <label className="block font-bold text-slate-700 mb-1">코드 값</label>
                   <input
@@ -896,25 +917,25 @@ export default function MasterDataView({
                     onChange={(e) =>
                       setCodeForm({ ...codeForm, code: e.target.value })
                     }
-                    className="w-full p-2.5 rounded-xl border border-slate-300 font-mono font-bold text-indigo-700"
+                    className="w-full min-w-0 p-2.5 rounded-xl border border-slate-300 font-mono font-bold text-indigo-700"
                   />
                 </div>
                 <div>
                   <label className="block font-bold text-slate-700 mb-1">코드 명칭 (표시명)</label>
-                  <input
-                    type="text"
+                  <AutoSizeTextarea
+                    rows={2}
                     required
                     placeholder="예: 사업본부"
                     value={codeForm.code_name || ''}
                     onChange={(e) =>
                       setCodeForm({ ...codeForm, code_name: e.target.value })
                     }
-                    className="w-full p-2.5 rounded-xl border border-slate-300 font-bold"
+                    className="w-full min-w-0 p-2.5 rounded-xl border border-slate-300 font-bold"
                   />
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
                   <label className="block font-bold text-slate-700 mb-1">정렬 순서</label>
                   <input
@@ -923,7 +944,7 @@ export default function MasterDataView({
                     onChange={(e) =>
                       setCodeForm({ ...codeForm, sort_order: Number(e.target.value) })
                     }
-                    className="w-full p-2.5 rounded-xl border border-slate-300 font-semibold"
+                    className="w-full min-w-0 p-2.5 rounded-xl border border-slate-300 font-semibold"
                   />
                 </div>
                 <div>
@@ -933,7 +954,7 @@ export default function MasterDataView({
                     onChange={(e) =>
                       setCodeForm({ ...codeForm, is_active: e.target.value === 'true' })
                     }
-                    className="w-full p-2.5 rounded-xl border border-slate-300 font-bold bg-white"
+                    className="w-full min-w-0 p-2.5 rounded-xl border border-slate-300 font-bold bg-white"
                   >
                     <option value="true">사용</option>
                     <option value="false">미사용</option>
@@ -943,14 +964,14 @@ export default function MasterDataView({
 
               <div>
                 <label className="block font-bold text-slate-700 mb-1">부가 정보 / 설명</label>
-                <input
-                  type="text"
+                <AutoSizeTextarea
+                  rows={3}
                   placeholder="예: 프로젝트 전담 부서"
                   value={codeForm.extra_value || ''}
                   onChange={(e) =>
                     setCodeForm({ ...codeForm, extra_value: e.target.value })
                   }
-                  className="w-full p-2.5 rounded-xl border border-slate-300"
+                  className="w-full min-w-0 p-2.5 rounded-xl border border-slate-300"
                 />
               </div>
 
@@ -977,7 +998,7 @@ export default function MasterDataView({
       {/* 5. 신규 연도 사업목표 추가 모달 */}
       {showAddYearModal && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200">
+          <div className="max-h-[90dvh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-slate-200 bg-white p-4 shadow-2xl sm:p-6">
             <h3 className="text-lg font-black text-slate-900 mb-1 flex items-center gap-2">
               <TrendingUp className="w-5 h-5 text-indigo-600" />
               <span>신규 연도 사업 목표매출 추가</span>
@@ -986,7 +1007,7 @@ export default function MasterDataView({
               전사 사업 계획에 맞춘 신규 연도의 매출 목표액을 설정합니다.
             </p>
 
-            <form onSubmit={handleAddYearRevenue} className="space-y-4 text-xs">
+            <form onSubmit={handleAddYearRevenue} className="space-y-4 text-sm">
               <div>
                 <label className="block font-bold text-slate-700 mb-1">
                   기준 연도 (YYYY) <span className="text-rose-500">*</span>
@@ -997,7 +1018,7 @@ export default function MasterDataView({
                   placeholder="예: 2029"
                   value={newYearInput}
                   onChange={(e) => setNewYearInput(e.target.value)}
-                  className="w-full p-2.5 rounded-xl border border-slate-300 font-bold"
+                  className="w-full min-w-0 p-2.5 rounded-xl border border-slate-300 font-bold"
                 />
               </div>
 
@@ -1005,7 +1026,7 @@ export default function MasterDataView({
                 <label className="block font-bold text-slate-700 mb-1">
                   연간 목표매출액 (만원 단위) <span className="text-rose-500">*</span>
                 </label>
-                <div className="flex items-center border border-slate-300 rounded-xl overflow-hidden bg-white">
+                <div className="flex min-w-0 flex-col items-stretch border border-slate-300 rounded-xl bg-white sm:flex-row">
                   <input
                     type="number"
                     step="1000"
@@ -1013,9 +1034,9 @@ export default function MasterDataView({
                     placeholder="예: 400000 (40억원)"
                     value={newAmountInput}
                     onChange={(e) => setNewAmountInput(e.target.value)}
-                    className="flex-1 p-2.5 outline-none font-bold text-indigo-700 text-sm"
+                    className="min-w-0 w-full flex-1 p-2.5 outline-none font-bold text-indigo-700 text-sm"
                   />
-                  <span className="px-3 py-2.5 bg-slate-100 text-slate-500 font-bold select-none border-l border-slate-200">
+                  <span className="shrink-0 whitespace-nowrap px-3 py-2.5 bg-slate-100 text-slate-500 font-bold select-none border-l border-slate-200">
                     만원 {newAmountInput ? `(${(Number(newAmountInput) / 10000).toFixed(1)}억원)` : ''}
                   </span>
                 </div>
@@ -1028,7 +1049,7 @@ export default function MasterDataView({
                   placeholder="예: AI 기반 공간정보 플랫폼 민간 시장 진출"
                   value={newNoteInput}
                   onChange={(e) => setNewNoteInput(e.target.value)}
-                  className="w-full p-2.5 rounded-xl border border-slate-300"
+                  className="w-full min-w-0 p-2.5 rounded-xl border border-slate-300"
                 />
               </div>
 
