@@ -18,7 +18,7 @@
 | `ROLE_PM` | PM | 허용된 프로젝트·계약·보고 작성, 소속 프로젝트 수행평가 조회, 담당 PM·지정 인재풀 검토자일 때 목표 승인·실적 평가 |
 | `ROLE_STAFF` | 일반 직원 | 배정 프로젝트·본인 자산·본인 평가 조회, 본인 수행목표·실적 작성 및 제출 |
 
-역할을 특정 실명이나 직함과 동일시하지 않는다. 화면의 메뉴 숨김과 별개로 서버에서 요청마다 검사한다. 프로젝트별 접근·결재자 지정 등 세부 규칙은 [GroupwareService](../backend/src/main/java/com/nexus/groupware/service/GroupwareService.java)의 실제 인가와 테스트를 함께 확인한다.
+역할을 특정 실명이나 직함과 동일시하지 않는다. 화면의 메뉴 숨김과 별개로 서버에서 요청마다 검사한다. 프로젝트별 접근·결재자 지정 등 세부 규칙은 [GroupwareService](../backend/src/main/java/com/nexus/groupware/domain/groupware/service/GroupwareService.java)의 실제 인가와 테스트를 함께 확인한다.
 
 ## 기능과 완료 기준
 
@@ -61,7 +61,7 @@
 
 ## 수행평가 운영 범위
 
-- [수행평가 서비스](../backend/src/main/java/com/nexus/groupware/evaluation/EvaluationPlanService.java)와 [전용 모델](../src/types/evaluation-plans.ts)을 기준으로 한다. 프로젝트 기본 배점은 35/35/30, 인재풀 기본지표는 5개 각 10점이며 승인 업무 지표를 추가해 총 100점 이내로 설정한다. 목표 제출 전에 항목·배점을 정하고 승인 후에는 고정한다.
+- [수행평가 서비스](../backend/src/main/java/com/nexus/groupware/domain/evaluation/service/EvaluationPlanService.java)와 [전용 모델](../src/types/evaluation-plans.ts)을 기준으로 한다. 프로젝트 기본 배점은 35/35/30, 인재풀 기본지표는 5개 각 10점이며 승인 업무 지표를 추가해 총 100점 이내로 설정한다. 목표 제출 전에 항목·배점을 정하고 승인 후에는 고정한다.
 - PM은 목표를 직접 덮어쓰지 않고 보완을 요청한다. PM 본인의 프로젝트 목표나 담당 PM 미지정 건은 임원 검토자를 지정한다. 평가 확정 후 결과·점수도 수정할 수 없다.
 - 프로젝트 변경 저장 시 새 배정 이력을 만들며, 기존 목표·승인 이력은 보존한다. 서버 기동이나 GET 조회에서 기존 업무 데이터를 다시 쓰지 않는다. V8은 새 테이블과 최초 배정 이력만 추가한다.
 - 기능 복귀는 백엔드 `EVALUATION_PLANS_ENABLED=false` 설정 후 재시작·화면 새로고침으로 수행한다. 기존 평가 화면으로 돌아가며 새 평가 기록과 적용된 V8 마이그레이션 파일·이력은 보존한다. 소스 기준 태그는 `before-quant-evaluation-20261103`, 변경 버전 태그는 `quant-evaluation-v1-20261103`이다. 태그는 DB 백업을 대신하지 않는다.

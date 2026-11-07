@@ -252,11 +252,14 @@ export interface Project {
   yearly_revenue_json?: string; // e.g. { "2026": 45000, "2027": 55000 }
 }
 
+export type EquipmentCategory = '모니터' | '데스크탑' | '노트북';
+export const EQUIPMENT_CATEGORIES: EquipmentCategory[] = ['모니터', '데스크탑', '노트북'];
+
 export interface Equipment {
   version?: number;
   id: number;
   asset_no: string;
-  category: string;
+  category: EquipmentCategory | string;
   model_name: string;
   serial_no: string;
   status: string;

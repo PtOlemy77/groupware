@@ -69,32 +69,159 @@
 
 ## 4. 공통 UI 컴포넌트 표준 스펙 (Component Specs)
 
-### 4.1 버튼 (Buttons)
-버튼은 목적에 따라 명확한 시각적 무게감을 부여합니다:
+그룹웨어 내 화면 간 디자인 파편화를 방지하고 상단 레이아웃(헤더/탭/필터), 버튼, 모달, 통계 카드의 시각적 일관성을 유지하기 위해 **[`@/components/common`](../src/components/common)** 공통 컴포넌트 라이브러리를 최우선으로 사용합니다.
+
+### 4.1 상단 공통 툴바 및 서브탭 (`PageHeaderBar`, `TabGroup`)
+화면 상단의 패딩(`p-3 sm:p-4`), 라운딩(`rounded-2xl`), 배경 및 보더(`bg-white border border-slate-200/90 shadow-2xs`)를 완전히 통일합니다.
 
 ```tsx
-// 1. Primary Action (등록, 저장, 제출, 승인)
-<button className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white text-sm font-semibold shadow-xs hover:shadow-sm transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
-  저장하기
-</button>
+import { PageHeaderBar, TabGroup, SearchInput, Button } from '@/components/common';
 
-// 2. Secondary / Cancel (취소, 닫기, 이전)
-<button className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-white hover:bg-slate-50 active:bg-slate-100 text-slate-700 border border-slate-300 text-sm font-medium shadow-2xs transition cursor-pointer">
-  취소
-</button>
+<PageHeaderBar
+  left={
+    <>
+      {/* 1. 세그먼트 서브탭 또는 뱃지 탭 */}
+      <TabGroup
+        items={[
+          { key: 'list', label: '목록 보기', icon: <Briefcase className="w-4 h-4" />, count: 12 },
+          { key: 'kanban', label: '칸반 보드', icon: <Kanban className="w-4 h-4" /> },
+        ]}
+        activeKey={currentTab}
+        onChange={(key) => setCurrentTab(key)}
+        variant="segmented" // 'segmented' (흰색 칩) | 'pills' (인디고 솔리드 칩)
+        size="sm"
+      />
 
-// 3. Danger Action (삭제, 반려, 폐기)
-<button className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-sm font-semibold shadow-xs transition cursor-pointer">
-  삭제
-</button>
-
-// 4. Compact Table Action (행 내 상세/수정)
-<button className="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition cursor-pointer">
-  수정
-</button>
+      {/* 2. 공통 검색 입력창 */}
+      <SearchInput
+        placeholder="검색어를 입력하세요..."
+        value={searchQuery}
+        onChange={(e) => setSearchQuery(e.target.value)}
+        onClear={() => setSearchQuery('')}
+        className="w-64"
+      />
+    </>
+  }
+  right={
+    <Button
+      variant="primary"
+      size="sm"
+      icon={<Plus className="w-3.5 h-3.5" />}
+      onClick={handleOpenModal}
+    >
+      신규 등록
+    </Button>
+  }
+/>
 ```
 
-### 4.2 입력 폼 (Form Controls)
+### 4.2 공통 버튼 (`Button`)
+버튼은 목적에 따라 명확한 시각적 무게감(`variant`)과 크기(`size`)를 일관되게 적용합니다:
+
+```tsx
+import { Button } from '@/components/common';
+
+// 1. Primary Action (등록, 저장, 제출, 승인)
+<Button variant="primary" size="md" icon={<Save className="w-4 h-4" />}>
+  저장하기
+</Button>
+
+// 2. Secondary / Cancel (취소, 닫기, 이전)
+<Button variant="secondary" size="md" onClick={handleClose}>
+  취소
+</Button>
+
+// 3. Danger Action (삭제, 반려, 폐기)
+<Button variant="danger" size="sm" icon={<Trash2 className="w-3.5 h-3.5" />}>
+  삭제
+</Button>
+
+// 4. Outline / Menu Link (바로가기, 외곽선 강조)
+<Button variant="outline" size="sm">
+  바로가기 →
+</Button>
+
+// 5. 로딩 상태 자동 스피너 지원
+<Button variant="primary" size="md" loading={isSaving}>
+  저장 중...
+</Button>
+```
+
+### 4.3 공통 모달 (`Modal`)
+팝업 모달은 공통 `Modal` 컴포넌트를 사용하여 일관된 백드롭 블러, 라운딩(`rounded-2xl sm:rounded-3xl`), 닫기(X) 버튼, ESC 키 닫기, 하단 고정 푸터를 보장합니다.
+
+```tsx
+import { Modal, Button } from '@/components/common';
+
+<Modal
+  isOpen={isOpen}
+  onClose={() => setIsOpen(false)}
+  title="신규 자산 등록"
+  description="모니터, 데스크탑, 노트북의 자산번호 및 지급 담당자를 등록합니다."
+  icon={<Laptop className="w-5 h-5 text-indigo-600" />}
+  size="md" // 'sm' (max-w-md) | 'md' (max-w-lg) | 'lg' (max-w-2xl) | 'xl' (max-w-4xl)
+  footer={
+    <>
+      <Button variant="secondary" size="md" onClick={() => setIsOpen(false)}>
+        취소
+      </Button>
+      <Button variant="primary" size="md" type="submit" form="my-form">
+        등록 완료
+      </Button>
+    </>
+  }
+>
+  <form id="my-form" onSubmit={handleSubmit} className="space-y-4">
+    {/* 모달 폼 본문 */}
+  </form>
+</Modal>
+```
+
+### 4.4 통계 카드 및 반응형 그리드 (`StatCard`, `StatGrid`)
+대시보드, IT 자산관리, 프로젝트관리 등 화면 상단에 핵심 지표를 요약하는 표준 카드 및 그리드입니다.
+
+```tsx
+import { StatCard, StatGrid } from '@/components/common';
+
+<StatGrid columns={4}>
+  <StatCard
+    title="총 등록 자산"
+    value="128대"
+    subtext="모니터 · 데스크탑 · 노트북"
+    icon={<Laptop className="w-4 h-4" />}
+    variant="default"
+  />
+  <StatCard
+    title="총 취득가액"
+    value="1억 4,200만원"
+    subtext="회사 취득 장비 합산액"
+    variant="primary" // 카드별 시맨틱 컬러 테마 지원
+  />
+  <StatCard
+    title="지급 사용 중"
+    value="102대"
+    subtext="임직원 1:1 매핑 실사용"
+    variant="success"
+  />
+</StatGrid>
+```
+
+### 4.5 상태 뱃지 (`Badge`) 및 카드 컨테이너 (`Card`)
+```tsx
+import { Badge, Card } from '@/components/common';
+
+// 상태 뱃지 (시맨틱 컬러 테마 및 펄스 점 애니메이션 지원)
+<Badge variant="success" pulse>수행 중</Badge>
+<Badge variant="warning">검토 대기</Badge>
+<Badge variant="danger">반려</Badge>
+
+// 공통 카드 컨테이너
+<Card header={<h3 className="font-bold text-base">카드 제목</h3>} padding="md">
+  카드 내용
+</Card>
+```
+
+### 4.6 입력 폼 (Form Controls)
 - 폼 컨트롤은 통일된 보더, 라운딩, 포커스 링을 가집니다:
 
 ```tsx
@@ -113,27 +240,16 @@
 
 // 2. 콤보박스 (Select 드롭다운)
 // 전역 CSS(index.css)에서 appearance: none 및 우측 0.75rem(12px) 여백의 꺽쇠 SVG와 padding-right: 2.25rem이 자동 적용됨
-<select className="px-3 py-2 text-xs rounded-lg border border-slate-300 bg-white font-medium focus:ring-2 focus:ring-indigo-500/20 focus:outline-none">
+<select className="px-3 py-2 text-xs rounded-xl border border-slate-300 bg-white font-medium focus:ring-2 focus:ring-indigo-500/20 focus:outline-none">
   <option value="전체">전체 부서</option>
 </select>
 ```
 
-### 4.3 테이블 및 그리드 (Data Tables)
+### 4.7 테이블 및 그리드 (Data Tables)
 고밀도 정보 표시를 위해 아래 마크업 표준을 유지합니다:
 - **헤더 (`thead`)**: `bg-slate-50/80 border-b border-slate-200 text-slate-600 text-xs font-semibold py-3 px-4 text-left uppercase`
 - **행 (`tbody tr`)**: `border-b border-slate-100 hover:bg-slate-50/60 transition`
 - **셀 (`td`)**: `py-3.5 px-4 text-sm text-slate-700 align-middle`
-
-### 4.4 카드 컨테이너 (Cards)
-- `bg-white rounded-2xl border border-slate-200/80 shadow-xs p-5 md:p-6 transition hover:border-slate-300/80`
-
-### 4.5 상태 뱃지 (Status Badges)
-```tsx
-<span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/60">
-  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-  진행 중
-</span>
-```
 
 ---
 

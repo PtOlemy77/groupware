@@ -4,10 +4,17 @@ import { apiFetch } from '@/lib/api';
 import { useModal } from '@/contexts/ModalContext';
 
 import React, { useState, useMemo } from 'react';
-import { Equipment, Employee, AuthUser, isExecutiveOrAbove, formatCurrencyManwon } from '@/types/groupware';
+import {
+  Equipment,
+  Employee,
+  AuthUser,
+  CommonCode,
+  isExecutiveOrAbove,
+  formatCurrencyManwon,
+  EQUIPMENT_CATEGORIES,
+} from '@/types/groupware';
 import {
   Laptop,
-  Search,
   Plus,
   Edit3,
   Trash2,
@@ -18,11 +25,19 @@ import {
   Building2,
   ShieldCheck,
   Check,
+  Monitor,
 } from 'lucide-react';
+import {
+  Button,
+  PageHeaderBar,
+  SearchInput,
+  Modal,
+} from '@/components/common';
 
 interface Props {
   equipments: Equipment[];
   employees?: Employee[];
+  commonCodes?: CommonCode[];
   currentUser: AuthUser;
   onRefresh: () => Promise<void>;
 }
@@ -30,12 +45,22 @@ interface Props {
 export default function EquipmentsView({
   equipments,
   employees = [],
+  commonCodes = [],
   currentUser,
   onRefresh,
 }: Props) {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('전체');
   const [categoryFilter, setCategoryFilter] = useState('전체');
+
+  // DB(common_codes)에서 장비 구분 목록 동적 조회 (DB 우선)
+  const categories = useMemo(() => {
+    const dbCats = commonCodes
+      .filter((c) => c.group_code === 'EQUIPMENT_CATEGORY' && c.is_active)
+      .sort((a, b) => a.sort_order - b.sort_order)
+      .map((c) => c.code_name);
+    return dbCats.length > 0 ? dbCats : (Array.from(EQUIPMENT_CATEGORIES) as string[]);
+  }, [commonCodes]);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editingEq, setEditingEq] = useState<Equipment | null>(null);
@@ -80,14 +105,6 @@ export default function EquipmentsView({
     });
   }, [equipments, categoryFilter, statusFilter, searchQuery]);
 
-  // 자산 현황 요약 통계
-  const stats = useMemo(() => {
-    const totalCount = equipments.length;
-    const totalValue = equipments.reduce((sum, eq) => sum + (eq.price || 0), 0);
-    const inUseCount = equipments.filter((eq) => eq.status === '사용중').length;
-    const idleCount = equipments.filter((eq) => eq.status === '유휴' || eq.assigned_to === '미배정').length;
-    return { totalCount, totalValue, inUseCount, idleCount };
-  }, [equipments]);
 
   const openCreateModal = () => {
     setEditingEq(null);
@@ -195,89 +212,57 @@ export default function EquipmentsView({
 
   return (
     <div className="space-y-4">
-      {/* 1. 상단 통계 요약 카드 */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs">
-          <div className="text-xs font-bold text-slate-500 mb-1">총 등록 자산</div>
-          <div className="text-2xl font-black text-slate-900 font-mono">
-            {stats.totalCount}대
-          </div>
-          <div className="text-[11px] text-slate-400 mt-1">IT 장비 및 워크스테이션</div>
-        </div>
-
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs">
-          <div className="text-xs font-bold text-slate-500 mb-1">총 자산 취득가액</div>
-          <div className="text-2xl font-black text-indigo-600 font-mono">
-            {formatCurrencyManwon(stats.totalValue)}
-          </div>
-          <div className="text-[11px] text-slate-400 mt-1">회사 취득 장비 합산액</div>
-        </div>
-
-        <div className="bg-white p-4 rounded-2xl border border-emerald-200/80 bg-emerald-50/20 shadow-2xs">
-          <div className="text-xs font-bold text-emerald-800 mb-1">임직원 지급 사용중</div>
-          <div className="text-2xl font-black text-emerald-600 font-mono">
-            {stats.inUseCount}대
-          </div>
-          <div className="text-[11px] text-emerald-700 mt-1">직원 PK 1:1 매핑 실사용</div>
-        </div>
-
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs">
-          <div className="text-xs font-bold text-slate-500 mb-1">예비 / 유휴 자산</div>
-          <div className="text-2xl font-black text-slate-700 font-mono">
-            {stats.idleCount}대
-          </div>
-          <div className="text-[11px] text-slate-400 mt-1">미배정 예비 자산</div>
-        </div>
-      </div>
-
-      {/* 2. 검색 및 필터 툴바 */}
-      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2 flex-wrap">
-          <div className="relative">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
-            <input
-              type="text"
+      {/* 1. 공통 검색 및 필터 툴바 */}
+      <PageHeaderBar
+        left={
+          <>
+            <SearchInput
               placeholder="자산번호, 모델명, 지급직원명 검색..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9 pr-3 py-1.5 text-xs rounded-xl border border-slate-300 w-72 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+              onClear={() => setSearchQuery('')}
+              className="w-72"
             />
-          </div>
 
-          <select
-            value={categoryFilter}
-            onChange={(e) => setCategoryFilter(e.target.value)}
-            className="px-3 py-1.5 text-xs rounded-xl border border-slate-300 bg-white font-medium"
-          >
-            <option value="전체">전체 구분</option>
-            <option value="노트북">노트북</option>
-            <option value="워크스테이션">워크스테이션</option>
-            <option value="서버장비">서버장비</option>
-            <option value="네트워크">네트워크</option>
-          </select>
+            <select
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+              className="px-3 py-2 text-xs rounded-xl border border-slate-300/90 bg-white font-medium focus:ring-2 focus:ring-indigo-500/20 focus:outline-none"
+            >
+              <option value="전체">전체 장비 구분</option>
+              {categories.map((cat) => (
+                <option key={cat} value={cat}>
+                  {cat}
+                </option>
+              ))}
+            </select>
 
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="px-3 py-1.5 text-xs rounded-xl border border-slate-300 bg-white font-medium"
-          >
-            <option value="전체">전체 상태</option>
-            <option value="사용중">사용중</option>
-            <option value="유휴">유휴</option>
-            <option value="수리중">수리중</option>
-            <option value="폐기">폐기</option>
-          </select>
-        </div>
-
-        {canEdit && (
-          <button
-            onClick={openCreateModal}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs transition"
-          >
-            <Plus className="w-3.5 h-3.5" /> 신규 자산 등록
-          </button>
-        )}
-      </div>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="px-3 py-2 text-xs rounded-xl border border-slate-300/90 bg-white font-medium focus:ring-2 focus:ring-indigo-500/20 focus:outline-none"
+            >
+              <option value="전체">전체 상태</option>
+              <option value="사용중">사용중</option>
+              <option value="유휴">유휴</option>
+              <option value="수리중">수리중</option>
+              <option value="폐기">폐기</option>
+            </select>
+          </>
+        }
+        right={
+          canEdit ? (
+            <Button
+              variant="primary"
+              size="sm"
+              icon={<Plus className="w-3.5 h-3.5" />}
+              onClick={openCreateModal}
+            >
+              신규 자산 등록
+            </Button>
+          ) : undefined
+        }
+      />
 
       {/* 3. 자산 목록 테이블 (직원 PK / 사번 정합성 검증 컬럼 포함) */}
       <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-2xs">
@@ -312,7 +297,15 @@ export default function EquipmentsView({
                       {eq.asset_no}
                     </td>
                     <td className="px-5 py-3.5">
-                      <span className="px-2 py-0.5 rounded-md bg-slate-100 font-semibold text-slate-700 text-[11px]">
+                      <span
+                        className={`px-2.5 py-0.5 rounded-md font-bold text-[11px] border ${
+                          eq.category === '모니터'
+                            ? 'bg-sky-50 text-sky-700 border-sky-200'
+                            : eq.category === '데스크탑'
+                            ? 'bg-purple-50 text-purple-700 border-purple-200'
+                            : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                        }`}
+                      >
                         {eq.category}
                       </span>
                     </td>
@@ -387,170 +380,162 @@ export default function EquipmentsView({
         </div>
       </div>
 
-      {/* 4. 등록 / 수정 모달 (실제 직원 테이블 PK/사번 선택 콤보박스) */}
-      {modalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
-          <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full p-6 border border-slate-200">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
-              <div className="flex items-center gap-2">
-                <Laptop className="w-5 h-5 text-indigo-600" />
-                <h3 className="font-bold text-base text-slate-900">
-                  {editingEq ? '자산 정보 수정' : '신규 자산 등록'}
-                </h3>
-              </div>
-              <button
-                onClick={() => setModalOpen(false)}
-                className="text-slate-400 hover:text-slate-700 text-base"
+      {/* 4. 등록 / 수정 모달 (공통 Modal 적용) */}
+      <Modal
+        isOpen={modalOpen}
+        onClose={() => setModalOpen(false)}
+        title={editingEq ? '자산 정보 수정' : '신규 자산 등록'}
+        description="모니터, 데스크탑, 노트북 자산의 시리얼 번호 및 지급 직원을 관리합니다."
+        icon={<Laptop className="w-5 h-5 text-indigo-600" />}
+        size="md"
+        footer={
+          <>
+            <Button
+              variant="secondary"
+              size="md"
+              onClick={() => setModalOpen(false)}
+            >
+              취소
+            </Button>
+            <Button
+              variant="primary"
+              size="md"
+              type="submit"
+              form="equipment-form"
+            >
+              {editingEq ? '수정 완료' : '등록 완료'}
+            </Button>
+          </>
+        }
+      >
+        <form id="equipment-form" onSubmit={handleSave} className="space-y-3.5 text-xs">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block font-semibold text-slate-700 mb-1">자산 관리 번호</label>
+              <input
+                type="text"
+                required
+                value={formData.asset_no || ''}
+                onChange={(e) => setFormData({ ...formData, asset_no: e.target.value })}
+                className="w-full p-2.5 border border-slate-300 rounded-xl font-mono font-bold"
+              />
+            </div>
+            <div>
+              <label className="block font-semibold text-slate-700 mb-1">장비 구분</label>
+              <select
+                value={formData.category || (categories[0] || '모니터')}
+                onChange={(e) => setFormData({ ...formData, category: e.target.value as any })}
+                className="w-full p-2.5 border border-slate-300 rounded-xl bg-white font-bold text-slate-800"
               >
-                ✕
-              </button>
+                {categories.map((cat) => (
+                  <option key={cat} value={cat}>
+                    {cat}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="block font-semibold text-slate-700 mb-1">모델명 / 상세 규격</label>
+            <input
+              type="text"
+              required
+              value={formData.model_name || ''}
+              onChange={(e) => setFormData({ ...formData, model_name: e.target.value })}
+              placeholder="예: MacBook Pro 16 (M4 Max, 64GB, 1TB)"
+              className="w-full p-2.5 border border-slate-300 rounded-xl font-semibold"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block font-semibold text-slate-700 mb-1">시리얼 번호 (S/N)</label>
+              <input
+                type="text"
+                value={formData.serial_no || ''}
+                onChange={(e) => setFormData({ ...formData, serial_no: e.target.value })}
+                className="w-full p-2.5 border border-slate-300 rounded-xl font-mono"
+              />
+            </div>
+            <div>
+              <label className="block font-semibold text-slate-700 mb-1">취득가액 (만원)</label>
+              <input
+                type="number"
+                value={formData.price || 0}
+                onChange={(e) => setFormData({ ...formData, price: Number(e.target.value) })}
+                className="w-full p-2.5 border border-slate-300 rounded-xl font-bold text-indigo-600"
+              />
+            </div>
+          </div>
+
+          {/* 직원 테이블 PK 연동 콤보박스 */}
+          <div className="p-3.5 rounded-2xl bg-indigo-50/60 border border-indigo-200 space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="font-bold text-indigo-900 flex items-center gap-1.5">
+                <UserCheck className="w-3.5 h-3.5 text-indigo-600" />
+                지급 대상 직원 선택
+              </label>
+              <span className="text-[10px] text-indigo-600 font-semibold">
+                * 이름 / 직급 / 소속부서 자동 바인딩
+              </span>
             </div>
 
-            <form onSubmit={handleSave} className="space-y-3.5 text-xs">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">자산 관리 번호</label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.asset_no || ''}
-                    onChange={(e) => setFormData({ ...formData, asset_no: e.target.value })}
-                    className="w-full p-2.5 border border-slate-300 rounded-xl font-mono font-bold"
-                  />
-                </div>
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">장비 구분</label>
-                  <select
-                    value={formData.category || '노트북'}
-                    onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                    className="w-full p-2.5 border border-slate-300 rounded-xl bg-white"
-                  >
-                    <option value="노트북">노트북</option>
-                    <option value="워크스테이션">워크스테이션</option>
-                    <option value="서버장비">서버장비</option>
-                    <option value="네트워크">네트워크</option>
-                  </select>
-                </div>
-              </div>
+            <select
+              value={formData.emp_id ? String(formData.emp_id) : 'UNASSIGNED'}
+              onChange={(e) => handleSelectEmployee(e.target.value)}
+              className="w-full p-2.5 border border-indigo-300 rounded-xl bg-white font-semibold text-slate-800 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+            >
+              <option value="UNASSIGNED">미배정 (사내 공용 / 유휴 자산)</option>
+              {employees.map((emp) => (
+                <option key={emp.id} value={emp.id}>
+                  {emp.name} {emp.position} ({emp.department})
+                </option>
+              ))}
+            </select>
 
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">모델명 / 상세 규격</label>
-                <input
-                  type="text"
-                  required
-                  value={formData.model_name || ''}
-                  onChange={(e) => setFormData({ ...formData, model_name: e.target.value })}
-                  placeholder="예: MacBook Pro 16 (M4 Max, 64GB, 1TB)"
-                  className="w-full p-2.5 border border-slate-300 rounded-xl font-semibold"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">시리얼 번호 (S/N)</label>
-                  <input
-                    type="text"
-                    value={formData.serial_no || ''}
-                    onChange={(e) => setFormData({ ...formData, serial_no: e.target.value })}
-                    className="w-full p-2.5 border border-slate-300 rounded-xl font-mono"
-                  />
-                </div>
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">취득가액 (만원)</label>
-                  <input
-                    type="number"
-                    value={formData.price || 0}
-                    onChange={(e) => setFormData({ ...formData, price: Number(e.target.value) })}
-                    className="w-full p-2.5 border border-slate-300 rounded-xl font-bold text-indigo-600"
-                  />
-                </div>
-              </div>
-
-              {/* 직원 테이블 PK 연동 콤보박스 */}
-              <div className="p-3.5 rounded-2xl bg-indigo-50/60 border border-indigo-200 space-y-2">
-                <div className="flex items-center justify-between">
-                  <label className="font-bold text-indigo-900 flex items-center gap-1.5">
-                    <UserCheck className="w-3.5 h-3.5 text-indigo-600" />
-                    지급 대상 직원 선택
-                  </label>
-                  <span className="text-[10px] text-indigo-600 font-semibold">
-                    * 이름 / 직급 / 소속부서 자동 바인딩
-                  </span>
-                </div>
-
-                <select
-                  value={formData.emp_id ? String(formData.emp_id) : 'UNASSIGNED'}
-                  onChange={(e) => handleSelectEmployee(e.target.value)}
-                  className="w-full p-2.5 border border-indigo-300 rounded-xl bg-white font-semibold text-slate-800 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
-                >
-                  <option value="UNASSIGNED">미배정 (사내 공용 / 유휴 자산)</option>
-                  {employees.map((emp) => (
-                    <option key={emp.id} value={emp.id}>
-                      {emp.name} {emp.position} ({emp.department})
-                    </option>
-                  ))}
-                </select>
-
-                <div className="text-[11px] pt-1 text-slate-600">
-                  지급 대상 부서: <strong className="text-slate-800">{formData.department || '경영지원팀'}</strong>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">취득일자</label>
-                  <input
-                    type="date"
-                    value={formData.purchase_date || ''}
-                    onChange={(e) => setFormData({ ...formData, purchase_date: e.target.value })}
-                    className="w-full p-2.5 border border-slate-300 rounded-xl font-mono"
-                  />
-                </div>
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">사용 상태</label>
-                  <select
-                    value={formData.status || '사용중'}
-                    onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                    className="w-full p-2.5 border border-slate-300 rounded-xl bg-white"
-                  >
-                    <option value="사용중">사용중 (지급완료)</option>
-                    <option value="유휴">유휴 (보관/예비)</option>
-                    <option value="수리중">수리중</option>
-                    <option value="폐기">폐기</option>
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">비고 / 용도 메모</label>
-                <textarea
-                  rows={2}
-                  value={formData.notes || ''}
-                  onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                  placeholder="예: 공간정보 GIS 아키텍처 및 3D 렌더링 개발용 지급 장비"
-                  className="w-full p-2.5 border border-slate-300 rounded-xl leading-relaxed resize-none"
-                />
-              </div>
-
-              <div className="pt-3 flex items-center justify-end gap-2 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setModalOpen(false)}
-                  className="px-4 py-2 rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-50 transition"
-                >
-                  취소
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 rounded-xl bg-indigo-600 text-white font-bold hover:bg-indigo-700 shadow-sm transition"
-                >
-                  {editingEq ? '수정 완료' : '등록 완료'}
-                </button>
-              </div>
-            </form>
+            <div className="text-[11px] pt-1 text-slate-600">
+              지급 대상 부서: <strong className="text-slate-800">{formData.department || '경영지원팀'}</strong>
+            </div>
           </div>
-        </div>
-      )}
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block font-semibold text-slate-700 mb-1">취득일자</label>
+              <input
+                type="date"
+                value={formData.purchase_date || ''}
+                onChange={(e) => setFormData({ ...formData, purchase_date: e.target.value })}
+                className="w-full p-2.5 border border-slate-300 rounded-xl font-mono"
+              />
+            </div>
+            <div>
+              <label className="block font-semibold text-slate-700 mb-1">사용 상태</label>
+              <select
+                value={formData.status || '사용중'}
+                onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+                className="w-full p-2.5 border border-slate-300 rounded-xl bg-white"
+              >
+                <option value="사용중">사용중 (지급완료)</option>
+                <option value="유휴">유휴 (보관/예비)</option>
+                <option value="수리중">수리중</option>
+                <option value="폐기">폐기</option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="block font-semibold text-slate-700 mb-1">비고 / 용도 메모</label>
+            <textarea
+              rows={2}
+              value={formData.notes || ''}
+              onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+              placeholder="예: 공간정보 GIS 아키텍처 및 3D 렌더링 개발용 지급 장비"
+              className="w-full p-2.5 border border-slate-300 rounded-xl leading-relaxed resize-none"
+            />
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 }

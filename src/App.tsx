@@ -370,6 +370,7 @@ export default function App() {
               equipments={equipments}
               currentUser={currentUser}
               employees={employees}
+              commonCodes={commonCodes}
               onRefresh={fetchAllData}
             />
           )}

@@ -6,8 +6,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 import com.fasterxml.jackson.databind.*;
-import com.nexus.groupware.entity.Employee;
-import com.nexus.groupware.repository.EmployeeRepository;
+import com.nexus.groupware.domain.employee.db.Employee;
+import com.nexus.groupware.domain.employee.db.EmployeeRepository;
 import java.util.*;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;

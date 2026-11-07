@@ -1,4 +1,17 @@
 package com.nexus.groupware;
+import com.nexus.groupware.core.config.DataInitializer;
+import com.nexus.groupware.domain.approval.db.Approval;
+import com.nexus.groupware.domain.approval.db.ApprovalRepository;
+import com.nexus.groupware.domain.employee.db.Employee;
+import com.nexus.groupware.domain.employee.db.EmployeeRepository;
+import com.nexus.groupware.domain.equipment.db.Equipment;
+import com.nexus.groupware.domain.equipment.db.EquipmentRepository;
+import com.nexus.groupware.domain.evaluation.db.EvaluationRepository;
+import com.nexus.groupware.domain.master.db.BusinessDealRepository;
+import com.nexus.groupware.domain.master.db.CommonCodeRepository;
+import com.nexus.groupware.domain.project.db.Project;
+import com.nexus.groupware.domain.project.db.ProjectRepository;
+import com.nexus.groupware.domain.system.db.AuditEventRepository;
 
 import static org.assertj.core.api.Assertions.*;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
@@ -6,9 +19,6 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 import com.fasterxml.jackson.databind.*;
-import com.nexus.groupware.config.DataInitializer;
-import com.nexus.groupware.entity.*;
-import com.nexus.groupware.repository.*;
 import java.util.*;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;

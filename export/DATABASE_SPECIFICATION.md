@@ -4,7 +4,7 @@
 
 ## 기준과 갱신
 
-현재 DDL의 기준은 [Flyway 마이그레이션](../backend/src/main/resources/db/migration)이다. 엔티티는 [백엔드 엔티티](../backend/src/main/java/com/nexus/groupware/entity)를 함께 확인한다. 과거 `export/schema/groupware_schema.sql`은 2026-11-01 시점의 스냅샷이며 최신 복구·신규 설치에 사용하지 않는다.
+현재 DDL의 기준은 [Flyway 마이그레이션](../backend/src/main/resources/db/migration)이다. 엔티티는 [백엔드 엔티티](../backend/src/main/java/com/nexus/groupware/domain)를 함께 확인한다. 과거 `export/schema/groupware_schema.sql`은 2026-11-01 시점의 스냅샷이며 최신 복구·신규 설치에 사용하지 않는다.
 
 | 버전 | 변경 |
 | --- | --- |

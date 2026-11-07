@@ -49,6 +49,12 @@ import {
   Layers,
   Building2,
 } from 'lucide-react';
+import {
+  Button,
+  TabGroup,
+  PageHeaderBar,
+  SearchInput,
+} from '@/components/common';
 
 interface Props {
   projects: Project[];
@@ -94,6 +100,15 @@ export default function ProjectsView({
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('프로젝트 수행');
   const [viewMode, setViewMode] = useState<'grid' | 'kanban'>('grid');
+
+  // DB(common_codes)에서 프로젝트 단계 목록 동적 조회 (DB 우선)
+  const projectStages = useMemo(() => {
+    const fromDb = (commonCodes || [])
+      .filter((c) => c.group_code === 'PROJECT_STAGE' && c.is_active)
+      .sort((a, b) => a.sort_order - b.sort_order)
+      .map((c) => c.code_name as ProjectStage);
+    return fromDb.length > 0 ? fromDb : (Array.from(PROJECT_STAGES) as ProjectStage[]);
+  }, [commonCodes]);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editingPrj, setEditingPrj] = useState<Project | null>(null);
@@ -424,79 +439,63 @@ export default function ProjectsView({
 
   return (
     <div className="space-y-6">
-      {/* 1. 상단 서브탭 네비게이션: 프로젝트 수행 관리 / 직원별 연간 투입공수 / 주간·월간 보고 바로가기 */}
-      <div className="bg-white p-2 rounded-2xl border border-slate-200 shadow-2xs flex items-center justify-between flex-wrap gap-2">
-        <div className="flex items-center gap-2 flex-wrap">
-          <button
-            onClick={() => setSubTab('list')}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition ${
-              subTab === 'list'
-                ? 'bg-indigo-600 text-white shadow-xs'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-            }`}
-          >
-            <Briefcase className="w-4 h-4" />
-            <span>프로젝트 수행 관리</span>
-            <span
-              className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
-                subTab === 'list' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
-              }`}
-            >
-              {projects.length}
-            </span>
-          </button>
-
-          <button
-            onClick={() => setSubTab('manpower')}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition ${
-              subTab === 'manpower'
-                ? 'bg-indigo-600 text-white shadow-xs'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-            }`}
-          >
-            <Users className="w-4 h-4" />
-            <span>직원별 연간 투입공수 (M/M)</span>
-            <span
-              className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
-                subTab === 'manpower' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
-              }`}
-            >
-              {employees.length}명
-            </span>
-          </button>
-
-          {onNavigateToReports ? (
-            <button
-              onClick={() => onNavigateToReports()}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 transition border border-indigo-200 shadow-2xs"
-              title="독립된 주간/월간 보고 메뉴로 이동"
-            >
-              <FileText className="w-4 h-4 text-indigo-600" />
-              <span>주간/월간 보고 메뉴 바로가기 →</span>
-            </button>
-          ) : (
-            <button
-              onClick={() => {
-                setReportTargetProjectId(null);
-                setSubTab('reports');
+      {/* 1. 공통 상단 서브탭 네비게이션: 프로젝트 수행 관리 / 직원별 연간 투입공수 / 주간·월간 보고 바로가기 */}
+      <PageHeaderBar
+        left={
+          <div className="flex items-center gap-2 flex-wrap">
+            <TabGroup
+              items={[
+                {
+                  key: 'list',
+                  label: '프로젝트 수행 관리',
+                  count: projects.length,
+                  icon: <Briefcase className="w-4 h-4" />,
+                },
+                {
+                  key: 'manpower',
+                  label: '직원별 연간 투입공수 (M/M)',
+                  count: `${employees.length}명`,
+                  icon: <Users className="w-4 h-4" />,
+                },
+                ...(!onNavigateToReports
+                  ? [
+                      {
+                        key: 'reports',
+                        label: '주간/월간 보고',
+                        icon: <FileText className="w-4 h-4" />,
+                      },
+                    ]
+                  : []),
+              ]}
+              activeKey={subTab}
+              onChange={(key) => {
+                if (key === 'reports') setReportTargetProjectId(null);
+                setSubTab(key as any);
               }}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition ${
-                subTab === 'reports'
-                  ? 'bg-indigo-600 text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-              }`}
-            >
-              <FileText className="w-4 h-4" />
-              <span>주간/월간 보고</span>
-            </button>
-          )}
-        </div>
+              variant="pills"
+              size="sm"
+            />
 
-        <div className="text-[11px] text-slate-500 pr-3 hidden lg:flex items-center gap-1 font-medium">
-          <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
-          <span>사업본부 전담 프로젝트 파이프라인 (발주예상 → 제안준비중 → 프로젝트 수행)</span>
-        </div>
-      </div>
+            {onNavigateToReports && (
+              <Button
+                variant="outline"
+                size="sm"
+                icon={<FileText className="w-4 h-4 text-indigo-600" />}
+                onClick={() => onNavigateToReports()}
+                title="독립된 주간/월간 보고 메뉴로 이동"
+              >
+                주간/월간 보고 메뉴 바로가기 →
+              </Button>
+            )}
+          </div>
+        }
+        right={
+          <div className="text-[11px] text-slate-500 hidden lg:flex items-center gap-1 font-medium">
+            <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
+            <span>사업본부 전담 프로젝트 파이프라인 (발주예상 → 제안준비중 → 프로젝트 수행)</span>
+          </div>
+        }
+      />
 
       {/* 2-A. 서브탭: 주간/월간 보고 (PM 금주/차주 작성 → 이사 취합/보완 → 사장님 보고) */}
       {subTab === 'reports' && (
@@ -525,7 +524,7 @@ export default function ProjectsView({
         <div className="space-y-6">
           {/* 사업관리 4단계 상태 필터 배너 */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            {PROJECT_STAGES.map((st) => {
+            {projectStages.map((st) => {
               const count = stageCounts[st];
               const isSelected = statusFilter === st;
               const borderBg =
@@ -568,69 +567,66 @@ export default function ProjectsView({
             })}
           </div>
 
-          {/* 검색 및 뷰모드 툴바 */}
-          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-2 flex-wrap">
-              <div className="relative">
-                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
-                <input
-                  type="text"
+          {/* 공통 검색 및 뷰모드 툴바 */}
+          <PageHeaderBar
+            left={
+              <>
+                <SearchInput
                   placeholder="프로젝트명, 과제코드, PM 검색..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-9 pr-3 py-1.5 text-xs rounded-lg border border-slate-300 w-64 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                  onClear={() => setSearchQuery('')}
+                  className="w-64"
                 />
-              </div>
 
-              {/* 상태 필터 버튼 그룹 */}
-              <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg text-xs">
-                {(['전체', '발주예상', '제안준비중', '프로젝트 수행', '완료'] as const).map((st) => (
+                {/* 상태 필터 버튼 그룹 */}
+                <TabGroup
+                  items={(['전체', '발주예상', '제안준비중', '프로젝트 수행', '완료'] as const).map((st) => ({
+                    key: st,
+                    label: st,
+                  }))}
+                  activeKey={statusFilter}
+                  onChange={(st) => setStatusFilter(st as any)}
+                  variant="segmented"
+                  size="sm"
+                />
+
+                {/* 뷰 모드 토글 (그리드 / 칸반) */}
+                <div className="flex items-center rounded-xl border border-slate-200 p-0.5 bg-slate-100 ml-1">
                   <button
-                    key={st}
-                    onClick={() => setStatusFilter(st)}
-                    className={`px-2.5 py-1 rounded-md font-semibold transition ${
-                      statusFilter === st
-                        ? 'bg-white text-indigo-700 shadow-2xs font-bold'
-                        : 'text-slate-600 hover:text-slate-900'
+                    onClick={() => setViewMode('grid')}
+                    className={`p-1.5 rounded-lg transition ${
+                      viewMode === 'grid' ? 'bg-white shadow-2xs text-indigo-600 font-bold' : 'text-slate-500 hover:text-slate-700'
                     }`}
+                    title="그리드 카드 뷰"
                   >
-                    {st}
+                    <LayoutGrid className="w-4 h-4" />
                   </button>
-                ))}
-              </div>
-
-              {/* 뷰 모드 토글 (그리드 / 칸반) */}
-              <div className="flex items-center rounded-lg border border-slate-200 p-0.5 bg-slate-50 ml-1">
-                <button
-                  onClick={() => setViewMode('grid')}
-                  className={`p-1 rounded ${
-                    viewMode === 'grid' ? 'bg-white shadow-2xs text-indigo-600' : 'text-slate-400'
-                  }`}
-                  title="그리드 카드 뷰"
+                  <button
+                    onClick={() => setViewMode('kanban')}
+                    className={`p-1.5 rounded-lg transition ${
+                      viewMode === 'kanban' ? 'bg-white shadow-2xs text-indigo-600 font-bold' : 'text-slate-500 hover:text-slate-700'
+                    }`}
+                    title="칸반 보드 뷰"
+                  >
+                    <Kanban className="w-4 h-4" />
+                  </button>
+                </div>
+              </>
+            }
+            right={
+              canEdit ? (
+                <Button
+                  variant="primary"
+                  size="sm"
+                  icon={<Plus className="w-3.5 h-3.5" />}
+                  onClick={openCreateModal}
                 >
-                  <LayoutGrid className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={() => setViewMode('kanban')}
-                  className={`p-1 rounded ${
-                    viewMode === 'kanban' ? 'bg-white shadow-2xs text-indigo-600' : 'text-slate-400'
-                  }`}
-                  title="칸반 보드 뷰"
-                >
-                  <Kanban className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-
-            {canEdit && (
-              <button
-                onClick={openCreateModal}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs transition"
-              >
-                <Plus className="w-3.5 h-3.5" /> 신규 프로젝트 등록
-              </button>
-            )}
-          </div>
+                  신규 프로젝트 등록
+                </Button>
+              ) : undefined
+            }
+          />
 
           {/* 1) 그리드 카드 뷰 (화면에 9개(3×3)가 시원하게 보이도록 컴팩트 최적화) */}
           {viewMode === 'grid' && (
@@ -840,7 +836,7 @@ export default function ProjectsView({
           {/* 2) 4단계 칸반 보드 뷰 (발주예상 | 제안준비중 | 프로젝트 수행 | 완료) */}
           {viewMode === 'kanban' && (
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              {PROJECT_STAGES.map((stage) => {
+              {projectStages.map((stage) => {
                 const list = filteredProjects.filter(
                   (p) => normalizeProjectStatus(p.status) === stage
                 );

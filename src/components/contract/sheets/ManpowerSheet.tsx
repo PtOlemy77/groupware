@@ -30,6 +30,19 @@ interface Props {
   endDate?: string;
 }
 
+export const STANDARD_POSITIONS = ['이사', '부장', '차장', '과장', '대리', '담당'];
+export const POSITION_GRADE_MAP: Record<string, '특급' | '고급' | '중급' | '초급'> = {
+  사장: '특급',
+  대표이사: '특급',
+  이사: '특급',
+  부장: '특급',
+  차장: '고급',
+  과장: '고급',
+  대리: '중급',
+  담당: '초급',
+  사원: '초급',
+};
+
 export interface ContractMonthMeta {
   index: number;
   label: string;
@@ -172,16 +185,16 @@ export default function ManpowerSheet({
   const totalMM = items.reduce((sum, it) => sum + it.totalMM, 0);
   const totalLaborCost = items.reduce((sum, it) => sum + it.laborCost, 0);
 
-  // 빈 행 추가 (기본 1.0 편성)
+  // 빈 행 추가 (단가표 기준 월단가 자동 연동)
   const handleAddBlankItem = () => {
     const defaultEmp = employees[0];
     const months = Array(totalMonths).fill(1);
     const mm = months.reduce((a, b) => a + b, 0);
 
+    const targetYear = new Date(startDate || Date.now()).getFullYear();
     let pos = defaultEmp ? defaultEmp.position : '과장';
-    const priceInfo = STANDARD_UNIT_PRICES.find((p) => p.position === pos);
-    const unitPrice = configuredPrice(pos, new Date(startDate || Date.now()).getFullYear());
-    const grade = (priceInfo ? priceInfo.grade : '고급') as '특급' | '고급' | '중급' | '초급';
+    const grade = POSITION_GRADE_MAP[pos] || '고급';
+    const unitPrice = configuredPrice(pos, targetYear);
 
     const newItem: ManpowerPlanItem = {
       id: `mp_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
@@ -199,11 +212,11 @@ export default function ManpowerSheet({
     setActiveDropdownRowId(newItem.id);
   };
 
-  // 행 내에서 사내 직원 선택 시 (이름, 직급, 등급, 단가, 역할 자동 설정)
+  // 행 내에서 사내 직원 선택 시 (직급/기술등급/단가표 월단가 자동 연동)
   const handleSelectEmployee = (rowId: string, emp: Employee) => {
-    const priceInfo = STANDARD_UNIT_PRICES.find((p) => p.position === emp.position);
-    const unitPrice = configuredPrice(emp.position, new Date(startDate || Date.now()).getFullYear());
-    const grade = (priceInfo ? priceInfo.grade : '고급') as '특급' | '고급' | '중급' | '초급';
+    const targetYear = new Date(startDate || Date.now()).getFullYear();
+    const grade = POSITION_GRADE_MAP[emp.position] || '고급';
+    const unitPrice = configuredPrice(emp.position, targetYear);
 
     const updated = items.map((it) => {
       if (it.id !== rowId) return it;
@@ -323,6 +336,42 @@ export default function ManpowerSheet({
     onChangeItems(updated);
   };
 
+  // 직급 변경 시 기술등급 및 단가표의 해당 연도 월단가를 자동으로 가져와 즉시 반영
+  const handlePositionChange = (id: string, newPos: string) => {
+    const targetYear = new Date(startDate || Date.now()).getFullYear();
+    const grade = POSITION_GRADE_MAP[newPos] || '고급';
+    const autoPrice = configuredPrice(newPos, targetYear);
+
+    const updated = items.map((it) => {
+      if (it.id !== id) return it;
+      return {
+        ...it,
+        position: newPos,
+        grade,
+        unitPrice: autoPrice,
+        laborCost: Math.round(it.totalMM * autoPrice),
+      };
+    });
+    onChangeItems(updated);
+  };
+
+  // 특정 행의 단가를 단가표의 기준 월단가로 원클릭 재적용
+  const handleResetRowUnitPrice = (id: string) => {
+    const targetYear = new Date(startDate || Date.now()).getFullYear();
+    const target = items.find((it) => it.id === id);
+    if (!target) return;
+    const autoPrice = configuredPrice(target.position, targetYear);
+    const updated = items.map((it) => {
+      if (it.id !== id) return it;
+      return {
+        ...it,
+        unitPrice: autoPrice,
+        laborCost: Math.round(it.totalMM * autoPrice),
+      };
+    });
+    onChangeItems(updated);
+  };
+
   // 전체 편성 인력의 노임단가를 사내 최신 기준단가로 일괄 재적용
   const handleRefreshAllUnitPrices = () => {
     const targetYear = new Date(startDate || Date.now()).getFullYear();
@@ -353,7 +402,7 @@ export default function ManpowerSheet({
               </span>
             </h3>
             <p className="text-[11px] text-slate-500">
-              월별 셀을 클릭하면 <strong className="text-indigo-600">[1.0 ↔ 0.5 ↔ 0]</strong> 간편 입력됩니다.
+              월별 셀 클릭 시 <strong className="text-indigo-600">[1.0 ↔ 0.5 ↔ 0]</strong> 간편 입력 / 직급 선택 시 <strong className="text-indigo-600">노임단가표 월단가 자동 연동</strong>
             </p>
           </div>
         </div>
@@ -669,14 +718,34 @@ export default function ManpowerSheet({
                         )}
                       </td>
 
-                      {/* 직급 / 등급 (담당역할은 직급 밑에 서브텍스트로만 컴팩트하게 노출) */}
+                      {/* 직급 / 등급 (직급 선택 시 단가표 월단가 자동 연동) */}
                       <td className="px-2 py-2">
-                        <div className="flex items-center gap-1">
-                          <span className="font-black text-slate-900 text-xs">{it.position}</span>
-                          <span className={`px-1 py-0.2 rounded text-[9px] font-bold border ${gradeBadgeClass}`}>
-                            {it.grade}
-                          </span>
-                        </div>
+                        {readOnly ? (
+                          <div className="flex items-center gap-1">
+                            <span className="font-black text-slate-900 text-xs">{it.position}</span>
+                            <span className={`px-1 py-0.2 rounded text-[9px] font-bold border ${gradeBadgeClass}`}>
+                              {it.grade}
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1">
+                            <select
+                              value={it.position}
+                              onChange={(e) => handlePositionChange(it.id, e.target.value)}
+                              className="px-1 py-0.5 border border-slate-200 rounded text-xs font-bold text-slate-800 bg-white focus:border-indigo-500 focus:outline-none cursor-pointer"
+                              title="직급 변경 시 기준정보 노임단가표의 해당 연도 월단가가 자동 적용됩니다"
+                            >
+                              {STANDARD_POSITIONS.map((pos) => (
+                                <option key={pos} value={pos}>
+                                  {pos}
+                                </option>
+                              ))}
+                            </select>
+                            <span className={`px-1 py-0.2 rounded text-[9px] font-bold border ${gradeBadgeClass}`}>
+                              {it.grade}
+                            </span>
+                          </div>
+                        )}
                         {it.role && (
                           <div className="text-[10px] text-slate-400 truncate max-w-[90px]" title={it.role}>
                             {it.role}
@@ -719,34 +788,53 @@ export default function ManpowerSheet({
                         {it.totalMM.toFixed(1)}
                       </td>
 
-                      {/* 사용자 요청: 월단가와 인건비를 한 열로 통합 */}
+                      {/* 사용자 요청: 월단가와 인건비를 한 열로 통합 (노임단가표 자동 연동) */}
                       <td className="px-2 py-1.5 text-right font-mono text-xs border-l border-slate-200">
-                        <div className="flex flex-col items-end gap-0.5">
-                          {/* 윗줄: 월단가 (수정 가능 input) */}
-                          {readOnly ? (
-                            <span className="text-slate-600 font-medium text-[11px]">
-                              {it.unitPrice.toLocaleString()}천원
-                            </span>
-                          ) : (
-                            <div className="flex items-center gap-0.5">
-                              <input
-                                type="number"
-                                min={0}
-                                step={100}
-                                value={it.unitPrice || ''}
-                                onChange={(e) => handleUnitPriceChange(it.id, Number(e.target.value))}
-                                className="w-16 px-1 py-0.5 text-right text-xs font-mono font-bold text-slate-800 bg-white border border-slate-300 rounded focus:border-indigo-500 focus:outline-none"
-                                placeholder="단가"
-                              />
-                              <span className="text-[10px] text-slate-400">천원</span>
+                        {(() => {
+                          const targetYear = new Date(startDate || Date.now()).getFullYear();
+                          const stdPrice = configuredPrice(it.position, targetYear);
+                          const isDifferentFromStandard = it.unitPrice !== stdPrice;
+
+                          return (
+                            <div className="flex flex-col items-end gap-0.5">
+                              {/* 윗줄: 월단가 (수정 가능 input + 단가표 연동 표시) */}
+                              {readOnly ? (
+                                <span className="text-slate-600 font-medium text-[11px]">
+                                  {it.unitPrice.toLocaleString()}천원
+                                </span>
+                              ) : (
+                                <div className="flex items-center gap-1">
+                                  {isDifferentFromStandard && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleResetRowUnitPrice(it.id)}
+                                      className="text-[9px] px-1 py-0.2 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 rounded transition cursor-pointer"
+                                      title={`단가표 기준단가(${stdPrice.toLocaleString()}천원)로 자동 적용`}
+                                    >
+                                      단가표적용
+                                    </button>
+                                  )}
+                                  <input
+                                    type="number"
+                                    min={0}
+                                    step={100}
+                                    value={it.unitPrice || ''}
+                                    onChange={(e) => handleUnitPriceChange(it.id, Number(e.target.value))}
+                                    className="w-16 px-1 py-0.5 text-right text-xs font-mono font-bold text-slate-800 bg-white border border-slate-300 rounded focus:border-indigo-500 focus:outline-none"
+                                    placeholder="단가"
+                                    title={`노임단가표 자동 연동 단가 (기준: ${stdPrice.toLocaleString()}천원). 필요시 직접 수정 가능`}
+                                  />
+                                  <span className="text-[10px] text-slate-400">천원</span>
+                                </div>
+                              )}
+                              {/* 아랫줄: 계산된 인건비 */}
+                              <div className="text-indigo-700 font-bold text-xs">
+                                {it.laborCost.toLocaleString()}{' '}
+                                <span className="text-[10px] font-normal text-slate-400">천원</span>
+                              </div>
                             </div>
-                          )}
-                          {/* 아랫줄: 계산된 인건비 */}
-                          <div className="text-indigo-700 font-bold text-xs">
-                            {it.laborCost.toLocaleString()}{' '}
-                            <span className="text-[10px] font-normal text-slate-400">천원</span>
-                          </div>
-                        </div>
+                          );
+                        })()}
                       </td>
 
                       {/* 삭제 버튼 */}

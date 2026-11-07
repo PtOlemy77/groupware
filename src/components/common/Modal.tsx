@@ -17,6 +17,7 @@ export interface ModalProps {
   closeOnBackdrop?: boolean;
   closeOnEsc?: boolean;
   className?: string;
+  bodyClassName?: string;
 }
 
 const SIZE_CLASSES: Record<ModalSize, string> = {
@@ -40,6 +41,7 @@ export function Modal({
   closeOnBackdrop = true,
   closeOnEsc = true,
   className = '',
+  bodyClassName,
 }: ModalProps) {
   const modalRef = useRef<HTMLDivElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
@@ -110,7 +112,7 @@ export function Modal({
         </div>
 
         {/* 바디 (스크롤 영역) */}
-        <div className="p-4 sm:p-6 min-h-0 overflow-y-auto space-y-4 flex-1">
+        <div className={bodyClassName ?? "p-4 sm:p-6 min-h-0 overflow-y-auto space-y-4 flex-1"}>
           {children}
         </div>
 

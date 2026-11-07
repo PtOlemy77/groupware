@@ -30,6 +30,9 @@ import {
   Calendar,
   BarChart3,
   CalendarDays,
+  Coins,
+  ArrowUpRight,
+  PieChart,
 } from 'lucide-react';
 import CompanyScheduleCalendar from './CompanyScheduleCalendar';
 
@@ -172,42 +175,109 @@ export default function DashboardView({
     };
   }, [projects, targetRevenue, currentYear]);
 
-  // 3. 사업본부 가용인원 산정 (조직도 기준과 동일하게 프로젝트 + 계약품의서 투입인원 연동)
-  const bizAvailability = useMemo(() => {
-    const bizEmps = employees.filter(
-      (e) => e.department === '사업본부' || e.department_code === 'DEPT_BIZ'
-    );
-    const assignedNames = new Set<number>();
+  // 3. 프로젝트별 계약품의서 연동 순손익 및 마진율 집계
+  const projectProfits = useMemo(() => {
+    let totalNetProfitThousand = 0; // 천원 단위 누적
+    let totalSupplyThousand = 0;    // 천원 단위 누적
+    let contractedProjectCount = 0;
 
-    projects
-      .filter((p) => normalizeProjectStatus(p.status) === '프로젝트 수행' || normalizeProjectStatus(p.status) === '제안준비중')
-      .forEach((p) => {
-        if (p.pm_id) assignedNames.add(p.pm_id);
-        (p.member_ids || []).forEach(id => assignedNames.add(id));
+    const profitMap = new Map<
+      number,
+      {
+        hasContract: boolean;
+        supplyAmount: number; // 천원
+        totalBudget: number;  // 천원
+        netProfit: number;    // 천원
+        profitRate: number;   // %
+        netProfitManwon: number; // 만원
+      }
+    >();
+
+    projects.forEach((prj) => {
+      // 해당 프로젝트에 연결된 계약품의서 찾기
+      const linkedAp = approvals.find((a) => {
+        if (a.category !== '계약품의' && a.category !== '계약품의서') return false;
+        if (a.project_id === prj.id) return true;
+        if (a.project_name === prj.name || a.title === prj.name) return true;
+        if (a.items_json && a.items_json.startsWith('{')) {
+          try {
+            const parsed = JSON.parse(a.items_json);
+            if (
+              parsed.linkedProjectId === prj.id ||
+              (prj.code && parsed.linkedProjectCode === prj.code) ||
+              parsed.title === prj.name
+            ) {
+              return true;
+            }
+          } catch {
+            // ignore
+          }
+        }
+        return false;
       });
 
-    approvals
-      .filter((a) => (a.category === '계약품의' || a.category === '계약품의서') && a.status !== '반려')
-      .forEach((a) => {
+      if (linkedAp && linkedAp.items_json && linkedAp.items_json.startsWith('{')) {
         try {
-          const parsed = JSON.parse(a.items_json || '{}');
-          if (Array.isArray(parsed.manpowerPlans)) {
-            parsed.manpowerPlans.forEach((mp: { employeeId?: number }) => {
-              const clean = mp.employeeId;
-              if (clean) assignedNames.add(clean);
-            });
+          const parsed = JSON.parse(linkedAp.items_json);
+          const supply = Number(parsed.supplyAmount) || 0;
+          const budget = Number(parsed.totalBudget) || 0;
+          const net =
+            parsed.projectNetProfit !== undefined
+              ? Number(parsed.projectNetProfit)
+              : supply - budget;
+          const rate =
+            parsed.profitRate !== undefined
+              ? Number(parsed.profitRate)
+              : supply > 0
+              ? Math.round((net / supply) * 10000) / 100
+              : 0;
+
+          profitMap.set(prj.id, {
+            hasContract: true,
+            supplyAmount: supply,
+            totalBudget: budget,
+            netProfit: net,
+            profitRate: rate,
+            netProfitManwon: Math.round(net / 10),
+          });
+
+          // 수행 또는 완료 프로젝트의 손익을 전사 누적으로 합산
+          const status = normalizeProjectStatus(prj.status);
+          if (status === '프로젝트 수행' || status === '완료') {
+            totalNetProfitThousand += net;
+            totalSupplyThousand += supply;
+            contractedProjectCount += 1;
           }
+          return;
         } catch {
           // ignore
         }
-      });
+      }
 
-    const availableBiz = bizEmps.filter((e) => !assignedNames.has(e.id) && e.status !== '휴직' && e.status !== '퇴사');
+      // 계약품의서가 없는 경우 기본값
+      profitMap.set(prj.id, {
+        hasContract: false,
+        supplyAmount: 0,
+        totalBudget: 0,
+        netProfit: 0,
+        profitRate: 0,
+        netProfitManwon: 0,
+      });
+    });
+
+    const totalNetProfitManwon = Math.round(totalNetProfitThousand / 10);
+    const overallProfitRate =
+      totalSupplyThousand > 0
+        ? Number(((totalNetProfitThousand / totalSupplyThousand) * 100).toFixed(1))
+        : 0;
+
     return {
-      totalBiz: bizEmps.length,
-      availableBizCount: availableBiz.length,
+      profitMap,
+      totalNetProfitManwon,
+      overallProfitRate,
+      contractedProjectCount,
     };
-  }, [employees, projects, approvals]);
+  }, [projects, approvals]);
 
   // 대시보드 하단: 수행 중인 프로젝트만 필터링하여 조회
   const executingProjects = useMemo(() => {
@@ -268,127 +338,146 @@ export default function DashboardView({
         <>
           {/* 1. 상단 통합 요약 카드: 4대 핵심 KPI + 연간 목표 달성 프로그레스 바 */}
           <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-2xs">
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           {/* 1) 올해 사업목표 */}
           <div
             onClick={() => onNavigateTab('projects')}
-            className="p-3.5 rounded-xl border border-slate-200/90 bg-slate-50/40 hover:bg-white hover:border-indigo-300 transition cursor-pointer group"
+            className="p-3.5 rounded-xl border border-slate-200/90 bg-slate-50/50 hover:bg-white hover:border-indigo-300 transition cursor-pointer group flex flex-col justify-between"
           >
-            <div className="flex items-center justify-between mb-1.5">
-              <span className="text-xs font-bold text-slate-500">{currentYear} 사업목표 (매출)</span>
-              <div className="w-7 h-7 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center group-hover:bg-indigo-600 group-hover:text-white transition">
-                <Target className="w-4 h-4" />
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-bold text-slate-600">{currentYear}년 전사 사업목표</span>
+                <div className="w-7 h-7 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center group-hover:bg-indigo-600 group-hover:text-white transition">
+                  <Target className="w-4 h-4" />
+                </div>
+              </div>
+              <div className="text-2xl font-black text-slate-900 tracking-tight font-mono">
+                {formatCurrencyManwon(targetRevenue)}
               </div>
             </div>
-            <div className="text-xl font-black text-slate-900">
-              {formatCurrencyManwon(targetRevenue)}
-            </div>
-            <div className="mt-1 flex items-center justify-between text-[11px] text-slate-500">
-              <span>공공SI · GIS 플랫폼</span>
-              <span className="text-indigo-600 font-semibold">사업관리 →</span>
+            <div className="mt-2 pt-2 border-t border-slate-200/60 flex items-center justify-between text-[11px] text-slate-500">
+              <span>기준정보 매출목표</span>
+              <span className="text-indigo-600 font-semibold group-hover:translate-x-0.5 transition-transform">사업관리 →</span>
             </div>
           </div>
 
-          {/* 2) 현재 확정 달성율 */}
+          {/* 2) 올해 확정 매출 및 목표 달성율 (핵심 강조 디자인) */}
           <div
             onClick={() => onNavigateTab('projects')}
-            className="p-3.5 rounded-xl border border-emerald-200 bg-emerald-50/20 hover:bg-emerald-50/40 transition cursor-pointer group"
+            className="p-3.5 rounded-xl border-2 border-emerald-300 bg-gradient-to-br from-emerald-50/60 to-teal-50/30 hover:border-emerald-400 hover:shadow-xs transition cursor-pointer group flex flex-col justify-between"
           >
-            <div className="flex items-center justify-between mb-1.5">
-              <span className="text-xs font-bold text-emerald-800">올해 달성율 (확정)</span>
-              <div className="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center group-hover:bg-emerald-600 group-hover:text-white transition">
-                <CheckCircle2 className="w-4 h-4" />
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-xs font-bold text-emerald-900">올해 확정 매출 · 달성율</span>
+                <span className={`text-[10px] font-black px-2 py-0.5 rounded-full border ${
+                  currentAchievementRate >= 100
+                    ? 'bg-emerald-600 text-white border-emerald-600 shadow-2xs'
+                    : currentAchievementRate >= 70
+                    ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                    : 'bg-white text-emerald-700 border-emerald-300'
+                }`}>
+                  {currentAchievementRate >= 100 ? '목표 달성' : `${currentAchievementRate}% 달성`}
+                </span>
+              </div>
+              <div className="flex items-baseline gap-1.5 mt-1">
+                <span className="text-3xl font-black text-emerald-700 font-mono tracking-tight">
+                  {currentAchievementRate}%
+                </span>
+              </div>
+              <div className="text-xs font-bold text-emerald-950 mt-1">
+                확정 매출: <span className="font-mono">{formatCurrencyManwon(confirmedRevenue)}</span>
               </div>
             </div>
-            <div className="flex items-baseline gap-2">
-              <span className="text-xl font-black text-emerald-600 font-mono">
-                {currentAchievementRate}%
-              </span>
-              <span className="text-xs font-bold text-emerald-700">
-                ({formatCurrencyManwon(confirmedRevenue)})
-              </span>
-            </div>
-            <div className="mt-1 flex items-center justify-between text-[11px] text-slate-500">
-              <span>올해 귀속·지분율 반영</span>
-              <span className="text-emerald-700 font-semibold">과제수행 →</span>
+            <div className="mt-2 pt-2 border-t border-emerald-200/70 flex items-center justify-between text-[11px] text-emerald-800">
+              <span>수행·완료 당사 귀속</span>
+              <span className="text-emerald-700 font-bold group-hover:translate-x-0.5 transition-transform">과제수행 →</span>
             </div>
           </div>
 
-          {/* 3) 연간 예상 달성율 */}
+          {/* 3) 연간 예상 총매출 (파이프라인) */}
           <div
             onClick={() => onNavigateTab('projects')}
-            className="p-3.5 rounded-xl border border-indigo-200 bg-indigo-50/20 hover:bg-indigo-50/40 transition cursor-pointer group"
+            className="p-3.5 rounded-xl border border-indigo-200 bg-indigo-50/20 hover:bg-indigo-50/50 transition cursor-pointer group flex flex-col justify-between"
           >
-            <div className="flex items-center justify-between mb-1.5">
-              <span className="text-xs font-bold text-indigo-800">올해 예상 달성율 (파이프라인)</span>
-              <div className="w-7 h-7 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center group-hover:bg-indigo-600 group-hover:text-white transition">
-                <TrendingUp className="w-4 h-4" />
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-bold text-indigo-900">연간 예상 매출 (파이프라인)</span>
+                <div className="w-7 h-7 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center group-hover:bg-indigo-600 group-hover:text-white transition">
+                  <TrendingUp className="w-4 h-4" />
+                </div>
+              </div>
+              <div className="flex items-baseline gap-2">
+                <span className="text-2xl font-black text-indigo-700 font-mono">
+                  {estimatedAchievementRate}%
+                </span>
+                <span className="text-xs font-bold text-indigo-900">
+                  ({formatCurrencyManwon(estimatedRevenue)})
+                </span>
               </div>
             </div>
-            <div className="flex items-baseline gap-2">
-              <span className="text-xl font-black text-indigo-600 font-mono">
-                {estimatedAchievementRate}%
-              </span>
-              <span className="text-xs font-bold text-indigo-700">
-                ({formatCurrencyManwon(estimatedRevenue)})
-              </span>
-            </div>
-            <div className="mt-1 flex items-center justify-between text-[11px] text-slate-500">
+            <div className="mt-2 pt-2 border-t border-indigo-200/60 flex items-center justify-between text-[11px] text-slate-500">
               <span>발주·제안 가중치 반영</span>
-              <span className="text-indigo-600 font-semibold">발주·제안 →</span>
+              <span className="text-indigo-600 font-semibold group-hover:translate-x-0.5 transition-transform">발주·제안 →</span>
             </div>
           </div>
 
-          {/* 4) 사업본부 가용인원 */}
+          {/* 4) 사용자 요청: 인력관리 대신 프로젝트 순손익 배치! */}
           <div
-            onClick={() => onNavigateTab('employees')}
-            className="p-3.5 rounded-xl border border-slate-200/90 bg-slate-50/40 hover:bg-white hover:border-slate-300 transition cursor-pointer group"
+            onClick={() => onNavigateTab('projects')}
+            className="p-3.5 rounded-xl border border-slate-200/90 bg-slate-50/50 hover:bg-white hover:border-purple-300 transition cursor-pointer group flex flex-col justify-between"
           >
-            <div className="flex items-center justify-between mb-1.5">
-              <span className="text-xs font-bold text-slate-500">사업본부 가용인원</span>
-              <div className="w-7 h-7 rounded-lg bg-slate-100 text-slate-700 flex items-center justify-center group-hover:bg-slate-800 group-hover:text-white transition">
-                <Users className="w-4 h-4" />
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-bold text-slate-700">프로젝트 순 손익 (품의서)</span>
+                <div className="w-7 h-7 rounded-lg bg-purple-50 text-purple-700 flex items-center justify-center group-hover:bg-purple-600 group-hover:text-white transition">
+                  <Coins className="w-4 h-4" />
+                </div>
+              </div>
+              <div className="flex items-baseline gap-2">
+                <span className={`text-2xl font-black font-mono tracking-tight ${
+                  projectProfits.totalNetProfitManwon >= 0 ? 'text-purple-700' : 'text-rose-600'
+                }`}>
+                  {projectProfits.totalNetProfitManwon >= 0 ? '+' : ''}
+                  {formatCurrencyManwon(projectProfits.totalNetProfitManwon)}
+                </span>
+              </div>
+              <div className="text-[11px] font-bold text-purple-900 mt-1">
+                평균 순이익률: <span className="font-mono text-purple-700">{projectProfits.overallProfitRate}%</span>
               </div>
             </div>
-            <div className="text-xl font-black text-slate-900">
-              {bizAvailability.availableBizCount}명
-              <span className="text-xs font-medium text-slate-400 ml-1.5">
-                / 사업본부 {bizAvailability.totalBiz}명
-              </span>
-            </div>
-            <div className="mt-1 flex items-center justify-between text-[11px] text-slate-500">
-              <span>미투입 가용 인력</span>
-              <span className="text-indigo-600 font-semibold">조직도 보기 →</span>
+            <div className="mt-2 pt-2 border-t border-slate-200/60 flex items-center justify-between text-[11px] text-slate-500">
+              <span>품의 연동 {projectProfits.contractedProjectCount}건 합산</span>
+              <span className="text-purple-700 font-semibold group-hover:translate-x-0.5 transition-transform">손익 상세 →</span>
             </div>
           </div>
         </div>
 
-        {/* 하단 통합 달성율 프로그레스 바 */}
+        {/* 하단 통합 달성율 프로그레스 바 (달성율 시인성 대폭 강화) */}
         <div className="mt-3.5 pt-3 border-t border-slate-100">
-          <div className="flex items-center justify-between text-xs font-semibold mb-1.5">
+          <div className="flex items-center justify-between text-xs font-semibold mb-2">
             <div className="flex items-center gap-3 text-slate-700 flex-wrap">
               <span className="inline-flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />
-                올해 확정 매출(당사 지분): <strong>{formatCurrencyManwon(confirmedRevenue)} ({currentAchievementRate}%)</strong>
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block shadow-2xs" />
+                올해 확정 매출(당사): <strong className="text-emerald-800 font-black">{formatCurrencyManwon(confirmedRevenue)}</strong> <span className="font-mono text-emerald-700 font-extrabold bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200">({currentAchievementRate}%)</span>
               </span>
               <span className="text-slate-300">|</span>
               <span className="inline-flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-indigo-500 inline-block" />
-                올해 예상 총매출: <strong>{formatCurrencyManwon(estimatedRevenue)} ({estimatedAchievementRate}%)</strong>
+                <span className="w-2.5 h-2.5 rounded-full bg-indigo-500 inline-block" />
+                올해 예상 총매출: <strong className="text-indigo-900 font-bold">{formatCurrencyManwon(estimatedRevenue)}</strong> <span className="font-mono text-indigo-700 font-bold">({estimatedAchievementRate}%)</span>
               </span>
             </div>
-            <span className="text-slate-500 font-mono text-[11px]">
-              연간 목표: {formatCurrencyManwon(targetRevenue)} (100%)
+            <span className="text-slate-600 font-mono text-xs font-bold bg-slate-100 px-2 py-0.5 rounded-lg border border-slate-200">
+              전사 목표: {formatCurrencyManwon(targetRevenue)}
             </span>
           </div>
 
-          <div className="relative h-2.5 bg-slate-100 rounded-full overflow-hidden">
+          <div className="relative h-3 bg-slate-100 rounded-full overflow-hidden border border-slate-200/60 p-0.5">
             <div
-              className="absolute top-0 bottom-0 left-0 bg-indigo-300/70 rounded-full transition-all duration-700"
+              className="absolute top-0 bottom-0 left-0 bg-indigo-300/80 rounded-full transition-all duration-700"
               style={{ width: `${Math.min(estimatedAchievementRate, 100)}%` }}
             />
             <div
-              className="absolute top-0 bottom-0 left-0 bg-gradient-to-r from-emerald-500 to-teal-500 rounded-full transition-all duration-700"
+              className="absolute top-0 bottom-0 left-0 bg-gradient-to-r from-emerald-500 via-emerald-600 to-teal-500 rounded-full transition-all duration-700 shadow-2xs"
               style={{ width: `${Math.min(currentAchievementRate, 100)}%` }}
             />
           </div>
@@ -499,6 +588,7 @@ export default function DashboardView({
                 ? 'bg-blue-100 text-blue-800 border-blue-200'
                 : 'bg-amber-100 text-amber-800 border-amber-200';
 
+            const profitInfo = projectProfits.profitMap.get(prj.id);
             const progressBarClass =
               normStatus === '완료'
                 ? 'bg-emerald-500'
@@ -521,7 +611,19 @@ export default function DashboardView({
                       {prj.name}
                     </span>
                   </div>
-                  <div className="flex items-center gap-1.5 shrink-0">
+                  <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
+                    {profitInfo?.hasContract && (
+                      <span
+                        className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                          profitInfo.netProfitManwon >= 0
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                            : 'bg-rose-50 text-rose-700 border-rose-200'
+                        }`}
+                        title={`계약품의서 공급가: ${formatCurrencyManwon(Math.round(profitInfo.supplyAmount / 10))} / 총예산: ${formatCurrencyManwon(Math.round(profitInfo.totalBudget / 10))}`}
+                      >
+                        순손익 {profitInfo.netProfitManwon >= 0 ? `+${formatCurrencyManwon(profitInfo.netProfitManwon)}` : formatCurrencyManwon(profitInfo.netProfitManwon)} ({profitInfo.profitRate}%)
+                      </span>
+                    )}
                     {scope.isMultiYear && (
                       <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-200">
                         연차사업 ({currentYear}년)

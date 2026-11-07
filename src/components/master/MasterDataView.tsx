@@ -28,6 +28,13 @@ import {
   Search,
   Filter,
 } from 'lucide-react';
+import {
+  Button,
+  TabGroup,
+  PageHeaderBar,
+  Modal,
+  SearchInput,
+} from '@/components/common';
 
 function AutoSizeTextarea(props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
   const ref = useRef<HTMLTextAreaElement>(null);
@@ -379,50 +386,35 @@ export default function MasterDataView({
 
   return (
     <div data-editor data-testid="master-data-view" className="min-w-0 space-y-4">
-      {/* 1. 상단 서브탭 전환 바 */}
-      <div className="min-w-0 bg-white p-2.5 sm:p-3 rounded-2xl border border-slate-200 shadow-2xs">
-        {/* 탭 전환 버튼 */}
-        <div role="group" aria-label="기준정보 분류" className="grid min-w-0 grid-cols-1 gap-1.5 rounded-xl border border-slate-200 bg-slate-100 p-1.5 lg:flex lg:flex-wrap">
-          <button
-            aria-pressed={subTab === 'target_revenue'}
-            onClick={() => setSubTab('target_revenue')}
-            className={`flex min-w-0 items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold transition ${
-              subTab === 'target_revenue'
-                ? 'bg-white text-indigo-700 shadow-xs'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <TrendingUp className="w-4 h-4 text-indigo-600" />
-            <span>연도별 사업 목표매출</span>
-          </button>
-
-          <button
-            aria-pressed={subTab === 'unit_prices'}
-            onClick={() => setSubTab('unit_prices')}
-            className={`flex min-w-0 items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold transition ${
-              subTab === 'unit_prices'
-                ? 'bg-white text-indigo-700 shadow-xs'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <DollarSign className="w-4 h-4 text-indigo-600" />
-            <span>연도별 SW 노임단가</span>
-          </button>
-
-          <button
-            aria-pressed={subTab === 'common_codes'}
-            onClick={() => setSubTab('common_codes')}
-            className={`flex min-w-0 items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold transition ${
-              subTab === 'common_codes'
-                ? 'bg-white text-indigo-700 shadow-xs'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <Database className="w-4 h-4 text-indigo-600" />
-            <span>공통 코드 관리 ({commonCodes.length})</span>
-          </button>
-        </div>
-      </div>
+      {/* 1. 공통 상단 서브탭 전환 바 */}
+      <PageHeaderBar
+        left={
+          <TabGroup
+            items={[
+              {
+                key: 'target_revenue',
+                label: '연도별 사업 목표매출',
+                icon: <TrendingUp className="w-4 h-4" />,
+              },
+              {
+                key: 'unit_prices',
+                label: '연도별 SW 노임단가',
+                icon: <DollarSign className="w-4 h-4" />,
+              },
+              {
+                key: 'common_codes',
+                label: `공통 코드 관리`,
+                count: commonCodes.length,
+                icon: <Database className="w-4 h-4" />,
+              },
+            ]}
+            activeKey={subTab}
+            onChange={(key) => setSubTab(key as any)}
+            variant="segmented"
+            size="md"
+          />
+        }
+      />
 
       {saveMessage && (
         <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs font-bold flex items-center gap-2 shadow-2xs">
@@ -868,210 +860,210 @@ export default function MasterDataView({
         </div>
       )}
 
-      {/* 코드 등록/수정 모달 */}
-      {codeModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
-          <div className="max-h-[90dvh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-slate-200 bg-white p-4 shadow-2xl sm:p-6">
-            <h3 className="text-base font-bold text-slate-900 mb-4 pb-2 border-b border-slate-100">
-              {editingCode ? '공통 코드 수정' : '신규 공통 코드 등록'}
-            </h3>
-
-            <form onSubmit={handleSaveCode} className="space-y-4 text-sm">
-              <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2">
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">그룹 코드</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="예: DEPARTMENT"
-                    value={codeForm.group_code || ''}
-                    onChange={(e) =>
-                      setCodeForm({ ...codeForm, group_code: e.target.value })
-                    }
-                    className="w-full min-w-0 p-2.5 rounded-xl border border-slate-300 font-mono font-bold"
-                  />
-                </div>
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">그룹 명칭</label>
-                  <AutoSizeTextarea
-                    rows={2}
-                    required
-                    placeholder="예: 부서"
-                    value={codeForm.group_name || ''}
-                    onChange={(e) =>
-                      setCodeForm({ ...codeForm, group_name: e.target.value })
-                    }
-                    className="w-full min-w-0 p-2.5 rounded-xl border border-slate-300 font-semibold"
-                  />
-                </div>
-              </div>
-
-              <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2">
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">코드 값</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="예: DEPT_BIZ"
-                    value={codeForm.code || ''}
-                    onChange={(e) =>
-                      setCodeForm({ ...codeForm, code: e.target.value })
-                    }
-                    className="w-full min-w-0 p-2.5 rounded-xl border border-slate-300 font-mono font-bold text-indigo-700"
-                  />
-                </div>
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">코드 명칭 (표시명)</label>
-                  <AutoSizeTextarea
-                    rows={2}
-                    required
-                    placeholder="예: 사업본부"
-                    value={codeForm.code_name || ''}
-                    onChange={(e) =>
-                      setCodeForm({ ...codeForm, code_name: e.target.value })
-                    }
-                    className="w-full min-w-0 p-2.5 rounded-xl border border-slate-300 font-bold"
-                  />
-                </div>
-              </div>
-
-              <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2">
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">정렬 순서</label>
-                  <input
-                    type="number"
-                    value={codeForm.sort_order || 0}
-                    onChange={(e) =>
-                      setCodeForm({ ...codeForm, sort_order: Number(e.target.value) })
-                    }
-                    className="w-full min-w-0 p-2.5 rounded-xl border border-slate-300 font-semibold"
-                  />
-                </div>
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">사용 여부</label>
-                  <select
-                    value={codeForm.is_active ? 'true' : 'false'}
-                    onChange={(e) =>
-                      setCodeForm({ ...codeForm, is_active: e.target.value === 'true' })
-                    }
-                    className="w-full min-w-0 p-2.5 rounded-xl border border-slate-300 font-bold bg-white"
-                  >
-                    <option value="true">사용</option>
-                    <option value="false">미사용</option>
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">부가 정보 / 설명</label>
-                <AutoSizeTextarea
-                  rows={3}
-                  placeholder="예: 프로젝트 전담 부서"
-                  value={codeForm.extra_value || ''}
-                  onChange={(e) =>
-                    setCodeForm({ ...codeForm, extra_value: e.target.value })
-                  }
-                  className="w-full min-w-0 p-2.5 rounded-xl border border-slate-300"
-                />
-              </div>
-
-              <div className="flex justify-end gap-2 pt-3 border-t">
-                <button
-                  type="button"
-                  onClick={() => setCodeModalOpen(false)}
-                  className="px-4 py-2 rounded-xl text-slate-600 font-semibold hover:bg-slate-100"
-                >
-                  취소
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold"
-                >
-                  저장
-                </button>
-              </div>
-            </form>
+      {/* 4. 코드 등록/수정 모달 (공통 Modal) */}
+      <Modal
+        isOpen={codeModalOpen}
+        onClose={() => setCodeModalOpen(false)}
+        title={editingCode ? '공통 코드 수정' : '신규 공통 코드 등록'}
+        description="시스템 전반에서 사용하는 부서, 직급, 상태 등의 공통 코드를 관리합니다."
+        icon={<Database className="w-5 h-5 text-indigo-600" />}
+        size="lg"
+        footer={
+          <>
+            <Button
+              variant="secondary"
+              size="md"
+              onClick={() => setCodeModalOpen(false)}
+            >
+              취소
+            </Button>
+            <Button
+              variant="primary"
+              size="md"
+              type="submit"
+              form="code-form"
+            >
+              저장
+            </Button>
+          </>
+        }
+      >
+        <form id="code-form" onSubmit={handleSaveCode} className="space-y-4 text-sm">
+          <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              <label className="block font-bold text-slate-700 mb-1">그룹 코드</label>
+              <input
+                type="text"
+                required
+                placeholder="예: DEPARTMENT"
+                value={codeForm.group_code || ''}
+                onChange={(e) =>
+                  setCodeForm({ ...codeForm, group_code: e.target.value })
+                }
+                className="w-full min-w-0 p-2.5 rounded-xl border border-slate-300 font-mono font-bold"
+              />
+            </div>
+            <div>
+              <label className="block font-bold text-slate-700 mb-1">그룹 명칭</label>
+              <AutoSizeTextarea
+                rows={2}
+                required
+                placeholder="예: 부서"
+                value={codeForm.group_name || ''}
+                onChange={(e) =>
+                  setCodeForm({ ...codeForm, group_name: e.target.value })
+                }
+                className="w-full min-w-0 p-2.5 rounded-xl border border-slate-300 font-semibold"
+              />
+            </div>
           </div>
-        </div>
-      )}
 
-      {/* 5. 신규 연도 사업목표 추가 모달 */}
-      {showAddYearModal && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center z-50 p-4">
-          <div className="max-h-[90dvh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-slate-200 bg-white p-4 shadow-2xl sm:p-6">
-            <h3 className="text-lg font-black text-slate-900 mb-1 flex items-center gap-2">
-              <TrendingUp className="w-5 h-5 text-indigo-600" />
-              <span>신규 연도 사업 목표매출 추가</span>
-            </h3>
-            <p className="text-xs text-slate-500 mb-5">
-              전사 사업 계획에 맞춘 신규 연도의 매출 목표액을 설정합니다.
-            </p>
-
-            <form onSubmit={handleAddYearRevenue} className="space-y-4 text-sm">
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">
-                  기준 연도 (YYYY) <span className="text-rose-500">*</span>
-                </label>
-                <input
-                  type="number"
-                  required
-                  placeholder="예: 2029"
-                  value={newYearInput}
-                  onChange={(e) => setNewYearInput(e.target.value)}
-                  className="w-full min-w-0 p-2.5 rounded-xl border border-slate-300 font-bold"
-                />
-              </div>
-
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">
-                  연간 목표매출액 (만원 단위) <span className="text-rose-500">*</span>
-                </label>
-                <div className="flex min-w-0 flex-col items-stretch border border-slate-300 rounded-xl bg-white sm:flex-row">
-                  <input
-                    type="number"
-                    step="1000"
-                    required
-                    placeholder="예: 400000 (40억원)"
-                    value={newAmountInput}
-                    onChange={(e) => setNewAmountInput(e.target.value)}
-                    className="min-w-0 w-full flex-1 p-2.5 outline-none font-bold text-indigo-700 text-sm"
-                  />
-                  <span className="shrink-0 whitespace-nowrap px-3 py-2.5 bg-slate-100 text-slate-500 font-bold select-none border-l border-slate-200">
-                    만원 {newAmountInput ? `(${(Number(newAmountInput) / 10000).toFixed(1)}억원)` : ''}
-                  </span>
-                </div>
-              </div>
-
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">중점 추진 전략 및 비고</label>
-                <input
-                  type="text"
-                  placeholder="예: AI 기반 공간정보 플랫폼 민간 시장 진출"
-                  value={newNoteInput}
-                  onChange={(e) => setNewNoteInput(e.target.value)}
-                  className="w-full min-w-0 p-2.5 rounded-xl border border-slate-300"
-                />
-              </div>
-
-              <div className="flex justify-end gap-2 pt-3 border-t">
-                <button
-                  type="button"
-                  onClick={() => setShowAddYearModal(false)}
-                  className="px-4 py-2 rounded-xl text-slate-600 font-semibold hover:bg-slate-100"
-                >
-                  취소
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold"
-                >
-                  연도 추가
-                </button>
-              </div>
-            </form>
+          <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              <label className="block font-bold text-slate-700 mb-1">코드 값</label>
+              <input
+                type="text"
+                required
+                placeholder="예: DEPT_BIZ"
+                value={codeForm.code || ''}
+                onChange={(e) =>
+                  setCodeForm({ ...codeForm, code: e.target.value })
+                }
+                className="w-full min-w-0 p-2.5 rounded-xl border border-slate-300 font-mono font-bold text-indigo-700"
+              />
+            </div>
+            <div>
+              <label className="block font-bold text-slate-700 mb-1">코드 명칭 (표시명)</label>
+              <AutoSizeTextarea
+                rows={2}
+                required
+                placeholder="예: 사업본부"
+                value={codeForm.code_name || ''}
+                onChange={(e) =>
+                  setCodeForm({ ...codeForm, code_name: e.target.value })
+                }
+                className="w-full min-w-0 p-2.5 rounded-xl border border-slate-300 font-bold"
+              />
+            </div>
           </div>
-        </div>
-      )}
+
+          <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              <label className="block font-bold text-slate-700 mb-1">정렬 순서</label>
+              <input
+                type="number"
+                value={codeForm.sort_order || 0}
+                onChange={(e) =>
+                  setCodeForm({ ...codeForm, sort_order: Number(e.target.value) })
+                }
+                className="w-full min-w-0 p-2.5 rounded-xl border border-slate-300 font-semibold"
+              />
+            </div>
+            <div>
+              <label className="block font-bold text-slate-700 mb-1">사용 여부</label>
+              <select
+                value={codeForm.is_active ? 'true' : 'false'}
+                onChange={(e) =>
+                  setCodeForm({ ...codeForm, is_active: e.target.value === 'true' })
+                }
+                className="w-full min-w-0 p-2.5 rounded-xl border border-slate-300 font-bold bg-white"
+              >
+                <option value="true">사용</option>
+                <option value="false">미사용</option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="block font-bold text-slate-700 mb-1">부가 정보 / 설명</label>
+            <AutoSizeTextarea
+              rows={3}
+              placeholder="예: 프로젝트 전담 부서"
+              value={codeForm.extra_value || ''}
+              onChange={(e) =>
+                setCodeForm({ ...codeForm, extra_value: e.target.value })
+              }
+              className="w-full min-w-0 p-2.5 rounded-xl border border-slate-300"
+            />
+          </div>
+        </form>
+      </Modal>
+
+      {/* 5. 신규 연도 사업목표 추가 모달 (공통 Modal) */}
+      <Modal
+        isOpen={showAddYearModal}
+        onClose={() => setShowAddYearModal(false)}
+        title="신규 연도 사업 목표매출 추가"
+        description="전사 사업 계획에 맞춘 신규 연도의 매출 목표액을 설정합니다."
+        icon={<TrendingUp className="w-5 h-5 text-indigo-600" />}
+        size="md"
+        footer={
+          <>
+            <Button
+              variant="secondary"
+              size="md"
+              onClick={() => setShowAddYearModal(false)}
+            >
+              취소
+            </Button>
+            <Button
+              variant="primary"
+              size="md"
+              type="submit"
+              form="add-year-form"
+            >
+              연도 추가
+            </Button>
+          </>
+        }
+      >
+        <form id="add-year-form" onSubmit={handleAddYearRevenue} className="space-y-4 text-sm">
+          <div>
+            <label className="block font-bold text-slate-700 mb-1">
+              기준 연도 (YYYY) <span className="text-rose-500">*</span>
+            </label>
+            <input
+              type="number"
+              required
+              placeholder="예: 2029"
+              value={newYearInput}
+              onChange={(e) => setNewYearInput(e.target.value)}
+              className="w-full min-w-0 p-2.5 rounded-xl border border-slate-300 font-bold"
+            />
+          </div>
+
+          <div>
+            <label className="block font-bold text-slate-700 mb-1">
+              연간 목표매출액 (만원 단위) <span className="text-rose-500">*</span>
+            </label>
+            <div className="flex min-w-0 flex-col items-stretch border border-slate-300 rounded-xl bg-white sm:flex-row">
+              <input
+                type="number"
+                step="1000"
+                required
+                placeholder="예: 400000 (40억원)"
+                value={newAmountInput}
+                onChange={(e) => setNewAmountInput(e.target.value)}
+                className="min-w-0 w-full flex-1 p-2.5 outline-none font-bold text-indigo-700 text-sm"
+              />
+              <span className="shrink-0 whitespace-nowrap px-3 py-2.5 bg-slate-100 text-slate-500 font-bold select-none border-l border-slate-200">
+                만원 {newAmountInput ? `(${(Number(newAmountInput) / 10000).toFixed(1)}억원)` : ''}
+              </span>
+            </div>
+          </div>
+
+          <div>
+            <label className="block font-bold text-slate-700 mb-1">중점 추진 전략 및 비고</label>
+            <input
+              type="text"
+              placeholder="예: AI 기반 공간정보 플랫폼 민간 시장 진출"
+              value={newNoteInput}
+              onChange={(e) => setNewNoteInput(e.target.value)}
+              className="w-full min-w-0 p-2.5 rounded-xl border border-slate-300"
+            />
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 }
