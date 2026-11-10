@@ -472,8 +472,8 @@ export default function ProjectsView({
                 if (key === 'reports') setReportTargetProjectId(null);
                 setSubTab(key as any);
               }}
-              variant="pills"
-              size="sm"
+              variant="segmented"
+              size="md"
             />
 
             {onNavigateToReports && (
@@ -487,12 +487,6 @@ export default function ProjectsView({
                 주간/월간 보고 메뉴 바로가기 →
               </Button>
             )}
-          </div>
-        }
-        right={
-          <div className="text-[11px] text-slate-500 hidden lg:flex items-center gap-1 font-medium">
-            <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
-            <span>사업본부 전담 프로젝트 파이프라인 (발주예상 → 제안준비중 → 프로젝트 수행)</span>
           </div>
         }
       />
@@ -516,6 +510,7 @@ export default function ProjectsView({
           approvals={approvals}
           projects={projects}
           currentUser={currentUser}
+          commonCodes={commonCodes}
         />
       )}
 
@@ -556,7 +551,7 @@ export default function ProjectsView({
                       {count}건
                     </span>
                   </div>
-                  <div className="text-[11px] opacity-75 mt-1 truncate">
+                  <div className="text-xs opacity-75 mt-1 truncate">
                     {st === '발주예상' && '예산 반영 / 공고 대기'}
                     {st === '제안준비중' && '제안서 작성 / 입찰 진행'}
                     {st === '프로젝트 수행' && '계약 체결 / 과제 수행'}
@@ -665,17 +660,17 @@ export default function ProjectsView({
                         </div>
                         <div className="flex items-center gap-1 shrink-0">
                           {getProjectShareRate(prj) < 100 && (
-                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
+                            <span className="text-xs font-bold px-1.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
                               컨소시엄 {getProjectShareRate(prj)}%
                             </span>
                           )}
                           {isMultiYear && (
-                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
+                            <span className="text-xs font-bold px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
                               다년도
                             </span>
                           )}
                           <span
-                            className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${statusBadgeStyle}`}
+                            className={`text-xs font-bold px-2 py-0.5 rounded-full border ${statusBadgeStyle}`}
                           >
                             {normStatus}
                           </span>
@@ -697,7 +692,7 @@ export default function ProjectsView({
                           <User className="w-3.5 h-3.5 text-indigo-600" />
                           <span>총괄 PM: <strong className="text-indigo-950 font-black">{prj.pm_name || '미배정'}</strong></span>
                         </div>
-                        <span className="text-[11px] text-slate-400 font-medium">사업본부</span>
+                        <span className="text-xs text-slate-400 font-medium">사업본부</span>
                       </div>
 
                       {/* 4. 부가 속성 (예산, 수행기간, 기간 기준 진행율) */}
@@ -710,7 +705,7 @@ export default function ProjectsView({
                                 <span className="font-black text-indigo-700 text-sm">
                                   {formatCurrencyManwon(getMultiYearRevenueForYear(prj, new Date().getFullYear()))}
                                 </span>
-                                <span className="text-[10px] text-slate-400 block font-normal">
+                                <span className="text-xs text-slate-400 block font-normal">
                                   (총 {formatCurrencyManwon(prj.budget)}
                                   {getProjectShareRate(prj) < 100 ? ` / 당사지분 ${getProjectShareRate(prj)}%` : ''})
                                 </span>
@@ -721,7 +716,7 @@ export default function ProjectsView({
                                   {formatCurrencyManwon(prj.budget)}
                                 </span>
                                 {getProjectShareRate(prj) < 100 && (
-                                  <span className="text-[11px] font-bold text-indigo-700 ml-1.5">
+                                  <span className="text-xs font-bold text-indigo-700 ml-1.5">
                                     (당사: {formatCurrencyManwon(getProjectOurBudget(prj))})
                                   </span>
                                 )}
@@ -739,7 +734,7 @@ export default function ProjectsView({
 
                         {/* 진척률 (기간에 따라 현재 일자로 자동 계산) */}
                         <div className="pt-1">
-                          <div className="flex justify-between text-[11px] mb-1">
+                          <div className="flex justify-between text-xs mb-1">
                             <span className="text-slate-500 font-medium">진척률 (기간 자동 산출)</span>
                             <span className="font-bold text-indigo-600">{periodProgress}%</span>
                           </div>
@@ -873,13 +868,13 @@ export default function ProjectsView({
                           >
                             <div className="flex items-center justify-between gap-1 mb-1.5">
                               {prj.client_name ? (
-                                <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded truncate max-w-[120px]">
+                                <span className="text-xs font-bold text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded truncate max-w-[120px]">
                                   {prj.client_name}
                                 </span>
                               ) : (
-                                <span className="text-[10px] text-slate-400">발주처 미지정</span>
+                                <span className="text-xs text-slate-400">발주처 미지정</span>
                               )}
-                              <span className="text-[11px] font-bold text-slate-700">PM: {prj.pm_name || '미배정'}</span>
+                              <span className="text-xs font-bold text-slate-700">PM: {prj.pm_name || '미배정'}</span>
                             </div>
                             <h5
                               onClick={() => openEditModal(prj)}
@@ -888,14 +883,14 @@ export default function ProjectsView({
                             >
                               {prj.name}
                             </h5>
-                            <div className="flex items-center justify-between text-[11px] text-slate-500 mb-2.5">
+                            <div className="flex items-center justify-between text-xs text-slate-500 mb-2.5">
                               <span>예산:</span>
                               <div className="text-right">
                                 <span className="font-bold text-slate-900">
                                   {formatCurrencyManwon(prj.budget)}
                                 </span>
                                 {getProjectShareRate(prj) < 100 && (
-                                  <div className="text-[10px] text-indigo-700 font-bold">
+                                  <div className="text-xs text-indigo-700 font-bold">
                                     당사({getProjectShareRate(prj)}%): {formatCurrencyManwon(getProjectOurBudget(prj))}
                                   </div>
                                 )}
@@ -905,7 +900,7 @@ export default function ProjectsView({
                             {/* 계약품의서 확인 버튼 (제안준비중 단계부터 작성 가능) */}
                             <button
                               onClick={() => handleOpenContractForProject(prj)}
-                              className={`w-full py-1.5 rounded-lg text-[11px] font-bold transition flex items-center justify-center gap-1 ${
+                              className={`w-full py-1.5 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1 ${
                                 stage === '제안준비중'
                                   ? 'bg-blue-100/90 hover:bg-blue-600 hover:text-white text-blue-800 border border-blue-200'
                                   : stage === '발주예상'
@@ -1009,7 +1004,7 @@ export default function ProjectsView({
                   </div>
                   <div>
                     <label className="block font-bold text-slate-700 mb-1">
-                      발주기관 (고객사) <span className="text-[11px] text-indigo-600 font-normal">(계약품의서 연동)</span>
+                      발주기관 (고객사) <span className="text-xs text-indigo-600 font-normal">(계약품의서 연동)</span>
                     </label>
                     <input
                       type="text"
@@ -1151,7 +1146,7 @@ export default function ProjectsView({
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block font-bold text-slate-700 mb-1">
-                    총괄 PM <span className="text-[11px] text-slate-500 font-normal">(선택 사항)</span>
+                    총괄 PM <span className="text-xs text-slate-500 font-normal">(선택 사항)</span>
                   </label>
                   <select
                     value={formData.pm_id || ''}
@@ -1176,7 +1171,7 @@ export default function ProjectsView({
                 </div>
                 <div>
                   <label className="block font-bold text-slate-700 mb-1">
-                    과제 진행율 <span className="text-[11px] text-slate-400 font-normal">(기간 자동 계산)</span>
+                    과제 진행율 <span className="text-xs text-slate-400 font-normal">(기간 자동 계산)</span>
                   </label>
                   <div className="p-2.5 rounded-xl border border-slate-200 bg-slate-50 flex items-center justify-between font-bold text-slate-800">
                     <span className="text-slate-500 text-xs">현재 진행율:</span>
@@ -1226,7 +1221,7 @@ export default function ProjectsView({
                       다년도 사업 연차별 매출 자동 안분
                     </span>
                     {(formData.share_rate ?? 100) < 100 && (
-                      <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-md bg-indigo-100 text-indigo-800 border border-indigo-200">
+                      <span className="text-xs font-bold px-1.5 py-0.2 rounded-md bg-indigo-100 text-indigo-800 border border-indigo-200">
                         당사 지분율 {formData.share_rate}% 자동 반영
                       </span>
                     )}
@@ -1234,7 +1229,7 @@ export default function ProjectsView({
                   <button
                     type="button"
                     onClick={() => recalculateBreakdown()}
-                    className="text-[11px] font-semibold text-indigo-600 hover:underline"
+                    className="text-xs font-semibold text-indigo-600 hover:underline"
                   >
                     기간 비례 재계산
                   </button>
@@ -1249,7 +1244,7 @@ export default function ProjectsView({
                         key={yr}
                         className="bg-white p-2.5 rounded-xl border border-indigo-100/90 shadow-2xs space-y-1"
                       >
-                        <div className="flex items-center justify-between text-[10px] text-slate-500 font-bold">
+                        <div className="flex items-center justify-between text-xs text-slate-500 font-bold">
                           <span>{yr}년 전체 예산</span>
                           {shareRate < 100 && (
                             <span className="text-indigo-600">지분 {shareRate}%</span>
@@ -1269,10 +1264,10 @@ export default function ProjectsView({
                             }}
                             className="w-full text-right font-bold text-slate-800 text-xs border border-slate-200 rounded px-1.5 py-0.5"
                           />
-                          <span className="ml-1 text-[11px] text-slate-400 shrink-0">만원</span>
+                          <span className="ml-1 text-xs text-slate-400 shrink-0">만원</span>
                         </div>
                         {shareRate < 100 && (
-                          <div className="flex items-center justify-between pt-1 border-t border-slate-100 text-[11px]">
+                          <div className="flex items-center justify-between pt-1 border-t border-slate-100 text-xs">
                             <span className="text-slate-500 font-medium">당사 배정액:</span>
                             <span className="font-black text-indigo-700">
                               {formatCurrencyManwon(ourYearRevenue)}

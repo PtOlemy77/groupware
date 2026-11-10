@@ -6,3 +6,6 @@ export * from './PageHeaderBar';
 export * from './StatCard';
 export * from './Badge';
 export * from './Card';
+export * from './Select';
+export * from './Table';
+export * from './Pagination';

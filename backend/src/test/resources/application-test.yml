@@ -10,6 +10,9 @@ spring:
   flyway:
     enabled: false
 app:
+  procurement:
+    enabled: false
+    service-key: ''
   bootstrap:
     enabled: false
     email: ''

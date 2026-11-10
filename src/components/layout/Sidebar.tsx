@@ -11,6 +11,7 @@ import {
   Layers,
   Globe,
   Sliders,
+  Radar,
 } from 'lucide-react';
 import {
   TabKey,
@@ -59,6 +60,7 @@ export default function Sidebar({
       icon: <Briefcase className="w-5 h-5 stroke-[1.8]" />,
       count: counts.projects,
     },
+    { id: 'procurement' as TabKey, label: '입찰공고 관리', icon: <Radar className="w-5 h-5 stroke-[1.8]" /> },
     ...(canAccessReports
       ? [
           {
@@ -109,7 +111,7 @@ export default function Sidebar({
         <div>
           <div className="flex items-center gap-2">
             <span className="font-bold text-lg tracking-tight text-white">스패셜티</span>
-            <span className="text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+            <span className="text-xs font-semibold uppercase px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
               SPATIAL T
             </span>
           </div>
@@ -119,7 +121,7 @@ export default function Sidebar({
 
       {/* Nav List */}
       <nav className="flex-1 p-4 space-y-1.5 overflow-y-auto">
-        <div className="px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+        <div className="px-3 py-1.5 text-xs font-semibold uppercase tracking-wider text-slate-400">
           SpatialT Modules
         </div>
         {navItems.map((item) => {
@@ -171,7 +173,7 @@ export default function Sidebar({
               <div className="font-semibold text-white">
                 {currentUser.name} {currentUser.position}
               </div>
-              <div className="text-slate-400 text-[11px]">{currentUser.department}</div>
+              <div className="text-slate-400 text-xs">{currentUser.department}</div>
             </div>
           </div>
           <a

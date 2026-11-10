@@ -3,11 +3,11 @@ const App = lazy(() => import('./App'));
 import PortalPage from './components/PortalPage';
 const PrivacyPolicyPage = lazy(() => import('./components/PrivacyPolicyPage'));
 
-const groupwareHashes = new Set(['groupware', 'dashboard', 'projects', 'approvals', 'business_deals', 'reports', 'employees', 'equipments', 'evaluations', 'master_data']);
+const groupwareHashes = new Set(['groupware', 'dashboard', 'projects', 'approvals', 'business_deals', 'reports', 'employees', 'equipments', 'evaluations', 'master_data', 'procurement']);
 const readRoute = () => {
   const hash = window.location.hash.slice(1);
   if (hash === 'privacy' || hash.startsWith('privacy-')) return 'privacy';
-  return groupwareHashes.has(hash) ? 'groupware' : 'portal';
+  return groupwareHashes.has(hash.split('?')[0]) ? 'groupware' : 'portal';
 };
 export default function PortalEntry() {
   const [route, setRoute] = useState(readRoute);

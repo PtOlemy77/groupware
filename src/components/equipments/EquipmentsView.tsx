@@ -32,6 +32,15 @@ import {
   PageHeaderBar,
   SearchInput,
   Modal,
+  Select,
+  TableContainer,
+  Table,
+  TableHead,
+  TableBody,
+  TableRow,
+  TableCell,
+  TableHeaderCell,
+  TableEmpty,
 } from '@/components/common';
 
 interface Props {
@@ -224,10 +233,10 @@ export default function EquipmentsView({
               className="w-72"
             />
 
-            <select
+            <Select
+              size="sm"
               value={categoryFilter}
               onChange={(e) => setCategoryFilter(e.target.value)}
-              className="px-3 py-2 text-xs rounded-xl border border-slate-300/90 bg-white font-medium focus:ring-2 focus:ring-indigo-500/20 focus:outline-none"
             >
               <option value="전체">전체 장비 구분</option>
               {categories.map((cat) => (
@@ -235,19 +244,19 @@ export default function EquipmentsView({
                   {cat}
                 </option>
               ))}
-            </select>
+            </Select>
 
-            <select
+            <Select
+              size="sm"
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="px-3 py-2 text-xs rounded-xl border border-slate-300/90 bg-white font-medium focus:ring-2 focus:ring-indigo-500/20 focus:outline-none"
             >
               <option value="전체">전체 상태</option>
               <option value="사용중">사용중</option>
               <option value="유휴">유휴</option>
               <option value="수리중">수리중</option>
               <option value="폐기">폐기</option>
-            </select>
+            </Select>
           </>
         }
         right={
@@ -264,121 +273,122 @@ export default function EquipmentsView({
         }
       />
 
-      {/* 3. 자산 목록 테이블 (직원 PK / 사번 정합성 검증 컬럼 포함) */}
-      <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-2xs">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs text-slate-700">
-            <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-semibold uppercase tracking-wider">
-              <tr>
-                <th className="px-5 py-3.5">자산번호</th>
-                <th className="px-5 py-3.5">구분</th>
-                <th className="px-5 py-3.5">모델명 및 규격</th>
-                <th className="px-5 py-3.5">일련번호 (S/N)</th>
-                <th className="px-5 py-3.5">지급 담당자</th>
-                <th className="px-5 py-3.5">소속 부서</th>
-                <th className="px-5 py-3.5 text-right">취득가액</th>
-                <th className="px-5 py-3.5 text-center">상태</th>
-                {canEdit && <th className="px-5 py-3.5 text-center">관리</th>}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {filteredEquipments.map((eq) => {
-                // 직원 테이블에서 실제 일치하는 직원 찾기
-                let matchedEmp: Employee | undefined = undefined;
-                if (eq.emp_id) matchedEmp = empIdMap.get(eq.emp_id);
-                if (!matchedEmp && eq.emp_no) matchedEmp = empNoMap.get(eq.emp_no);
-                if (!matchedEmp && eq.assigned_to) matchedEmp = empNameMap.get(eq.assigned_to);
+      {/* 3. 자산 목록 테이블 */}
+      <TableContainer>
+        <Table>
+          <TableHead>
+            <tr>
+              <TableHeaderCell>자산번호</TableHeaderCell>
+              <TableHeaderCell>구분</TableHeaderCell>
+              <TableHeaderCell>모델명 및 규격</TableHeaderCell>
+              <TableHeaderCell>일련번호 (S/N)</TableHeaderCell>
+              <TableHeaderCell>지급 담당자</TableHeaderCell>
+              <TableHeaderCell>소속 부서</TableHeaderCell>
+              <TableHeaderCell align="right">취득가액</TableHeaderCell>
+              <TableHeaderCell align="center">상태</TableHeaderCell>
+              {canEdit && <TableHeaderCell align="center">관리</TableHeaderCell>}
+            </tr>
+          </TableHead>
+          <TableBody>
+            {filteredEquipments.length === 0 && (
+              <TableEmpty colSpan={canEdit ? 9 : 8} message="등록된 자산이 없습니다." />
+            )}
+            {filteredEquipments.map((eq) => {
+              // 직원 테이블에서 실제 일치하는 직원 찾기
+              let matchedEmp: Employee | undefined = undefined;
+              if (eq.emp_id) matchedEmp = empIdMap.get(eq.emp_id);
+              if (!matchedEmp && eq.emp_no) matchedEmp = empNoMap.get(eq.emp_no);
+              if (!matchedEmp && eq.assigned_to) matchedEmp = empNameMap.get(eq.assigned_to);
 
-                const isUnassigned = !eq.assigned_to || eq.assigned_to === '미배정';
+              const isUnassigned = !eq.assigned_to || eq.assigned_to === '미배정';
 
-                return (
-                  <tr key={eq.id} className="hover:bg-slate-50/80 transition">
-                    <td className="px-5 py-3.5 font-mono font-bold text-indigo-600">
-                      {eq.asset_no}
-                    </td>
-                    <td className="px-5 py-3.5">
-                      <span
-                        className={`px-2.5 py-0.5 rounded-md font-bold text-[11px] border ${
-                          eq.category === '모니터'
-                            ? 'bg-sky-50 text-sky-700 border-sky-200'
-                            : eq.category === '데스크탑'
-                            ? 'bg-purple-50 text-purple-700 border-purple-200'
-                            : 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                        }`}
-                      >
-                        {eq.category}
-                      </span>
-                    </td>
-                    <td className="px-5 py-3.5 font-semibold text-slate-900 max-w-xs truncate">
-                      {eq.model_name}
-                    </td>
-                    <td className="px-5 py-3.5 text-slate-500 font-mono text-[11px]">
-                      {eq.serial_no}
-                    </td>
+              return (
+                <TableRow key={eq.id}>
+                  <TableCell className="font-mono font-bold text-indigo-600">
+                    {eq.asset_no}
+                  </TableCell>
+                  <TableCell>
+                    <span
+                      className={`px-2.5 py-0.5 rounded-md font-bold text-xs border ${
+                        eq.category === '모니터'
+                          ? 'bg-sky-50 text-sky-700 border-sky-200'
+                          : eq.category === '데스크탑'
+                          ? 'bg-purple-50 text-purple-700 border-purple-200'
+                          : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                      }`}
+                    >
+                      {eq.category}
+                    </span>
+                  </TableCell>
+                  <TableCell className="font-semibold text-slate-900 max-w-xs truncate">
+                    {eq.model_name}
+                  </TableCell>
+                  <TableCell className="text-slate-500 font-mono text-xs">
+                    {eq.serial_no}
+                  </TableCell>
 
-                    {/* 지급 담당자 (이름 직급만 표시, 사번 제외) */}
-                    <td className="px-5 py-3.5">
-                      {isUnassigned ? (
-                        <span className="text-slate-400 font-medium">미배정 (사내 예비)</span>
-                      ) : matchedEmp ? (
-                        <div className="flex items-center gap-1.5">
-                          <span className="font-bold text-slate-900">{matchedEmp.name}</span>
-                          <span className="text-slate-600 font-medium">
-                            {matchedEmp.position}
-                          </span>
-                        </div>
-                      ) : (
-                        <span className="font-medium text-slate-800">{eq.assigned_to}</span>
-                      )}
-                    </td>
-
-                    <td className="px-5 py-3.5 text-slate-600">
-                      {matchedEmp ? matchedEmp.department : eq.department}
-                    </td>
-                    <td className="px-5 py-3.5 text-right font-bold text-slate-900 font-mono">
-                      {formatCurrencyManwon(eq.price)}
-                    </td>
-                    <td className="px-5 py-3.5 text-center">
-                      <span
-                        className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
-                          eq.status === '사용중'
-                            ? 'bg-emerald-100 text-emerald-700'
-                            : eq.status === '유휴'
-                            ? 'bg-slate-100 text-slate-600'
-                            : 'bg-rose-100 text-rose-700'
-                        }`}
-                      >
-                        {eq.status}
-                      </span>
-                    </td>
-                    {canEdit && (
-                      <td className="px-5 py-3.5 text-center">
-                        <div className="flex items-center justify-center gap-1">
-                          <button
-                            onClick={() => openEditModal(eq)}
-                            className="p-1.5 text-slate-400 hover:text-indigo-600 rounded-lg hover:bg-slate-100 transition"
-                            title="자산 정보 수정"
-                          >
-                            <Edit3 className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            onClick={() => handleDelete(eq.id)}
-                            className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition"
-                            title="자산 삭제"
-                            aria-label="자산 삭제"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </td>
+                  {/* 지급 담당자 */}
+                  <TableCell>
+                    {isUnassigned ? (
+                      <span className="text-slate-400 font-medium">미배정 (사내 예비)</span>
+                    ) : matchedEmp ? (
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-bold text-slate-900">{matchedEmp.name}</span>
+                        <span className="text-slate-600 font-medium">
+                          {matchedEmp.position}
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="font-medium text-slate-800">{eq.assigned_to}</span>
                     )}
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </div>
+                  </TableCell>
+
+                  <TableCell className="text-slate-600">
+                    {matchedEmp ? matchedEmp.department : eq.department}
+                  </TableCell>
+                  <TableCell align="right" className="font-bold text-slate-900 font-mono">
+                    {formatCurrencyManwon(eq.price)}
+                  </TableCell>
+                  <TableCell align="center">
+                    <span
+                      className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${
+                        eq.status === '사용중'
+                          ? 'bg-emerald-100 text-emerald-700'
+                          : eq.status === '유휴'
+                          ? 'bg-slate-100 text-slate-600'
+                          : 'bg-rose-100 text-rose-700'
+                      }`}
+                    >
+                      {eq.status}
+                    </span>
+                  </TableCell>
+                  {canEdit && (
+                    <TableCell align="center">
+                      <div className="flex items-center justify-center gap-1">
+                        <button
+                          onClick={() => openEditModal(eq)}
+                          className="p-1.5 text-slate-400 hover:text-indigo-600 rounded-lg hover:bg-slate-100 transition"
+                          title="자산 정보 수정"
+                        >
+                          <Edit3 className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(eq.id)}
+                          className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition"
+                          title="자산 삭제"
+                          aria-label="자산 삭제"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </TableCell>
+                  )}
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+      </TableContainer>
 
       {/* 4. 등록 / 수정 모달 (공통 Modal 적용) */}
       <Modal
@@ -476,7 +486,7 @@ export default function EquipmentsView({
                 <UserCheck className="w-3.5 h-3.5 text-indigo-600" />
                 지급 대상 직원 선택
               </label>
-              <span className="text-[10px] text-indigo-600 font-semibold">
+              <span className="text-xs text-indigo-600 font-semibold">
                 * 이름 / 직급 / 소속부서 자동 바인딩
               </span>
             </div>
@@ -494,7 +504,7 @@ export default function EquipmentsView({
               ))}
             </select>
 
-            <div className="text-[11px] pt-1 text-slate-600">
+            <div className="text-xs pt-1 text-slate-600">
               지급 대상 부서: <strong className="text-slate-800">{formData.department || '경영지원팀'}</strong>
             </div>
           </div>

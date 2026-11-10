@@ -9,6 +9,9 @@ import {
   Holiday,
 } from '@/types/groupware';
 import { useModal } from '@/contexts/ModalContext';
+import { calendarHolidays } from '@/lib/holidays';
+import { groupCalendarEvents } from '@/lib/calendar';
+import { Modal } from '@/components/common';
 import {
   Calendar as CalendarIcon,
   ChevronLeft,
@@ -49,67 +52,6 @@ interface Props {
   holidays?: Holiday[];
 }
 
-// 2025~2027 한국 법정 공휴일 및 명절 (양력 기준 및 주요 대체공휴일)
-const KOREAN_HOLIDAYS: Record<string, string> = {
-  // 2025
-  '2025-01-01': '신정',
-  '2025-01-28': '설날 연휴',
-  '2025-01-29': '설날',
-  '2025-01-30': '설날 연휴',
-  '2025-03-01': '삼일절',
-  '2025-03-03': '삼일절 대체공휴일',
-  '2025-05-05': '어린이날 / 부처님오신날',
-  '2025-05-06': '대체공휴일',
-  '2025-06-06': '현충일',
-  '2025-08-15': '광복절',
-  '2025-10-03': '개천절',
-  '2025-10-05': '추석 연휴',
-  '2025-10-06': '추석',
-  '2025-10-07': '추석 연휴',
-  '2025-10-08': '대체공휴일',
-  '2025-10-09': '한글날',
-  '2025-12-25': '성탄절',
-  // 2026
-  '2026-01-01': '신정',
-  '2026-02-16': '설날 연휴',
-  '2026-02-17': '설날',
-  '2026-02-18': '설날 연휴',
-  '2026-03-01': '삼일절',
-  '2026-03-02': '삼일절 대체공휴일',
-  '2026-05-05': '어린이날',
-  '2026-05-24': '부처님오신날',
-  '2026-05-25': '부처님오신날 대체공휴일',
-  '2026-06-06': '현충일',
-  '2026-08-15': '광복절',
-  '2026-08-17': '광복절 대체공휴일',
-  '2026-09-24': '추석 연휴',
-  '2026-09-25': '추석',
-  '2026-09-26': '추석 연휴',
-  '2026-10-03': '개천절',
-  '2026-10-05': '개천절 대체공휴일',
-  '2026-10-09': '한글날',
-  '2026-12-25': '성탄절',
-  // 2027
-  '2027-01-01': '신정',
-  '2027-02-06': '설날 연휴',
-  '2027-02-07': '설날',
-  '2027-02-08': '설날 연휴',
-  '2027-03-01': '삼일절',
-  '2027-05-05': '어린이날',
-  '2027-05-13': '부처님오신날',
-  '2027-06-06': '현충일',
-  '2027-08-15': '광복절',
-  '2027-08-16': '광복절 대체공휴일',
-  '2027-09-14': '추석 연휴',
-  '2027-09-15': '추석',
-  '2027-09-16': '추석 연휴',
-  '2027-10-03': '개천절',
-  '2027-10-04': '개천절 대체공휴일',
-  '2027-10-09': '한글날',
-  '2027-10-11': '한글날 대체공휴일',
-  '2027-12-25': '성탄절',
-};
-
 // 고정 전사 기념일 (매년 반복)
 const ANNUAL_COMPANY_EVENTS = [
   { month: 1, day: 2, title: '🎍 신년 시무식 및 사업계획 발표', category: 'company' as ScheduleCategory, desc: '전사 임직원 참석 (대회의실)' },
@@ -141,6 +83,7 @@ export default function CompanyScheduleCalendar({
 
   const [activeCategoryFilter, setActiveCategoryFilter] = useState<'ALL' | ScheduleCategory>('ALL');
   const [viewMode, setViewMode] = useState<'calendar' | 'agenda'>('calendar');
+  const [detailGroup, setDetailGroup] = useState<{ date: string; category: ScheduleCategory } | null>(null);
 
   // 사용자 등록 커스텀 일정
   const [customEvents, setCustomEvents] = useState<CalendarEvent[]>(() => {
@@ -211,45 +154,27 @@ export default function CompanyScheduleCalendar({
   const allEvents = useMemo<CalendarEvent[]>(() => {
     const list: CalendarEvent[] = [];
 
-    // 1. 공휴일 및 법정/지정 휴일 (DB 휴일 테이블 연동)
-    if (holidays.length > 0) {
-      holidays.forEach((h) => {
-        const isCompanyDay =
-          !h.is_statutory ||
-          h.holiday_name.includes('창립기념일') ||
-          h.holiday_name.includes('근로자의 날');
-
-        list.push({
-          id: `db-holiday-${h.id}`,
-          title: isCompanyDay ? `🏢 [회사휴무] ${h.holiday_name}` : `[공휴일] ${h.holiday_name}`,
-          start_date: h.holiday_date,
-          end_date: h.holiday_date,
-          category: isCompanyDay ? 'company' : 'holiday',
-          description: h.description || (isCompanyDay ? '전사 지정 휴무일' : '대한민국 법정공휴일'),
-        });
+    // Registered national holidays supplement partial DB calendars through 2040.
+    calendarHolidays(holidays).forEach(h => {
+      const isCompanyDay = !h.is_statutory;
+      list.push({
+        id: `db-holiday-${h.id}`,
+        title: isCompanyDay ? `🏢 [회사휴무] ${h.holiday_name}` : `[공휴일] ${h.holiday_name}`,
+        start_date: h.holiday_date,
+        end_date: h.holiday_date,
+        category: isCompanyDay ? 'company' : 'holiday',
+        description: h.description || (isCompanyDay ? '전사 지정 휴무일' : '대한민국 법정공휴일'),
       });
-    } else {
-      // DB 데이터 로딩 전 fallback
-      Object.entries(KOREAN_HOLIDAYS).forEach(([dateStr, name]) => {
-        list.push({
-          id: `holiday-${dateStr}`,
-          title: `[공휴일] ${name}`,
-          start_date: dateStr,
-          end_date: dateStr,
-          category: 'holiday',
-          description: '대한민국 법정 공휴일',
-        });
-      });
-    }
+    });
 
-    // 2. 회사 연례 기념일 (2024~2030년 반복)
-    [2024, 2025, 2026, 2027, 2028, 2029, 2030].forEach((yr) => {
+    // 2. 회사 연례 기념일
+    [currentYear].forEach((yr) => {
       ANNUAL_COMPANY_EVENTS.forEach((ev, idx) => {
         // 이미 DB 휴일에서 창립기념일이나 근로자의 날이 들어갔으면 중복 방지
         const mm = String(ev.month).padStart(2, '0');
         const dd = String(ev.day).padStart(2, '0');
         const dateStr = `${yr}-${mm}-${dd}`;
-        const alreadyInList = list.some((item) => item.start_date === dateStr && item.title.includes(ev.title));
+        const alreadyInList = list.some((item) => item.start_date === dateStr && ((ev.month === 5 && ev.day === 1) || item.title.includes(ev.title) || (ev.month === 10 && ev.day === 15 && item.category === 'company')));
         if (!alreadyInList) {
           list.push({
             id: `annual-company-${yr}-${idx}`,
@@ -263,7 +188,7 @@ export default function CompanyScheduleCalendar({
       });
     });
 
-    // 3. 직원 휴직/휴가 및 결재 승인된 휴가
+    // 3. 휴가 및 직원 입사기념일
     // 3-1) 결재 문서 중 휴가 관련 내역 파싱
     approvals
       .filter((ap) => {
@@ -286,22 +211,6 @@ export default function CompanyScheduleCalendar({
           category: 'vacation',
           target_name: ap.requester,
           description: `${ap.title} (결재상태: ${ap.status})`,
-        });
-      });
-
-    // 3-2) 직원 중 현재 휴직 상태인 인원 표시
-    employees
-      .filter((e) => e.status === '휴직')
-      .forEach((e) => {
-        const hireDate = e.hire_date || `${currentYear}-01-01`;
-        list.push({
-          id: `employee-suspended-${e.id}`,
-          title: `🛌 [휴직] ${e.name} ${e.position} (${e.department})`,
-          start_date: hireDate > `${currentYear}-01-01` ? hireDate : `${currentYear}-01-01`,
-          end_date: `${currentYear}-12-31`,
-          category: 'vacation',
-          target_name: e.name,
-          description: `임직원 상태: 휴직 (소속: ${e.department})`,
         });
       });
 
@@ -358,7 +267,7 @@ export default function CompanyScheduleCalendar({
     list.push(...customEvents);
 
     return list;
-  }, [employees, projects, approvals, customEvents, currentYear]);
+  }, [employees, projects, approvals, holidays, customEvents, currentYear]);
 
   // 카테고리 필터링된 이벤트
   const filteredEvents = useMemo(() => {
@@ -475,6 +384,35 @@ export default function CompanyScheduleCalendar({
     return eventsByDate.get(selectedDate) || [];
   }, [eventsByDate, selectedDate]);
 
+  const detailEvents = detailGroup
+    ? (eventsByDate.get(detailGroup.date) || []).filter(event => event.category === detailGroup.category)
+    : [];
+
+  useEffect(() => {
+    if (!detailGroup) return;
+    const trigger = document.activeElement as HTMLElement | null;
+    const frame = requestAnimationFrame(() => {
+      const dialogs = document.querySelectorAll<HTMLElement>('[role="dialog"][aria-modal="true"]');
+      dialogs[dialogs.length - 1]?.querySelector<HTMLButtonElement>('button')?.focus();
+    });
+    const trapFocus = (event: KeyboardEvent) => {
+      if (event.key !== 'Tab') return;
+      const dialogs = document.querySelectorAll<HTMLElement>('[role="dialog"][aria-modal="true"]');
+      const dialog = dialogs[dialogs.length - 1];
+      const buttons = dialog?.querySelectorAll<HTMLButtonElement>('button:not([disabled])');
+      if (!buttons?.length) return;
+      const first = buttons[0], last = buttons[buttons.length - 1];
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    };
+    document.addEventListener('keydown', trapFocus);
+    return () => {
+      cancelAnimationFrame(frame);
+      document.removeEventListener('keydown', trapFocus);
+      trigger?.focus();
+    };
+  }, [detailGroup]);
+
   // 이번 달 전체 이벤트 목록 (일자순 정렬)
   const currentMonthEvents = useMemo(() => {
     const ymPrefix = `${currentYear}-${String(currentMonth).padStart(2, '0')}`;
@@ -584,10 +522,11 @@ export default function CompanyScheduleCalendar({
 
   return (
     <div className="space-y-4">
+      <p className="text-xs text-slate-500">대한민국 공휴일 2024~2040년 · 2028년 이후는 현행법 기준 예상입니다. 향후 임시공휴일과 선거일 변경은 공고 후 반영됩니다.</p>
       {/* 1. 상단 컨트롤 패널: 연/월 선택, 오늘 버튼, 필터 칩, 일정 등록 버튼 */}
       <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs flex flex-wrap items-center justify-between gap-3">
         {/* 연/월 네비게이션 */}
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 min-w-0">
           <div className="flex items-center bg-slate-100 rounded-xl p-1">
             <button
               onClick={handlePrevMonth}
@@ -598,7 +537,12 @@ export default function CompanyScheduleCalendar({
             </button>
             <div className="px-3 font-extrabold text-base md:text-lg text-slate-900 font-mono tracking-tight flex items-center gap-1.5">
               <CalendarIcon className="w-4 h-4 text-indigo-600" />
-              <span>{currentYear}년 {currentMonth}월</span>
+              <select aria-label="달력 연도" value={currentYear} onChange={e => { setCurrentYear(Number(e.target.value)); setSelectedDate(`${e.target.value}-${String(currentMonth).padStart(2, '0')}-01`); }} className="max-w-24 text-sm bg-transparent">
+                {Array.from(new Set([currentYear, ...Array.from({ length: 17 }, (_, i) => 2024 + i)])).sort((a,b) => a-b).map(year => <option key={year} value={year}>{year}년</option>)}
+              </select>
+              <select aria-label="달력 월" value={currentMonth} onChange={e => { setCurrentMonth(Number(e.target.value)); setSelectedDate(`${currentYear}-${e.target.value.padStart(2, '0')}-01`); }} className="max-w-20 text-sm bg-transparent">
+                {Array.from({ length: 12 }, (_, i) => <option key={i+1} value={i+1}>{i+1}월</option>)}
+              </select>
             </div>
             <button
               onClick={handleNextMonth}
@@ -742,11 +686,14 @@ export default function CompanyScheduleCalendar({
             <div className="grid grid-cols-7 gap-1.5">
               {monthDays.map((dayItem, idx) => {
                 const dayEvents = eventsByDate.get(dayItem.dateStr) || [];
+                const dayGroups = groupCalendarEvents(dayEvents);
                 const isSelected = selectedDate === dayItem.dateStr;
 
                 return (
                   <div
                     key={`${dayItem.dateStr}-${idx}`}
+                    data-date={dayItem.dateStr}
+                    data-holiday={allEvents.some(ev => ev.category === 'holiday' && ev.start_date === dayItem.dateStr) || undefined}
                     onClick={() => setSelectedDate(dayItem.dateStr)}
                     className={`min-h-[105px] p-1.5 rounded-xl border transition cursor-pointer flex flex-col justify-between group ${
                       isSelected
@@ -766,7 +713,7 @@ export default function CompanyScheduleCalendar({
                             ? 'bg-indigo-600 text-white font-extrabold'
                             : isSelected
                             ? 'bg-indigo-100 text-indigo-900 font-extrabold'
-                            : dayItem.isWeekend === 'sun'
+                            : allEvents.some(ev => ev.category === 'holiday' && ev.start_date === dayItem.dateStr) || dayItem.isWeekend === 'sun'
                             ? dayItem.isCurrentMonth ? 'text-rose-600' : 'text-rose-300'
                             : dayItem.isWeekend === 'sat'
                             ? dayItem.isCurrentMonth ? 'text-blue-600' : 'text-blue-300'
@@ -777,30 +724,36 @@ export default function CompanyScheduleCalendar({
                       </span>
 
                       {dayEvents.length > 0 && (
-                        <span className="text-[10px] font-bold text-slate-400">
+                        <span className="text-xs font-bold text-slate-400">
                           {dayEvents.length}건
                         </span>
                       )}
                     </div>
 
-                    {/* 일정 뱃지 목록 (최대 2개 노출, 초과 시 +N 표시) */}
-                    <div className="space-y-1 mt-1 flex-1 overflow-hidden">
-                      {dayEvents.slice(0, 2).map((ev) => (
-                        <div
-                          key={ev.id}
-                          className={`text-[10px] px-1.5 py-0.5 rounded font-medium truncate border ${getEventBadgeClass(
-                            ev.category
-                          )}`}
-                          title={`${ev.title} ${ev.description ? `(${ev.description})` : ''}`}
-                        >
-                          {ev.title}
-                        </div>
-                      ))}
-                      {dayEvents.length > 2 && (
-                        <div className="text-[10px] text-slate-400 font-bold px-1">
-                          +{dayEvents.length - 2}개 더보기
-                        </div>
-                      )}
+                    {/* 같은 날짜·종류의 일정은 한 묶음으로 표시하고 전체 상세를 연다. */}
+                    <div className="space-y-1 mt-1 flex-1 min-w-0">
+                      {dayGroups.map(({ category, events }) => {
+                        const label = events.length > 1
+                          ? `${getCategoryLabel(category)} ${events.length}건`
+                          : category === 'holiday' ? events[0].title.replace(/^\[공휴일\] /, '') : events[0].title;
+                        return (
+                          <button
+                            key={category}
+                            type="button"
+                            aria-label={`${dayItem.dateStr} ${getCategoryLabel(category)} ${events.length}건 상세 보기`}
+                            aria-haspopup="dialog"
+                            onClick={e => {
+                              e.stopPropagation();
+                              setSelectedDate(dayItem.dateStr);
+                              setDetailGroup({ date: dayItem.dateStr, category });
+                            }}
+                            className={`block w-full text-left text-xs px-1 py-0.5 rounded font-medium border whitespace-normal break-words focus-visible:outline-2 focus-visible:outline-indigo-600 ${getEventBadgeClass(category)}`}
+                            title={label}
+                          >
+                            {label}
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
                 );
@@ -827,7 +780,7 @@ export default function CompanyScheduleCalendar({
                 <div className="text-center py-10 text-slate-400 text-xs">
                   <CalendarDays className="w-8 h-8 mx-auto text-slate-300 mb-2" />
                   <p>등록된 일정이 없습니다.</p>
-                  <p className="text-[11px] text-slate-400 mt-1">
+                  <p className="text-xs text-slate-400 mt-1">
                     새 일정을 추가하여 관리해 보세요.
                   </p>
                 </div>
@@ -840,7 +793,7 @@ export default function CompanyScheduleCalendar({
                     >
                       <div className="flex items-start justify-between gap-2">
                         <span
-                          className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${getEventBadgeClass(
+                          className={`text-xs font-bold px-2 py-0.5 rounded-full border ${getEventBadgeClass(
                             ev.category
                           )}`}
                         >
@@ -862,19 +815,19 @@ export default function CompanyScheduleCalendar({
                       </div>
 
                       {ev.description && (
-                        <div className="text-[11px] text-slate-500 leading-relaxed bg-white p-2 rounded-lg border border-slate-100">
+                        <div className="text-xs text-slate-500 leading-relaxed bg-white p-2 rounded-lg border border-slate-100">
                           {ev.description}
                         </div>
                       )}
 
                       {ev.target_name && (
-                        <div className="text-[10px] text-indigo-600 font-medium flex items-center gap-1">
+                        <div className="text-xs text-indigo-600 font-medium flex items-center gap-1">
                           <Users className="w-3 h-3" />
                           <span>대상: {ev.target_name}</span>
                         </div>
                       )}
 
-                      <div className="text-[10px] text-slate-400 font-mono">
+                      <div className="text-xs text-slate-400 font-mono">
                         기간: {ev.start_date} {ev.end_date && ev.end_date !== ev.start_date ? `~ ${ev.end_date}` : ''}
                       </div>
                     </div>
@@ -934,7 +887,7 @@ export default function CompanyScheduleCalendar({
                       {ev.start_date}
                     </span>
                     <span
-                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${getEventBadgeClass(
+                      className={`text-xs font-bold px-2 py-0.5 rounded-full border ${getEventBadgeClass(
                         ev.category
                       )}`}
                     >
@@ -952,7 +905,7 @@ export default function CompanyScheduleCalendar({
                     </div>
                   )}
 
-                  <div className="flex items-center justify-between text-[11px] text-slate-400 pt-1">
+                  <div className="flex items-center justify-between text-xs text-slate-400 pt-1">
                     <span>
                       {ev.target_name ? `대상: ${ev.target_name}` : '전사 공통'}
                     </span>
@@ -971,6 +924,28 @@ export default function CompanyScheduleCalendar({
           )}
         </div>
       )}
+
+      <Modal
+        isOpen={detailGroup !== null}
+        onClose={() => setDetailGroup(null)}
+        title={detailGroup ? `${detailGroup.date} ${getCategoryLabel(detailGroup.category)} 상세` : '일정 상세'}
+        description={`총 ${detailEvents.length}건`}
+        size="lg"
+      >
+        {detailEvents.length === 0 ? <p className="text-sm text-slate-500">등록된 일정이 없습니다.</p> : (
+          <div className="space-y-3">
+            {detailEvents.map(event => (
+              <article key={event.id} className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-2 min-w-0 break-words">
+                <h3 className="font-bold text-sm text-slate-900">{event.title}</h3>
+                <p className="text-xs text-slate-500">기간: {event.start_date}{event.end_date && event.end_date !== event.start_date ? ` ~ ${event.end_date}` : ''}</p>
+                {event.target_name && <p className="text-xs text-indigo-600">대상: {event.target_name}</p>}
+                {event.description && <p className="text-sm text-slate-600 whitespace-pre-wrap">{event.description}</p>}
+                {event.is_custom && <button type="button" onClick={() => handleDeleteEvent(event.id, event.title)} className="text-xs text-rose-600 hover:underline" aria-label={`${event.title} 삭제`}>일정 삭제</button>}
+              </article>
+            ))}
+          </div>
+        )}
+      </Modal>
 
       {/* 4. 새 일정 등록 모달 */}
       {isModalOpen && (

@@ -11,6 +11,7 @@
 | [V1](../backend/src/main/resources/db/migration/V1__preserve_and_secure_schema.sql) | 기존 업무 행 보존, ID 관계·날짜·버전·감사 시각·보안 컬럼·제약 추가 |
 | [V2](../backend/src/main/resources/db/migration/V2__enforce_code_columns.sql) | 상태·프로젝트 단계 코드 정규화 및 코드 컬럼 보강 |
 | [V3](../backend/src/main/resources/db/migration/V3__portal_notices.sql) | 공개/비공개 공지, 작성자 FK, 버전 및 정렬 인덱스 |
+| [V9](../backend/src/main/resources/db/migration/V9__procurement_watch.sql) | 나라장터 개인 관심조건·공고 변경본·알림·조건 연결·조회 위치. 기존 업무 행 변경 없음 |
 
 ## 주요 테이블과 관계
 
@@ -27,6 +28,11 @@
 | `audit_events` | 업무 변경 감사 | 요청자 ID·대상 ID·작업·서버 시각·안전한 스냅샷. 업무 테이블과 같은 편집 API를 제공하지 않음 |
 | `portal_notices` | 공개 포털 공지 | `created_by_id → employees.id`, 비공개 기본값, 게시 여부·고정·버전, 제목 200자·본문 20,000자 제한 |
 | `flyway_schema_history` | 적용 이력 | Flyway가 관리하며 업무 API에서 수정하지 않음 |
+| `procurement_rules` | 개인별 관심 키워드·기관·제외어·조회 범위 | `employee_id → employees.id`, 수정·삭제 version 필수 |
+| `procurement_notices` | 관심조건에 맞은 공고의 변경본 | 공고 종류·업무·외부 공고번호·차수·내용 지문 고유성, 연락처·첨부 본문은 저장하지 않음 |
+| `procurement_alerts` | 사용자별 공고 알림·읽음 상태 | `employee_id → employees.id`, `notice_id → procurement_notices.id`, 사용자/변경본 중복 금지, 읽음 version 필수 |
+| `procurement_alert_rules` | 알림을 발생시킨 관심조건 및 이름 이력 | `alert_id → procurement_alerts.id`, `rule_id → procurement_rules.id`; 조건 삭제 시 FK만 NULL로 전환하고 이력 이름 보존 |
+| `procurement_sync_state` | 소스별 조회 구간·다음 페이지·실패 상태·실행 lease | 단일 실행권과 완료한 페이지 위치를 트랜잭션으로 보존; API 키는 저장하지 않음 |
 
 컬럼의 타입·NULL·기본값·인덱스·FK의 정확한 정의는 각 마이그레이션을 확인한다. 이 요약을 DDL 복제본으로 취급하지 않는다. 코드 표시용 라벨과 과거 문서 스냅샷은 ID 관계의 대체 수단이 아니다.
 

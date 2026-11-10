@@ -110,7 +110,7 @@ export function StatCard({
       </div>
 
       {subtext && (
-        <div className="text-[11px] text-slate-400 font-medium truncate mt-1">
+        <div className="text-xs text-slate-400 font-medium truncate mt-1">
           {subtext}
         </div>
       )}

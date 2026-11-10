@@ -357,7 +357,8 @@ export type TabKey =
   | 'equipments'
   | 'business_deals'
   | 'evaluations'
-  | 'master_data';
+  | 'master_data'
+  | 'procurement';
 
 // ==========================================
 // 11 Sheets Contract Workstation Data Models
@@ -553,6 +554,35 @@ export const POSITION_CODES: PositionCodeInfo[] = [
   { code: 'POS_DIR', label: '이사', level: 6 },
   { code: 'POS_CEO', label: '사장', level: 7 },
 ];
+
+// DB common_codes 기반 부서 목록 조회 헬퍼 (DB 우선 적용)
+export function getDepartmentsFromCommonCodes(commonCodes?: CommonCode[]): DepartmentCodeInfo[] {
+  if (!commonCodes || commonCodes.length === 0) return DEPARTMENT_CODES;
+  const fromDb = commonCodes
+    .filter((c) => c.group_code === 'DEPARTMENT' && c.is_active)
+    .sort((a, b) => a.sort_order - b.sort_order)
+    .map((c) => ({
+      code: c.code,
+      label: c.code_name,
+      parent_code: c.extra_value || 'DEPT_CEO',
+      sort_order: c.sort_order,
+    }));
+  return fromDb.length > 0 ? fromDb : DEPARTMENT_CODES;
+}
+
+// DB common_codes 기반 직급 목록 조회 헬퍼 (DB 우선 적용)
+export function getPositionsFromCommonCodes(commonCodes?: CommonCode[]): PositionCodeInfo[] {
+  if (!commonCodes || commonCodes.length === 0) return POSITION_CODES;
+  const fromDb = commonCodes
+    .filter((c) => c.group_code === 'POSITION' && c.is_active)
+    .sort((a, b) => a.sort_order - b.sort_order)
+    .map((c) => ({
+      code: c.code,
+      label: c.code_name,
+      level: Number(c.extra_value) || c.sort_order,
+    }));
+  return fromDb.length > 0 ? fromDb : POSITION_CODES;
+}
 
 export function formatCurrencyManwon(val: number): string {
   if (val >= 10000) {

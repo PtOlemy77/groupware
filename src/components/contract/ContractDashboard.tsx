@@ -231,7 +231,7 @@ export default function ContractDashboard({
                 사내 프로젝트 불러오기
               </span>
             </div>
-            <span className="text-[11px] text-indigo-600 font-medium">
+            <span className="text-xs text-indigo-600 font-medium">
               총 {projects.length}개 프로젝트 연동 가능
             </span>
           </div>
@@ -244,10 +244,10 @@ export default function ContractDashboard({
               >
                 <div>
                   <div className="flex items-center justify-between gap-2 mb-1">
-                    <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 group-hover:bg-white/20 group-hover:text-white">
+                    <span className="text-xs font-mono font-bold px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 group-hover:bg-white/20 group-hover:text-white">
                       {prj.code}
                     </span>
-                    <span className="text-[11px] font-bold text-indigo-600 group-hover:text-indigo-100 flex items-center gap-1">
+                    <span className="text-xs font-bold text-indigo-600 group-hover:text-indigo-100 flex items-center gap-1">
                       품의서 작성 <ArrowRight className="w-3 h-3" />
                     </span>
                   </div>
@@ -255,7 +255,7 @@ export default function ContractDashboard({
                     {prj.name}
                   </div>
                 </div>
-                <div className="mt-2.5 pt-2 border-t border-slate-100 group-hover:border-white/15 flex items-center justify-between text-[11px] text-slate-500 group-hover:text-indigo-100">
+                <div className="mt-2.5 pt-2 border-t border-slate-100 group-hover:border-white/15 flex items-center justify-between text-xs text-slate-500 group-hover:text-indigo-100">
                   <span className="flex items-center gap-1">
                     <Users className="w-3 h-3" /> {prj.department} ({prj.members.split(',').length}명)
                   </span>
@@ -330,13 +330,13 @@ export default function ContractDashboard({
                   </td>
                   <td className="px-5 py-4 font-bold text-slate-900 text-right">
                     {ap.amount.toLocaleString()} 천원
-                    <div className="text-[10px] font-normal text-slate-400">
+                    <div className="text-xs font-normal text-slate-400">
                       VAT포함 {Math.round(ap.amount * 1.1).toLocaleString()} 천원
                     </div>
                   </td>
                   <td className="px-5 py-4">
                     <div className="font-semibold text-slate-800">{ap.requester}</div>
-                    <div className="text-[11px] text-slate-500">{ap.department}</div>
+                    <div className="text-xs text-slate-500">{ap.department}</div>
                   </td>
                   <td className="px-5 py-4 text-slate-500">{ap.created_at}</td>
                   <td className="px-5 py-4 text-center">

@@ -8,7 +8,9 @@ import {
   Project,
   AuthUser,
   DEPARTMENT_CODES,
+  getDepartmentsFromCommonCodes,
   cleanDeptName,
+  CommonCode,
 } from '@/types/groupware';
 import { buildDefaultFullContractDoc } from '@/components/contract/ContractDashboard';
 import {
@@ -32,6 +34,7 @@ interface Props {
   approvals: Approval[];
   projects: Project[];
   currentUser: AuthUser;
+  commonCodes?: CommonCode[];
 }
 
 interface ProjectAssignment {
@@ -70,7 +73,12 @@ export default function ManpowerWorkloadView({
   approvals,
   projects,
   currentUser,
+  commonCodes = [],
 }: Props) {
+  const departmentOptions = useMemo(
+    () => getDepartmentsFromCommonCodes(commonCodes),
+    [commonCodes]
+  );
   const [targetYear, setTargetYear] = useState<number>(new Date().getFullYear());
   const [deptFilter, setDeptFilter] = useState<string>('전체');
   const [statusFilter, setStatusFilter] = useState<string>('전체');
@@ -319,36 +327,36 @@ export default function ManpowerWorkloadView({
       {/* 1. 상단 KPI 요약 카드 */}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
         <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-2xs">
-          <div className="text-[11px] font-semibold text-slate-500">전체 관리 직원</div>
+          <div className="text-xs font-semibold text-slate-500">전체 관리 직원</div>
           <div className="text-xl font-extrabold text-slate-900 mt-1">{stats.totalEmps}명</div>
-          <div className="text-[10px] text-slate-400 mt-0.5">사업본부 {stats.bizTotal}명 포함</div>
+          <div className="text-xs text-slate-400 mt-0.5">사업본부 {stats.bizTotal}명 포함</div>
         </div>
 
         <div className="bg-white p-3.5 rounded-xl border border-indigo-200 bg-indigo-50/20 shadow-2xs">
-          <div className="text-[11px] font-semibold text-indigo-700">전사 총 계약 투입공수</div>
+          <div className="text-xs font-semibold text-indigo-700">전사 총 계약 투입공수</div>
           <div className="text-xl font-extrabold text-indigo-600 mt-1">{stats.totalMM} <span className="text-xs font-normal">M/M</span></div>
-          <div className="text-[10px] text-indigo-600 font-medium mt-0.5">인당 평균 {stats.avgMM} M/M</div>
+          <div className="text-xs text-indigo-600 font-medium mt-0.5">인당 평균 {stats.avgMM} M/M</div>
         </div>
 
         <div className="bg-white p-3.5 rounded-xl border border-blue-200 bg-blue-50/20 shadow-2xs">
-          <div className="text-[11px] font-semibold text-blue-700">전사 인력 가동률</div>
+          <div className="text-xs font-semibold text-blue-700">전사 인력 가동률</div>
           <div className="text-xl font-extrabold text-blue-600 mt-1">{stats.totalCapacityRate}%</div>
-          <div className="text-[10px] text-blue-600 mt-0.5 font-medium">연간 기준 (12 M/M 만점)</div>
+          <div className="text-xs text-blue-600 mt-0.5 font-medium">연간 기준 (12 M/M 만점)</div>
         </div>
 
         <div className="bg-white p-3.5 rounded-xl border border-emerald-200 bg-emerald-50/20 shadow-2xs">
-          <div className="text-[11px] font-semibold text-emerald-800">사업본부 가용인력</div>
+          <div className="text-xs font-semibold text-emerald-800">사업본부 가용인력</div>
           <div className="text-xl font-extrabold text-emerald-600 mt-1">{stats.bizAvailableCount}명</div>
-          <div className="text-[10px] text-emerald-700 font-bold mt-0.5">신규 프로젝트 즉시 투입 가능</div>
+          <div className="text-xs text-emerald-700 font-bold mt-0.5">신규 프로젝트 즉시 투입 가능</div>
         </div>
 
         <div className="bg-white p-3.5 rounded-xl border border-rose-200 bg-rose-50/20 shadow-2xs">
-          <div className="text-[11px] font-semibold text-rose-700 flex items-center gap-1">
+          <div className="text-xs font-semibold text-rose-700 flex items-center gap-1">
             <AlertTriangle className="w-3 h-3 text-rose-500" />
             초과 투입 (오버로딩)
           </div>
           <div className="text-xl font-extrabold text-rose-600 mt-1">{stats.overloadingCount}명</div>
-          <div className="text-[10px] text-rose-600 mt-0.5 font-medium">월 1.0 M/M 초과 인원</div>
+          <div className="text-xs text-rose-600 mt-0.5 font-medium">월 1.0 M/M 초과 인원</div>
         </div>
       </div>
 
@@ -380,7 +388,7 @@ export default function ManpowerWorkloadView({
             className="px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white font-semibold"
           >
             <option value="전체">전체 부서</option>
-            {DEPARTMENT_CODES.map((d) => (
+            {departmentOptions.map((d) => (
               <option key={d.code} value={d.label}>
                 {d.label}
               </option>
@@ -414,7 +422,7 @@ export default function ManpowerWorkloadView({
         </div>
 
         {/* 범례 표시 */}
-        <div className="flex items-center gap-2 text-[11px] text-slate-500 font-medium">
+        <div className="flex items-center gap-2 text-xs text-slate-500 font-medium">
           <div className="flex items-center gap-1">
             <span className="w-2.5 h-2.5 rounded-xs bg-indigo-100 border border-indigo-300 inline-block" />
             <span>1.0 M/M (전일 투입)</span>
@@ -436,11 +444,11 @@ export default function ManpowerWorkloadView({
           <div className="flex items-center gap-1.5 font-bold">
             <FileSpreadsheet className="w-4 h-4 text-indigo-600" />
             <span>{targetYear}년도 계약품의서 기준 직원별 월별 투입공수 현황판</span>
-            <span className="text-[11px] font-normal text-slate-400 ml-1">
+            <span className="text-xs font-normal text-slate-400 ml-1">
               (조회: {filteredWorkloads.length}명)
             </span>
           </div>
-          <div className="text-[11px] text-slate-500">
+          <div className="text-xs text-slate-500">
             * 직원을 클릭하면 참여 중인 계약품의서별 세부 M/M 내역이 펼쳐집니다.
           </div>
         </div>
@@ -453,7 +461,7 @@ export default function ManpowerWorkloadView({
                 <th className="py-2.5 px-2 text-left w-24">소속 부서</th>
                 <th className="py-2.5 px-2 text-left w-48">참여 프로젝트 (건수)</th>
                 {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((m) => (
-                  <th key={m} className="py-2.5 px-1.5 w-11 font-mono text-[11px]">
+                  <th key={m} className="py-2.5 px-1.5 w-11 font-mono text-xs">
                     {m}월
                   </th>
                 ))}
@@ -490,11 +498,11 @@ export default function ManpowerWorkloadView({
                             )}
                           </button>
                           <span className="text-slate-900">{w.emp.name}</span>
-                          <span className="text-[11px] font-normal text-slate-500">
+                          <span className="text-xs font-normal text-slate-500">
                             {w.emp.position}
                           </span>
                           {isMyAccount && (
-                            <span className="text-[9px] px-1 py-0.2 rounded font-bold bg-indigo-600 text-white">
+                            <span className="text-xs px-1 py-0.2 rounded font-bold bg-indigo-600 text-white">
                               나
                             </span>
                           )}
@@ -507,7 +515,7 @@ export default function ManpowerWorkloadView({
                       </td>
 
                       {/* 참여 프로젝트 요약 */}
-                      <td className="py-2 px-2 text-left text-[11px] text-slate-600 truncate max-w-xs" title={w.assignments.map(a => a.projectName).join(', ')}>
+                      <td className="py-2 px-2 text-left text-xs text-slate-600 truncate max-w-xs" title={w.assignments.map(a => a.projectName).join(', ')}>
                         {w.assignments.length > 0 ? (
                           <div className="flex items-center gap-1 truncate">
                             <Briefcase className="w-3 h-3 text-indigo-500 shrink-0" />
@@ -515,7 +523,7 @@ export default function ManpowerWorkloadView({
                               {w.assignments[0].projectName}
                             </span>
                             {w.assignments.length > 1 && (
-                              <span className="text-[10px] text-indigo-600 font-bold shrink-0">
+                              <span className="text-xs text-indigo-600 font-bold shrink-0">
                                 +{w.assignments.length - 1}건
                               </span>
                             )}
@@ -527,7 +535,7 @@ export default function ManpowerWorkloadView({
 
                       {/* 1월 ~ 12월 히트맵 셀 */}
                       {w.monthlyTotalMM.map((mm, mIdx) => (
-                        <td key={mIdx} className="py-1 px-1 font-mono text-[11px]">
+                        <td key={mIdx} className="py-1 px-1 font-mono text-xs">
                           <span
                             className={`inline-block w-8 py-0.5 rounded text-center transition ${getHeatmapColor(
                               mm
@@ -565,22 +573,22 @@ export default function ManpowerWorkloadView({
                       {/* 투입 상태 배지 */}
                       <td className="py-2 px-2 whitespace-nowrap">
                         {w.status === '과다(초과)' && (
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-200">
+                          <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-rose-100 text-rose-800 border border-rose-200">
                             초과 투입
                           </span>
                         )}
                         {w.status === '적정' && (
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                          <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
                             적정 가동
                           </span>
                         )}
                         {w.status === '여유' && (
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-800 border border-blue-200">
+                          <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-blue-100 text-blue-800 border border-blue-200">
                             여유 공수
                           </span>
                         )}
                         {w.status === '가용(미투입)' && (
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
+                          <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-slate-100 text-slate-600 border border-slate-200">
                             가용 (미투입)
                           </span>
                         )}
@@ -609,7 +617,7 @@ export default function ManpowerWorkloadView({
                                     className="bg-white p-2 rounded-lg border border-slate-200 flex flex-wrap items-center justify-between text-xs"
                                   >
                                     <div className="flex items-center gap-2 min-w-0 flex-1">
-                                      <span className="font-mono text-[10px] px-1.5 py-0.2 bg-slate-100 text-slate-600 rounded">
+                                      <span className="font-mono text-xs px-1.5 py-0.2 bg-slate-100 text-slate-600 rounded">
                                         {asg.docNo}
                                       </span>
                                       <span className="font-bold text-slate-900 truncate">
@@ -620,7 +628,7 @@ export default function ManpowerWorkloadView({
                                         역할: <strong className="text-indigo-600">{asg.role}</strong> ({asg.grade})
                                       </span>
                                       <span className="text-slate-400">|</span>
-                                      <span className="text-slate-500 font-mono text-[11px]">
+                                      <span className="text-slate-500 font-mono text-xs">
                                         발주처: {asg.client}
                                       </span>
                                     </div>
@@ -630,10 +638,10 @@ export default function ManpowerWorkloadView({
                                       {asg.monthlyMM.map((mVal, mIdx) => (
                                         <div
                                           key={mIdx}
-                                          className="text-center font-mono text-[10px]"
+                                          className="text-center font-mono text-xs"
                                           title={`${mIdx + 1}월: ${mVal} M/M`}
                                         >
-                                          <div className="text-[9px] text-slate-400">{mIdx + 1}월</div>
+                                          <div className="text-xs text-slate-400">{mIdx + 1}월</div>
                                           <span
                                             className={`inline-block w-6 py-0.2 rounded ${
                                               mVal > 0
@@ -646,7 +654,7 @@ export default function ManpowerWorkloadView({
                                         </div>
                                       ))}
                                       <div className="ml-3 pl-3 border-l border-slate-200 text-right">
-                                        <div className="text-[9px] text-slate-400">소계</div>
+                                        <div className="text-xs text-slate-400">소계</div>
                                         <div className="font-mono font-bold text-indigo-700 text-xs">
                                           {asg.totalMM.toFixed(1)} M/M
                                         </div>

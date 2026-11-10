@@ -99,7 +99,7 @@ export default function CashflowSheet({
 
         <div className="flex items-center gap-3">
           <div className="text-right">
-            <span className="text-[11px] text-slate-500">총 청구예정액:</span>
+            <span className="text-xs text-slate-500">총 청구예정액:</span>
             <span className="ml-2 font-bold text-sm text-indigo-600">
               {totalSum.toLocaleString()} 천원 (VAT포함)
             </span>
@@ -119,7 +119,7 @@ export default function CashflowSheet({
       {/* 원클릭 입금 비율 프리셋 바 */}
       {!readOnly && (
         <div className="flex flex-wrap items-center gap-1.5 pt-1">
-          <span className="text-[11px] font-bold text-indigo-700 flex items-center gap-1 mr-1">
+          <span className="text-xs font-bold text-indigo-700 flex items-center gap-1 mr-1">
             <Sparkles className="w-3.5 h-3.5" /> 원클릭 입금비율 자동배분:
           </span>
           <button
@@ -131,7 +131,7 @@ export default function CashflowSheet({
                 ['계약체결 및 착수보고', '중간보고회 및 기능검수', '최종 완료보고 및 납품검수']
               )
             }
-            className="px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-600 hover:text-white text-indigo-700 text-[11px] font-bold border border-indigo-200 transition"
+            className="px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-600 hover:text-white text-indigo-700 text-xs font-bold border border-indigo-200 transition"
           >
             표준 30% : 40% : 30% (선금·중도금·잔금)
           </button>
@@ -144,7 +144,7 @@ export default function CashflowSheet({
                 ['계약체결 및 착수금 청구', '최종 검수 완료 후 지급']
               )
             }
-            className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-indigo-600 hover:text-white text-slate-700 text-[11px] font-semibold border border-slate-200 transition"
+            className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-indigo-600 hover:text-white text-slate-700 text-xs font-semibold border border-slate-200 transition"
           >
             공공조달 50% : 50% (선금·잔금)
           </button>
@@ -157,7 +157,7 @@ export default function CashflowSheet({
                 ['조달청 선금 지급 특례 신청', '최종 준공 검수 후 지급']
               )
             }
-            className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-indigo-600 hover:text-white text-slate-700 text-[11px] font-semibold border border-slate-200 transition"
+            className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-indigo-600 hover:text-white text-slate-700 text-xs font-semibold border border-slate-200 transition"
           >
             공공선금특례 70% : 30%
           </button>
@@ -170,7 +170,7 @@ export default function CashflowSheet({
                 ['사업 최종 완료 및 검수 후 일괄 청구']
               )
             }
-            className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-indigo-600 hover:text-white text-slate-700 text-[11px] font-semibold border border-slate-200 transition"
+            className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-indigo-600 hover:text-white text-slate-700 text-xs font-semibold border border-slate-200 transition"
           >
             준공 후 100% 일시불
           </button>
@@ -256,7 +256,7 @@ export default function CashflowSheet({
                 <td className="px-3 py-2 text-center">
                   {readOnly ? (
                     <span
-                      className={`px-2 py-0.5 rounded text-[11px] font-bold ${
+                      className={`px-2 py-0.5 rounded text-xs font-bold ${
                         it.status === '입금완료'
                           ? 'bg-emerald-100 text-emerald-700'
                           : it.status === '청구완료'

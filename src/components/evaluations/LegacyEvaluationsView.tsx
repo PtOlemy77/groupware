@@ -12,6 +12,15 @@ import {
   PageHeaderBar,
   SearchInput,
 } from '@/components/common';
+import {
+  Table,
+  TableHead,
+  TableBody,
+  TableRow,
+  TableCell,
+  TableHeaderCell,
+  TableEmpty,
+} from '@/components/common/Table';
 
 interface Props {
   evaluations: Evaluation[];
@@ -170,45 +179,45 @@ export default function EvaluationsView({ evaluations, currentUser, employees = 
       {/* Evaluations Table */}
       <Card padding="none">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[980px] text-left text-sm text-slate-700">
-            <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-semibold uppercase tracking-wider">
+          <Table className="min-w-[980px]">
+            <TableHead>
               <tr>
-                <th className="px-5 py-3.5">평가대상자</th>
-                <th className="px-5 py-3.5">부서 / 직급</th>
-                <th className="px-5 py-3.5">평가 기간</th>
-                <th className="px-5 py-3.5 text-center">KPI 점수</th>
-                <th className="px-5 py-3.5 text-center">역량 점수</th>
-                <th className="px-5 py-3.5 text-center">다면 점수</th>
-                <th className="px-5 py-3.5 text-center">종합 점수</th>
-                <th className="px-5 py-3.5 text-center">최종 등급</th>
-                <th className="px-5 py-3.5">종합 피드백</th>
-                {canEdit && <th className="px-5 py-3.5 text-center">관리</th>}
+                <TableHeaderCell>평가대상자</TableHeaderCell>
+                <TableHeaderCell>부서 / 직급</TableHeaderCell>
+                <TableHeaderCell>평가 기간</TableHeaderCell>
+                <TableHeaderCell align="center">KPI 점수</TableHeaderCell>
+                <TableHeaderCell align="center">역량 점수</TableHeaderCell>
+                <TableHeaderCell align="center">다면 점수</TableHeaderCell>
+                <TableHeaderCell align="center">종합 점수</TableHeaderCell>
+                <TableHeaderCell align="center">최종 등급</TableHeaderCell>
+                <TableHeaderCell>종합 피드백</TableHeaderCell>
+                {canEdit && <TableHeaderCell align="center">관리</TableHeaderCell>}
               </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
+            </TableHead>
+            <TableBody>
               {filteredEvaluations.map((ev) => (
-                <tr key={ev.id} className="hover:bg-slate-50/80 transition">
-                  <td className="px-5 py-3.5">
+                <TableRow key={ev.id}>
+                  <TableCell>
                     <div className="font-bold text-slate-900">{ev.emp_name}</div>
-                    <div className="text-[11px] text-slate-400 font-mono">{ev.emp_no}</div>
-                  </td>
-                  <td className="px-5 py-3.5">
+                    <div className="text-xs text-slate-400 font-mono">{ev.emp_no}</div>
+                  </TableCell>
+                  <TableCell>
                     <div className="font-semibold text-slate-800">{ev.department}</div>
-                    <div className="text-[11px] text-slate-500">{ev.position}</div>
-                  </td>
-                  <td className="px-5 py-3.5 font-medium text-slate-600">{ev.period}</td>
-                  <td className="px-5 py-3.5 text-center font-semibold text-slate-800">{ev.kpi_score}</td>
-                  <td className="px-5 py-3.5 text-center font-semibold text-slate-800">{ev.competency_score}</td>
-                  <td className="px-5 py-3.5 text-center font-semibold text-slate-800">{ev.peer_score}</td>
-                  <td className="px-5 py-3.5 text-center font-extrabold text-indigo-600 text-sm">
+                    <div className="text-xs text-slate-500">{ev.position}</div>
+                  </TableCell>
+                  <TableCell className="font-medium text-slate-600">{ev.period}</TableCell>
+                  <TableCell align="center" className="font-semibold text-slate-800">{ev.kpi_score}</TableCell>
+                  <TableCell align="center" className="font-semibold text-slate-800">{ev.competency_score}</TableCell>
+                  <TableCell align="center" className="font-semibold text-slate-800">{ev.peer_score}</TableCell>
+                  <TableCell align="center" className="font-bold text-indigo-600">
                     {ev.total_score}
-                  </td>
-                  <td className="px-5 py-3.5 text-center">
+                  </TableCell>
+                  <TableCell align="center">
                     <Badge variant={ev.grade === 'S' ? 'purple' : ev.grade === 'A' ? 'success' : 'info'}>{ev.grade}</Badge>
-                  </td>
-                  <td className="px-5 py-3.5 text-slate-600 min-w-48 max-w-xs whitespace-pre-wrap break-words">{ev.feedback}</td>
+                  </TableCell>
+                  <TableCell className="text-slate-600 min-w-48 max-w-xs whitespace-pre-wrap break-words">{ev.feedback}</TableCell>
                   {canEdit && (
-                    <td className="px-5 py-3.5 text-center">
+                    <TableCell align="center">
                       <div className="flex items-center justify-center gap-1">
                         <Button variant="ghost" size="sm"
                           title="평가 수정"
@@ -227,12 +236,15 @@ export default function EvaluationsView({ evaluations, currentUser, employees = 
                           <Trash2 className="w-3.5 h-3.5" />
                         </Button>
                       </div>
-                    </td>
+                    </TableCell>
                   )}
-                </tr>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
+              {filteredEvaluations.length === 0 && (
+                <TableEmpty colSpan={canEdit ? 10 : 9} message="해당 조건의 인사평가 내역이 없습니다." />
+              )}
+            </TableBody>
+          </Table>
         </div>
       </Card>
 

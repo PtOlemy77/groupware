@@ -1,3 +1,14 @@
+/** Group a day's events by category without losing separate records or their order. */
+export function groupCalendarEvents<T extends { category: string }>(events: T[]) {
+  const groups = new Map<T['category'], T[]>();
+  for (const event of events) {
+    const entries = groups.get(event.category) || [];
+    entries.push(event);
+    groups.set(event.category, entries);
+  }
+  return [...groups].map(([category, events]) => ({ category, events }));
+}
+
 export function monthlyAllocations(
   start: string,
   end: string,

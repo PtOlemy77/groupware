@@ -135,7 +135,7 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
         </form>
 
         <div className="mt-8 pt-6 border-t border-slate-100 text-center">
-          <span className="text-[11px] text-slate-400">
+          <span className="text-xs text-slate-400">
             © 2026 SPATIALT Inc. All rights reserved.
           </span>
         </div>

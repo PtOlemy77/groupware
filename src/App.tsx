@@ -18,6 +18,8 @@ import {
   Holiday,
 } from '@/types/groupware';
 import LoginPage from '@/components/LoginPage';
+import ProcurementView from '@/components/procurement/ProcurementView';
+import { procurementLocation } from '@/lib/procurement-navigation';
 import Sidebar from '@/components/layout/Sidebar';
 import Header from '@/components/layout/Header';
 import DashboardView from '@/components/dashboard/DashboardView';
@@ -119,7 +121,7 @@ export default function App() {
       }
     };
     const hash = () => {
-      const key = location.hash.slice(1);
+      const key = location.hash.slice(1).split('?')[0];
       if (
         [
           'dashboard',
@@ -131,6 +133,7 @@ export default function App() {
           'equipments',
           'evaluations',
           'master_data',
+          'procurement',
         ].includes(key)
       )
         setActiveTab(key as TabKey);
@@ -150,7 +153,7 @@ export default function App() {
   }, []);
   useEffect(() => {
     if (!restoring) {
-      window.location.hash = activeTab;
+      if (window.location.hash.slice(1).split('?')[0] !== activeTab) window.location.hash = activeTab;
       if (currentUser && !currentUser.password_change_required)
         void fetchAllData();
     }
@@ -293,6 +296,12 @@ export default function App() {
           onLogout={handleLogout}
           onGoBack={handleGoBack}
           canGoBack={historyStack.length > 0}
+          onProcurementOpen={filter => {
+            navigateToTab('procurement');
+            const target = `#${procurementLocation(filter)}`;
+            if (window.location.hash === target) window.dispatchEvent(new Event('procurement-filter-navigation'));
+            else window.location.hash = target;
+          }}
         />
 
         {/* Dynamic Tab Body */}
@@ -383,6 +392,8 @@ export default function App() {
               onRefresh={fetchAllData}
             />
           )}
+
+          {effectiveTab === 'procurement' && <ProcurementView key={currentUser.id} refreshKey={loadedAt} />}
 
           {effectiveTab === 'master_data' && (
             <MasterDataView

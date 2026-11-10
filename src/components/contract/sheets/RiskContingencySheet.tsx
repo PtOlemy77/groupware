@@ -137,7 +137,7 @@ export default function RiskContingencySheet({
                   <td className="px-3 py-2 text-center">
                     {readOnly ? (
                       <span
-                        className={`px-2 py-0.5 rounded text-[11px] font-bold ${
+                        className={`px-2 py-0.5 rounded text-xs font-bold ${
                           it.selectedLevel === '상'
                             ? 'bg-rose-100 text-rose-700'
                             : it.selectedLevel === '중'
@@ -148,7 +148,7 @@ export default function RiskContingencySheet({
                         {it.selectedLevel} ({it.score}점)
                       </span>
                     ) : (
-                      <div className="inline-flex rounded-lg border border-slate-200 p-0.5 bg-slate-100 text-[11px]">
+                      <div className="inline-flex rounded-lg border border-slate-200 p-0.5 bg-slate-100 text-xs">
                         {(['하', '중', '상'] as const).map((lvl) => (
                           <button
                             key={lvl}

@@ -356,7 +356,7 @@ export default function WeeklyMonthlyReportView({
           </>
         }
         right={
-          <div className="flex items-center gap-1.5 text-[11px] font-bold">
+          <div className="flex items-center gap-1.5 text-xs font-bold">
             <span
               className={`px-2.5 py-1 rounded-lg border flex items-center gap-1 ${
                 draftReport.overallStage === 'PM작성중'
@@ -400,7 +400,7 @@ export default function WeeklyMonthlyReportView({
           <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 rounded-2xl p-5 text-white shadow-md border border-indigo-900/60">
             <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
               <div className="flex items-center gap-2">
-                <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-purple-500/30 border border-purple-400/40 text-purple-200 flex items-center gap-1">
+                <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-purple-500/30 border border-purple-400/40 text-purple-200 flex items-center gap-1">
                   <Crown className="w-3 h-3" />
                   사업본부 취합 → 대표이사 보고
                 </span>
@@ -484,7 +484,7 @@ export default function WeeklyMonthlyReportView({
                     <UserCheck className="w-3.5 h-3.5 text-indigo-300" />
                     사업본부장 취합 총괄 요약 및 보완 보고
                   </span>
-                  <span className="text-[11px] text-slate-300">
+                  <span className="text-xs text-slate-300">
                     {canConsolidateAsDirector ? '직접 수정 가능' : '이사 작성란'}
                   </span>
                 </div>
@@ -511,11 +511,11 @@ export default function WeeklyMonthlyReportView({
                     대표이사 확인 및 당부사항
                   </span>
                   {draftReport.overallStage === '사장님확인완료' ? (
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/30 text-emerald-200 border border-emerald-400/40">
+                    <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-emerald-500/30 text-emerald-200 border border-emerald-400/40">
                       보고확인 완료
                     </span>
                   ) : (
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/30 text-amber-200 border border-amber-400/40">
+                    <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-amber-500/30 text-amber-200 border border-amber-400/40">
                       {draftReport.overallStage}
                     </span>
                   )}
@@ -581,11 +581,11 @@ export default function WeeklyMonthlyReportView({
                         }`}>
                           PM: {item.pmName} {isThisItemPm ? '(담당)' : ''}
                         </span>
-                        <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
+                        <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
                           {item.projectStage} · 진척률 {item.progress}%
                         </span>
                         <span
-                          className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
+                          className={`text-xs font-bold px-2 py-0.5 rounded-full ${
                             item.healthStatus === '정상'
                               ? 'bg-emerald-100 text-emerald-800'
                               : item.healthStatus === '주의'
@@ -599,7 +599,7 @@ export default function WeeklyMonthlyReportView({
 
                       <div className="flex items-center gap-2">
                         <span
-                          className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full border ${
+                          className={`text-xs font-bold px-2.5 py-0.5 rounded-full border ${
                             item.pmSubmitted
                               ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                               : 'bg-amber-50 text-amber-700 border-amber-200'
@@ -633,7 +633,7 @@ export default function WeeklyMonthlyReportView({
                               ? '■ 금주 주요 수행내용'
                               : '■ 당월 주요 수행실적'}
                           </span>
-                          <span className={`text-[10px] font-medium ${isThisItemPm ? 'text-indigo-600 font-bold' : 'text-slate-400'}`}>
+                          <span className={`text-xs font-medium ${isThisItemPm ? 'text-indigo-600 font-bold' : 'text-slate-400'}`}>
                             {isThisItemPm ? '담당 PM 직접편집' : `PM(${item.pmName}) 전용`}
                           </span>
                         </div>
@@ -662,7 +662,7 @@ export default function WeeklyMonthlyReportView({
                               ? '■ 차주 예정 수행계획'
                               : '■ 차월 예정 수행계획'}
                           </span>
-                          <span className={`text-[10px] font-medium ${isThisItemPm ? 'text-indigo-600 font-bold' : 'text-slate-400'}`}>
+                          <span className={`text-xs font-medium ${isThisItemPm ? 'text-indigo-600 font-bold' : 'text-slate-400'}`}>
                             {isThisItemPm ? '담당 PM 직접편집' : `PM(${item.pmName}) 전용`}
                           </span>
                         </div>
@@ -690,7 +690,7 @@ export default function WeeklyMonthlyReportView({
                             <Crown className="w-3.5 h-3.5 text-purple-600" />
                             이사 보완 코멘트
                           </span>
-                          <span className="text-[10px] text-purple-500 font-semibold">
+                          <span className="text-xs text-purple-500 font-semibold">
                             {canConsolidateAsDirector ? '이사 첨삭/보완 가능' : '이사 작성'}
                           </span>
                         </div>
@@ -742,7 +742,7 @@ export default function WeeklyMonthlyReportView({
               <h4 className="text-xs font-bold text-slate-700">
                 보고 대상 프로젝트 선택 ({draftReport.items.length}건)
               </h4>
-              <span className="text-[11px] text-slate-400">PM 작성현황</span>
+              <span className="text-xs text-slate-400">PM 작성현황</span>
             </div>
 
             {draftReport.items.map((it) => {
@@ -759,17 +759,17 @@ export default function WeeklyMonthlyReportView({
                   }`}
                 >
                   <div className="flex items-center justify-between mb-1">
-                    <span className="font-mono text-[11px] font-bold text-indigo-600">
+                    <span className="font-mono text-xs font-bold text-indigo-600">
                       {it.projectCode}
                     </span>
                     <div className="flex items-center gap-1">
                       {isMine && (
-                        <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-indigo-600 text-white">
+                        <span className="text-xs font-bold px-1.5 py-0.2 rounded bg-indigo-600 text-white">
                           내 담당
                         </span>
                       )}
                       <span
-                        className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                        className={`text-xs font-bold px-2 py-0.5 rounded-full ${
                           it.pmSubmitted
                             ? 'bg-emerald-100 text-emerald-800'
                             : 'bg-amber-100 text-amber-800'
@@ -782,7 +782,7 @@ export default function WeeklyMonthlyReportView({
                   <div className="font-bold text-xs text-slate-900 truncate">
                     {it.projectName}
                   </div>
-                  <div className="text-[11px] text-slate-500 mt-1 flex items-center justify-between">
+                  <div className="text-xs text-slate-500 mt-1 flex items-center justify-between">
                     <span>PM: {it.pmName}</span>
                     <span>진척률 {it.progress}%</span>
                   </div>
@@ -860,7 +860,7 @@ export default function WeeklyMonthlyReportView({
                         주간/월간보고는 담당 PM({selectedItem.pmName})만 작성할 수 있습니다. (현재 조회 전용 모드)
                       </span>
                       {canConsolidateAsDirector && (
-                        <span className="text-[11px] text-purple-800 font-bold bg-purple-100 px-2 py-0.5 rounded">
+                        <span className="text-xs text-purple-800 font-bold bg-purple-100 px-2 py-0.5 rounded">
                           이사는 하단 보완 코멘트 작성 가능
                         </span>
                       )}
@@ -951,7 +951,7 @@ export default function WeeklyMonthlyReportView({
                         이사(사업본부장) 보완 의견
                       </span>
                       {canConsolidateAsDirector && (
-                        <span className="text-[10px] text-purple-700 font-bold bg-purple-100 px-2 py-0.5 rounded">
+                        <span className="text-xs text-purple-700 font-bold bg-purple-100 px-2 py-0.5 rounded">
                           이사 권한 작성 가능
                         </span>
                       )}

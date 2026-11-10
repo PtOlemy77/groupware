@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { ChevronDown, ChevronRight, Building2, User, Briefcase, Users, Edit3 } from 'lucide-react';
-import { DEPARTMENT_CODES, compareEmployeesByPositionAndHireDate, type Employee, type Project } from '@/types/groupware';
+import { DEPARTMENT_CODES, compareEmployeesByPositionAndHireDate, type Employee, type Project, type DepartmentCodeInfo } from '@/types/groupware';
 import { employeeStatus, projectEmployeeIds, type DirectoryFilters } from '@/lib/employee-directory';
 
 interface Props {
@@ -8,11 +8,13 @@ interface Props {
   projects: Project[];
   filters: DirectoryFilters;
   defaultDepartment?: string;
+  departmentOptions?: DepartmentCodeInfo[];
   onSelect: (filters: Partial<DirectoryFilters>) => void;
   onReset: () => void;
   onEdit?: (employee: Employee) => void;
 }
-export default function EmployeeOrgTree({ employees, projects, filters, defaultDepartment, onSelect, onReset, onEdit }: Props) {
+export default function EmployeeOrgTree({ employees, projects, filters, defaultDepartment, departmentOptions, onSelect, onReset, onEdit }: Props) {
+  const depts = departmentOptions && departmentOptions.length > 0 ? departmentOptions : DEPARTMENT_CODES;
   const [open, setOpen] = useState<Set<string>>(() => new Set(['dept-DEPT_BIZ', `dept-${defaultDepartment}`]));
   const searching = Boolean(filters.query.trim());
   const toggle = (key: string) => setOpen(previous => { const next = new Set(previous); next.has(key) ? next.delete(key) : next.add(key); return next; });
@@ -33,7 +35,7 @@ export default function EmployeeOrgTree({ employees, projects, filters, defaultD
     <div className="border-b border-slate-100 px-4 py-3"><div className="flex items-center justify-between"><h2 className="text-sm font-bold text-slate-800">조직도</h2><button type="button" onClick={onReset} className="rounded px-2 py-1 text-xs font-semibold text-indigo-600 hover:bg-indigo-50">전체 보기</button></div><p className="mt-1 text-xs leading-relaxed text-slate-500">부서·프로젝트·직원을 선택하면 목록에 반영됩니다.</p></div>
     <div className="max-h-80 overflow-y-auto p-2 xl:max-h-[65vh]">
       {searching && <p role="status" className="px-2 py-2 text-xs text-indigo-600">검색 결과에 해당하는 조직과 직원만 표시합니다.</p>}
-      <ul className="space-y-1">{DEPARTMENT_CODES.map(department => {
+      <ul className="space-y-1">{depts.map(department => {
         const people = employees.filter(employee => employee.department_code === department.code).sort(compareEmployeesByPositionAndHireDate);
         const deptProjects = department.code === 'DEPT_BIZ' ? projects.filter(project => projectEmployeeIds(project).some(id => employees.some(employee => employee.id === id)) || (!searching && filters.availability === 'ALL')) : [];
         if (searching && !people.length && !deptProjects.length) return null;

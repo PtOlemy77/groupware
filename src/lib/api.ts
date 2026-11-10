@@ -135,11 +135,14 @@ async function performFetch(
 const masterGroup = (key: string) =>
   key.includes('unit_prices') ? 'MASTER_PRICES' : 'MASTER_TARGETS';
 export function readMaster(key: string): string | null {
-  return (
-    masterRows.find(
-      (r) => r.group_code === masterGroup(key) && r.code === 'DATA',
-    )?.extra_value ?? null
+  const isPrices = key.includes('unit_prices');
+  const group = masterGroup(key);
+  const found = masterRows.find(
+    (r) =>
+      (r.group_code === group && r.code === 'DATA') ||
+      (r.group_code === 'SYSTEM_CONFIG' && r.code === (isPrices ? 'UNIT_PRICES' : 'TARGET_REVENUES'))
   );
+  return found?.extra_value ?? null;
 }
 export async function saveMaster(key: string, value: unknown) {
   const group = masterGroup(key),

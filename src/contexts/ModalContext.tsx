@@ -302,7 +302,7 @@ export function ModalProvider({ children }: { children: ReactNode }) {
 
             {/* Modal Actions */}
             <div className="bg-slate-50 px-6 py-4 flex items-center justify-between gap-2 border-t border-slate-100">
-              <span className="text-[11px] font-medium text-slate-400">
+              <span className="text-xs font-medium text-slate-400">
                 {modal.autoClose && modal.type !== 'confirm'
                   ? '2초 후 자동으로 닫힙니다'
                   : ''}

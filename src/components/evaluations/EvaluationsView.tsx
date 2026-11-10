@@ -15,6 +15,15 @@ import type {
 import LegacyEvaluationsView from './LegacyEvaluationsView';
 import { Plus, LockKeyhole, RefreshCw, ClipboardCheck, Award, Clock3, ClipboardList, Trash2 } from 'lucide-react';
 import { PageHeaderBar, TabGroup, Button, Modal, Card, Badge, SearchInput } from '@/components/common';
+import {
+  Table,
+  TableHead,
+  TableBody,
+  TableRow,
+  TableCell,
+  TableHeaderCell,
+  TableEmpty,
+} from '@/components/common/Table';
 
 interface EvaluationsViewProps {
   evaluations: Evaluation[];
@@ -402,7 +411,7 @@ function PerformancePlans({ currentUser, onRefresh }: Pick<EvaluationsViewProps,
                       : 'border-slate-200 bg-slate-50/80 text-slate-500 focus:border-slate-400'
                   }`}
                 />
-                <span className="pointer-events-none absolute right-1.5 top-2 text-[10px] font-normal text-slate-400">
+                <span className="pointer-events-none absolute right-1.5 top-2 text-xs font-normal text-slate-400">
                   MM
                 </span>
               </div>
@@ -573,10 +582,10 @@ function PerformancePlans({ currentUser, onRefresh }: Pick<EvaluationsViewProps,
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
         <div className="bg-white px-3.5 py-2 rounded-xl border border-indigo-200 bg-indigo-50/20 flex items-center justify-between shadow-2xs">
           <div>
-            <div className="text-[11px] font-bold text-indigo-700 flex items-center gap-1">
+            <div className="text-xs font-bold text-indigo-700 flex items-center gap-1">
               <Award size={13} className="text-indigo-600" /> 성과지표 (공수연동)
             </div>
-            <div className="text-[10px] text-indigo-600/80">
+            <div className="text-xs text-indigo-600/80">
               품의 승인 {data?.summary.contract_total_mm ?? 0} MM
             </div>
           </div>
@@ -590,10 +599,10 @@ function PerformancePlans({ currentUser, onRefresh }: Pick<EvaluationsViewProps,
 
         <div className="bg-white px-3.5 py-2 rounded-xl border border-slate-200 flex items-center justify-between shadow-2xs">
           <div>
-            <div className="text-[11px] font-semibold text-slate-600 flex items-center gap-1">
+            <div className="text-xs font-semibold text-slate-600 flex items-center gap-1">
               <ClipboardCheck size={13} className="text-amber-500" /> 수행지표 환산
             </div>
-            <div className="text-[10px] text-slate-400">프로젝트 수행평가</div>
+            <div className="text-xs text-slate-400">프로젝트 수행평가</div>
           </div>
           <div className="text-right">
             <div className="text-base font-black text-slate-800 font-mono">
@@ -605,10 +614,10 @@ function PerformancePlans({ currentUser, onRefresh }: Pick<EvaluationsViewProps,
 
         <div className="bg-white px-3.5 py-2 rounded-xl border border-slate-200 flex items-center justify-between shadow-2xs">
           <div>
-            <div className="text-[11px] font-semibold text-slate-600 flex items-center gap-1">
+            <div className="text-xs font-semibold text-slate-600 flex items-center gap-1">
               <ClipboardList size={13} className="text-slate-600" /> 확정 수행평점
             </div>
-            <div className="text-[10px] text-slate-400">{year}년 가중 평균</div>
+            <div className="text-xs text-slate-400">{year}년 가중 평균</div>
           </div>
           <div className="text-base font-black text-slate-700 font-mono">
             {data?.summary.score == null ? '—' : `${data.summary.score}`}{' '}
@@ -618,10 +627,10 @@ function PerformancePlans({ currentUser, onRefresh }: Pick<EvaluationsViewProps,
 
         <div className="bg-white px-3.5 py-2 rounded-xl border border-slate-200 flex items-center justify-between shadow-2xs">
           <div>
-            <div className="text-[11px] font-semibold text-slate-600 flex items-center gap-1">
+            <div className="text-xs font-semibold text-slate-600 flex items-center gap-1">
               <Clock3 size={13} className="text-emerald-600" /> 확정 실적 공수
             </div>
-            <div className="text-[10px] text-slate-400">평가 확정 수행 실적</div>
+            <div className="text-xs text-slate-400">평가 확정 수행 실적</div>
           </div>
           <div className="text-base font-black text-emerald-600 font-mono">
             {data?.summary.actual_mm ?? 0} MM
@@ -770,52 +779,52 @@ function PerformancePlans({ currentUser, onRefresh }: Pick<EvaluationsViewProps,
         }
       >
         <div className="overflow-x-auto">
-          <table
+          <Table
             aria-label="수행평가 목록"
             aria-busy={loading}
-            className="w-full min-w-[920px] text-left text-sm text-slate-700"
+            className="min-w-[920px]"
           >
-            <thead className="border-b border-slate-200 bg-slate-50/80 text-xs font-semibold text-slate-500">
+            <TableHead>
               <tr>
                 {['대상자', '프로젝트 / 인재풀', '기간', '상태', '검토자', '투입공수(계획/실적)', '수행 점수', '확인'].map(t => (
-                  <th key={t} className="whitespace-nowrap px-4 py-3.5">
+                  <TableHeaderCell key={t}>
                     {t}
-                  </th>
+                  </TableHeaderCell>
                 ))}
               </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
+            </TableHead>
+            <TableBody>
               {data?.plans.map(plan => (
-                <tr key={plan.id} className="transition hover:bg-slate-50/80">
-                  <td className="px-4 py-4">
+                <TableRow key={plan.id}>
+                  <TableCell>
                     <strong className="text-slate-900">{plan.employee_name}</strong>
-                    <div className="mt-1 text-xs text-slate-400">{plan.emp_no}</div>
-                  </td>
-                  <td className="max-w-xs break-words px-4 py-4">
+                    <div className="text-xs text-slate-400">{plan.emp_no}</div>
+                  </TableCell>
+                  <TableCell className="max-w-xs break-words">
                     <div className="font-semibold text-slate-800">{plan.title}</div>
-                    <div className="mt-1 text-xs text-slate-500">{plan.project_name}</div>
-                  </td>
-                  <td className="whitespace-nowrap px-4 py-4 text-xs leading-relaxed">
+                    <div className="text-xs text-slate-500">{plan.project_name}</div>
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap text-xs leading-relaxed text-slate-600">
                     {plan.start_date}
                     <br />
                     {plan.end_date}
-                  </td>
-                  <td className="px-4 py-4">
+                  </TableCell>
+                  <TableCell>
                     <Badge variant={stateVariants[plan.state]} className="whitespace-nowrap">
                       {EVALUATION_STATES[plan.state]}
                     </Badge>
-                  </td>
-                  <td className="whitespace-nowrap px-4 py-4">{plan.reviewer_name}</td>
-                  <td className="px-4 py-4 tabular-nums">
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap text-slate-700">{plan.reviewer_name}</TableCell>
+                  <TableCell className="tabular-nums">
                     <div className="font-semibold text-slate-800">
                       계획: <span className="font-mono text-indigo-700">{plan.planned_mm_total ?? 0}</span> MM
                     </div>
                     <div className="text-xs text-slate-400">
                       실적: <span className={`font-mono ${plan.actual_mm_total ? 'font-bold text-emerald-600' : ''}`}>{plan.actual_mm_total ?? 0}</span> MM
                     </div>
-                  </td>
-                  <td className="px-4 py-4 font-bold tabular-nums text-indigo-600">{plan.score ?? '—'}</td>
-                  <td className="px-4 py-4">
+                  </TableCell>
+                  <TableCell className="font-bold tabular-nums text-indigo-600">{plan.score ?? '—'}</TableCell>
+                  <TableCell>
                     <Button
                       variant="secondary"
                       size="sm"
@@ -824,19 +833,18 @@ function PerformancePlans({ currentUser, onRefresh }: Pick<EvaluationsViewProps,
                     >
                       상세
                     </Button>
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ))}
               {!loading && !data?.plans.length && (
-                <tr>
-                  <td colSpan={8} className="px-4 py-14 text-center text-slate-500">
-                    <ClipboardList size={28} className="mx-auto mb-3 text-slate-300" />
-                    조회 가능한 수행평가가 없습니다.
-                  </td>
-                </tr>
+                <TableEmpty
+                  colSpan={8}
+                  message="조회 가능한 수행평가가 없습니다."
+                  icon={<ClipboardList size={28} className="mx-auto text-slate-300" />}
+                />
               )}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </div>
       </Card>
 
@@ -915,7 +923,7 @@ function PerformancePlans({ currentUser, onRefresh }: Pick<EvaluationsViewProps,
                     <div className="flex items-center justify-between mb-1">
                       <label className="text-xs font-semibold text-slate-700">프로젝트 배정</label>
                       {currentAssignment?.contract_doc_no && (
-                        <span className="text-[10px] font-semibold text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-200">
+                        <span className="text-xs font-semibold text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-200">
                           품의번호 {currentAssignment.contract_doc_no}
                         </span>
                       )}
@@ -1009,15 +1017,15 @@ function PerformancePlans({ currentUser, onRefresh }: Pick<EvaluationsViewProps,
               <span className="font-semibold text-slate-700 flex items-center gap-1.5">
                 계획 투입 공수 (MM)
                 {currentAssignment?.contract_doc_no ? (
-                  <span className="inline-flex items-center gap-1 rounded bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700 border border-emerald-200">
+                  <span className="inline-flex items-center gap-1 rounded bg-emerald-50 px-2 py-0.5 text-xs font-bold text-emerald-700 border border-emerald-200">
                     계약품의 승인 공수 자동 연동 ({currentAssignment.synced_total_mm ?? 0} MM)
                   </span>
                 ) : (
-                  <span className="text-[10px] text-slate-400">품의서 작성 내역 실시간 반영</span>
+                  <span className="text-xs text-slate-400">품의서 작성 내역 실시간 반영</span>
                 )}
               </span>
               {currentAssignment?.progress != null && (
-                <span className="text-[11px] text-slate-500">
+                <span className="text-xs text-slate-500">
                   프로젝트 공정률{' '}
                   <strong className="text-indigo-600 font-mono font-bold">
                     {currentAssignment.progress}%

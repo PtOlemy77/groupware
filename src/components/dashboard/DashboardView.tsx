@@ -77,7 +77,9 @@ export default function DashboardView({
     try {
       if (typeof window !== 'undefined') {
         const targetRow = commonCodes?.find(
-          (c) => c.group_code === 'MASTER_TARGETS' && c.code === 'DATA'
+          (c) =>
+            (c.group_code === 'MASTER_TARGETS' && c.code === 'DATA') ||
+            (c.group_code === 'SYSTEM_CONFIG' && c.code === 'TARGET_REVENUES')
         );
         const saved = targetRow?.extra_value || readMaster('spatialt_master_target_revenues');
         if (saved) {
@@ -94,7 +96,9 @@ export default function DashboardView({
     const loadTargetRevenue = () => {
       try {
         const targetRow = commonCodes?.find(
-          (c) => c.group_code === 'MASTER_TARGETS' && c.code === 'DATA'
+          (c) =>
+            (c.group_code === 'MASTER_TARGETS' && c.code === 'DATA') ||
+            (c.group_code === 'SYSTEM_CONFIG' && c.code === 'TARGET_REVENUES')
         );
         const saved = targetRow?.extra_value || readMaster('spatialt_master_target_revenues');
         if (saved) {
@@ -355,7 +359,7 @@ export default function DashboardView({
                 {formatCurrencyManwon(targetRevenue)}
               </div>
             </div>
-            <div className="mt-2 pt-2 border-t border-slate-200/60 flex items-center justify-between text-[11px] text-slate-500">
+            <div className="mt-2 pt-2 border-t border-slate-200/60 flex items-center justify-between text-xs text-slate-500">
               <span>기준정보 매출목표</span>
               <span className="text-indigo-600 font-semibold group-hover:translate-x-0.5 transition-transform">사업관리 →</span>
             </div>
@@ -369,7 +373,7 @@ export default function DashboardView({
             <div>
               <div className="flex items-center justify-between mb-1.5">
                 <span className="text-xs font-bold text-emerald-900">올해 확정 매출 · 달성율</span>
-                <span className={`text-[10px] font-black px-2 py-0.5 rounded-full border ${
+                <span className={`text-xs font-black px-2 py-0.5 rounded-full border ${
                   currentAchievementRate >= 100
                     ? 'bg-emerald-600 text-white border-emerald-600 shadow-2xs'
                     : currentAchievementRate >= 70
@@ -388,7 +392,7 @@ export default function DashboardView({
                 확정 매출: <span className="font-mono">{formatCurrencyManwon(confirmedRevenue)}</span>
               </div>
             </div>
-            <div className="mt-2 pt-2 border-t border-emerald-200/70 flex items-center justify-between text-[11px] text-emerald-800">
+            <div className="mt-2 pt-2 border-t border-emerald-200/70 flex items-center justify-between text-xs text-emerald-800">
               <span>수행·완료 당사 귀속</span>
               <span className="text-emerald-700 font-bold group-hover:translate-x-0.5 transition-transform">과제수행 →</span>
             </div>
@@ -415,7 +419,7 @@ export default function DashboardView({
                 </span>
               </div>
             </div>
-            <div className="mt-2 pt-2 border-t border-indigo-200/60 flex items-center justify-between text-[11px] text-slate-500">
+            <div className="mt-2 pt-2 border-t border-indigo-200/60 flex items-center justify-between text-xs text-slate-500">
               <span>발주·제안 가중치 반영</span>
               <span className="text-indigo-600 font-semibold group-hover:translate-x-0.5 transition-transform">발주·제안 →</span>
             </div>
@@ -441,11 +445,11 @@ export default function DashboardView({
                   {formatCurrencyManwon(projectProfits.totalNetProfitManwon)}
                 </span>
               </div>
-              <div className="text-[11px] font-bold text-purple-900 mt-1">
+              <div className="text-xs font-bold text-purple-900 mt-1">
                 평균 순이익률: <span className="font-mono text-purple-700">{projectProfits.overallProfitRate}%</span>
               </div>
             </div>
-            <div className="mt-2 pt-2 border-t border-slate-200/60 flex items-center justify-between text-[11px] text-slate-500">
+            <div className="mt-2 pt-2 border-t border-slate-200/60 flex items-center justify-between text-xs text-slate-500">
               <span>품의 연동 {projectProfits.contractedProjectCount}건 합산</span>
               <span className="text-purple-700 font-semibold group-hover:translate-x-0.5 transition-transform">손익 상세 →</span>
             </div>
@@ -506,7 +510,7 @@ export default function DashboardView({
           >
             <div>
               <div className="text-xs font-bold text-amber-900">1. 발주예상</div>
-              <div className="text-[11px] text-amber-700">사전규격·공고 대기</div>
+              <div className="text-xs text-amber-700">사전규격·공고 대기</div>
             </div>
             <span className="px-2.5 py-0.5 rounded-full text-xs font-extrabold bg-amber-200/80 text-amber-900">
               {stageCounts.orderExpected}건
@@ -519,7 +523,7 @@ export default function DashboardView({
           >
             <div>
               <div className="text-xs font-bold text-blue-900">2. 제안준비중</div>
-              <div className="text-[11px] text-blue-700">제안서·계약품의 작성</div>
+              <div className="text-xs text-blue-700">제안서·계약품의 작성</div>
             </div>
             <span className="px-2.5 py-0.5 rounded-full text-xs font-extrabold bg-blue-200/80 text-blue-900">
               {stageCounts.proposalPrep}건
@@ -532,7 +536,7 @@ export default function DashboardView({
           >
             <div>
               <div className="text-xs font-bold text-indigo-900">3. 프로젝트 수행</div>
-              <div className="text-[11px] text-indigo-700">계약체결 및 구축·운영</div>
+              <div className="text-xs text-indigo-700">계약체결 및 구축·운영</div>
             </div>
             <span className="px-2.5 py-0.5 rounded-full text-xs font-extrabold bg-indigo-200/80 text-indigo-900">
               {stageCounts.executing}건
@@ -545,7 +549,7 @@ export default function DashboardView({
           >
             <div>
               <div className="text-xs font-bold text-emerald-900">4. 완료</div>
-              <div className="text-[11px] text-emerald-700">최종 검수 및 정산완료</div>
+              <div className="text-xs text-emerald-700">최종 검수 및 정산완료</div>
             </div>
             <span className="px-2.5 py-0.5 rounded-full text-xs font-extrabold bg-emerald-200/80 text-emerald-900">
               {stageCounts.completed}건
@@ -604,7 +608,7 @@ export default function DashboardView({
               >
                 <div className="flex items-center justify-between gap-2 mb-2">
                   <div className="flex items-center gap-2 min-w-0">
-                    <span className="font-mono text-[11px] font-bold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded shrink-0">
+                    <span className="font-mono text-xs font-bold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded shrink-0">
                       {prj.code}
                     </span>
                     <span className="font-bold text-xs md:text-sm text-slate-900 truncate">
@@ -614,7 +618,7 @@ export default function DashboardView({
                   <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
                     {profitInfo?.hasContract && (
                       <span
-                        className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                        className={`text-xs font-bold px-2 py-0.5 rounded-full border ${
                           profitInfo.netProfitManwon >= 0
                             ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                             : 'bg-rose-50 text-rose-700 border-rose-200'
@@ -625,17 +629,17 @@ export default function DashboardView({
                       </span>
                     )}
                     {scope.isMultiYear && (
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-200">
+                      <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-200">
                         연차사업 ({currentYear}년)
                       </span>
                     )}
                     {scope.shareRate < 100 && (
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
+                      <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
                         지분 {scope.shareRate}%
                       </span>
                     )}
                     <span
-                      className={`text-[11px] font-bold px-2 py-0.5 rounded-full border ${statusBadgeClass}`}
+                      className={`text-xs font-bold px-2 py-0.5 rounded-full border ${statusBadgeClass}`}
                     >
                       {normStatus}
                     </span>
@@ -643,7 +647,7 @@ export default function DashboardView({
                 </div>
 
                 {/* 기간 및 지분율 기반 올해 매출 표시 */}
-                <div className="flex items-start justify-between text-[11px] text-slate-500 mb-2.5 flex-wrap gap-2">
+                <div className="flex items-start justify-between text-xs text-slate-500 mb-2.5 flex-wrap gap-2">
                   <div className="space-y-0.5">
                     <div className="flex items-center gap-1">
                       <span>PM: <strong className="text-slate-800">{prj.pm_name}</strong></span>
@@ -658,7 +662,7 @@ export default function DashboardView({
                       )}
                     </div>
                     {scope.isMultiYear && (
-                      <div className="text-[10px] text-slate-400 pl-0.5">
+                      <div className="text-xs text-slate-400 pl-0.5">
                         전체 수행기간: {scope.fullStartDate} ~ {scope.fullEndDate}
                       </div>
                     )}
@@ -686,17 +690,17 @@ export default function DashboardView({
                     </div>
                     {scope.isMultiYear ? (
                       scope.shareRate < 100 ? (
-                        <div className="text-[10px] text-slate-500">
+                        <div className="text-xs text-slate-500">
                           (올해 {formatCurrencyManwon(scope.yearTotalBudget)} × 지분 {scope.shareRate}%)
                         </div>
                       ) : (
-                        <div className="text-[10px] text-slate-400">
+                        <div className="text-xs text-slate-400">
                           (총 {formatCurrencyManwon(scope.totalBudget)} 중 올해분)
                         </div>
                       )
                     ) : (
                       scope.shareRate < 100 && (
-                        <div className="text-[10px] text-slate-500">
+                        <div className="text-xs text-slate-500">
                           (총 {formatCurrencyManwon(scope.totalBudget)} × 지분 {scope.shareRate}%)
                         </div>
                       )
@@ -711,7 +715,7 @@ export default function DashboardView({
                       style={{ width: `${prj.progress}%` }}
                     />
                   </div>
-                  <span className="text-[11px] font-bold text-slate-700 w-9 text-right font-mono">
+                  <span className="text-xs font-bold text-slate-700 w-9 text-right font-mono">
                     {prj.progress}%
                   </span>
                 </div>

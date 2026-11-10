@@ -32,6 +32,11 @@ spring:
     multipart:
       max-request-size: 2MB
 app:
+  procurement:
+    enabled: ${G2B_ENABLED:true}
+    service-key: ${G2B_SERVICE_KEY:}
+    interval-ms: ${G2B_INTERVAL_MS:3600000}
+    business-types: ${G2B_BUSINESS_TYPES:SERVC,THNG,CNSTWK,FRGCPT}
   evaluation-plans:
     enabled: ${EVALUATION_PLANS_ENABLED:true}
   bootstrap:

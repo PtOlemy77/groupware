@@ -4,6 +4,15 @@ import { apiFetch } from '@/lib/api';
 import { useModal } from '@/contexts/ModalContext';
 import EmployeeOrgTree from './EmployeeOrgTree';
 import { initialDirectoryFilters, directoryPageNumbers, selectDirectoryEmployees, activeDirectoryProject, employeeStatus, projectEmployeeIds, type DirectoryFilters, type AvailabilityFilter } from '@/lib/employee-directory';
+import {
+  Table,
+  TableHead,
+  TableBody,
+  TableRow,
+  TableCell,
+  TableHeaderCell,
+  TableEmpty,
+} from '@/components/common/Table';
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
@@ -23,6 +32,8 @@ import {
   compareEmployeesByPositionAndHireDate,
   DEPARTMENT_CODES,
   POSITION_CODES,
+  getDepartmentsFromCommonCodes,
+  getPositionsFromCommonCodes,
   COMPANY_EMAIL_DOMAIN,
   cleanDeptName,
   CommonCode,
@@ -235,19 +246,11 @@ export default function EmployeesView({
 
   // DB(common_codes)에서 부서 및 직급 동적 조회 (DB 우선 연동)
   const departmentOptions = useMemo(() => {
-    const fromDb = (commonCodes || [])
-      .filter((c) => c.group_code === 'DEPARTMENT' && c.is_active)
-      .sort((a, b) => a.sort_order - b.sort_order)
-      .map((c) => ({ code: c.code, label: c.code_name }));
-    return fromDb.length > 0 ? fromDb : DEPARTMENT_CODES;
+    return getDepartmentsFromCommonCodes(commonCodes);
   }, [commonCodes]);
 
   const positionOptions = useMemo(() => {
-    const fromDb = (commonCodes || [])
-      .filter((c) => c.group_code === 'POSITION' && c.is_active)
-      .sort((a, b) => a.sort_order - b.sort_order)
-      .map((c) => ({ code: c.code, label: c.code_name }));
-    return fromDb.length > 0 ? fromDb : POSITION_CODES;
+    return getPositionsFromCommonCodes(commonCodes);
   }, [commonCodes]);
 
   const canEdit = isSystemAdmin(currentUser);
@@ -718,7 +721,18 @@ export default function EmployeesView({
       </section>
 
       <div className="flex min-w-0 flex-col items-stretch gap-4 xl:flex-row xl:items-start">
-        {showOrgTree && <EmployeeOrgTree employees={treeEmployees} projects={activeProjects} filters={filters} defaultDepartment={currentUser.department_code} onSelect={selectFromOrg} onReset={resetFilters} onEdit={canEdit ? openEditModal : undefined} />}
+        {showOrgTree && (
+          <EmployeeOrgTree
+            employees={treeEmployees}
+            projects={activeProjects}
+            filters={filters}
+            defaultDepartment={currentUser.department_code}
+            departmentOptions={departmentOptions}
+            onSelect={selectFromOrg}
+            onReset={resetFilters}
+            onEdit={canEdit ? openEditModal : undefined}
+          />
+        )}
         {/* 메인 목록 테이블 (담당업무/기술스택 제외, 사번=입사일, 가용인원 명확 표시) */}
         <div ref={resultsRef} id="employee-directory-results" tabIndex={-1} role="region" aria-label="직원 검색 결과" className="scroll-mt-20 min-w-0 flex-1 bg-white rounded-2xl border border-slate-200 shadow-2xs overflow-hidden flex flex-col">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3 text-sm">
@@ -732,42 +746,42 @@ export default function EmployeesView({
           </div>
 
           <div className="overflow-x-auto" role="region" aria-label="직원 목록 가로 스크롤" tabIndex={0}>
-            <table aria-label="직원 목록" className="w-full min-w-[720px] text-left text-sm text-slate-700">
-              <thead className="bg-slate-100/70 border-b border-slate-200 text-slate-600 font-bold uppercase tracking-wider select-none">
+            <Table aria-label="직원 목록" className="min-w-[720px]">
+              <TableHead>
                 <tr>
-                  <th
+                  <TableHeaderCell
                     aria-sort={sortBy === 'name' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'}
-                    className="px-4 py-3 cursor-pointer hover:bg-slate-200/60 transition w-32"
+                    className="w-32 cursor-pointer hover:bg-slate-200/60 transition"
                   >
-                    <button type="button" aria-label="성명 정렬" onClick={() => handleSort('name')} className="flex w-full items-center gap-1 text-left">
+                    <button type="button" aria-label="성명 정렬" onClick={() => handleSort('name')} className="flex w-full items-center gap-1 text-left font-bold text-slate-600">
                       <span>성명</span>
                       {sortBy === 'name' && (sortOrder === 'asc' ? '▲' : '▼')}
                     </button>
-                  </th>
-                  <th
+                  </TableHeaderCell>
+                  <TableHeaderCell
                     aria-sort={sortBy === 'position' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'}
-                    className="px-3 py-3 cursor-pointer hover:bg-slate-200/60 transition w-32"
+                    className="w-36 cursor-pointer hover:bg-slate-200/60 transition"
                   >
-                    <button type="button" aria-label="직급 정렬" onClick={() => handleSort('position')} className="flex w-full items-center gap-1 text-left">
+                    <button type="button" aria-label="직급 정렬" onClick={() => handleSort('position')} className="flex w-full items-center gap-1 text-left font-bold text-slate-600">
                       <span>직급 / 권한</span>
                       {sortBy === 'position' && (sortOrder === 'asc' ? '▲' : '▼')}
                     </button>
-                  </th>
-                  <th className="px-4 py-3 min-w-[200px]">프로젝트명</th>
-                  <th className="px-4 py-3 min-w-[220px]">연락처 / 이메일</th>
-                  <th
+                  </TableHeaderCell>
+                  <TableHeaderCell className="min-w-[200px]">프로젝트명</TableHeaderCell>
+                  <TableHeaderCell className="min-w-[220px]">연락처 / 이메일</TableHeaderCell>
+                  <TableHeaderCell
                     aria-sort={sortBy === 'hire_date' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'}
-                    className="px-3 py-3 cursor-pointer hover:bg-slate-200/60 transition w-32"
+                    className="w-32 cursor-pointer hover:bg-slate-200/60 transition"
                   >
-                    <button type="button" aria-label="입사일 정렬" onClick={() => handleSort('hire_date')} className="flex w-full items-center gap-1 text-left">
+                    <button type="button" aria-label="입사일 정렬" onClick={() => handleSort('hire_date')} className="flex w-full items-center gap-1 text-left font-bold text-slate-600">
                       <span>입사일</span>
                       {sortBy === 'hire_date' && (sortOrder === 'asc' ? '▲' : '▼')}
                     </button>
-                  </th>
-                  {canEdit && <th className="sticky right-0 bg-slate-100 px-3 py-3 text-center w-20">관리</th>}
+                  </TableHeaderCell>
+                  {canEdit && <TableHeaderCell align="center" className="sticky right-0 bg-slate-50 w-20">관리</TableHeaderCell>}
                 </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
+              </TableHead>
+              <TableBody>
                 {paginatedEmployees.map((emp) => {
                   const avail = getEmployeeAvailability(emp);
                   const empRoleCode = getRoleCode(emp);
@@ -779,24 +793,22 @@ export default function EmployeesView({
                       ? 'bg-purple-50 text-purple-700 border-purple-200'
                       : empRoleCode === 'ROLE_PM'
                       ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
-                      : 'bg-slate-50 text-slate-500 border-slate-200';
+                      : 'bg-slate-50 text-slate-600 border-slate-200';
 
                   return (
-                    <tr
+                    <TableRow
                       key={emp.id}
                       onClick={(e) => {
                         // 액션 버튼이나 링크 클릭 시에는 행 클릭 이벤트 방지
                         if ((e.target as HTMLElement).closest('button, a')) return;
                         if (canEdit) openEditModal(emp);
                       }}
-                      className={`hover:bg-indigo-50/40 transition group ${
-                        canEdit ? 'cursor-pointer' : ''
-                      }`}
+                      className={canEdit ? 'cursor-pointer' : ''}
                       title={canEdit ? '클릭하여 직원 정보 수정' : ''}
                     >
                       {/* 성명 */}
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        <div className="flex items-center gap-2">
+                      <TableCell className="whitespace-nowrap">
+                        <div className="flex items-center gap-2.5">
                           <div
                             className={`w-7 h-7 rounded-full font-bold text-xs flex items-center justify-center shrink-0 ${
                               employeeStatus(emp) === 'STATUS_RETIRED'
@@ -807,7 +819,7 @@ export default function EmployeesView({
                             {emp.name.slice(0, 1)}
                           </div>
                           <span
-                            className={`font-bold ${
+                            className={`font-semibold ${
                               employeeStatus(emp) === 'STATUS_RETIRED'
                                 ? 'text-slate-400 line-through'
                                 : 'text-slate-900'
@@ -816,68 +828,72 @@ export default function EmployeesView({
                             {emp.name}
                           </span>
                           {employeeStatus(emp) === 'STATUS_RETIRED' && (
-                            <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-slate-200 text-slate-700">
+                            <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-200 text-slate-700">
                               퇴사
                             </span>
                           )}
                           {employeeStatus(emp) === 'STATUS_LEAVE' && (
-                            <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-amber-100 text-amber-800">
+                            <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200">
                               휴직
                             </span>
                           )}
                         </div>
-                      </td>
+                      </TableCell>
 
-                      {/* 직급 / 시스템 권한 등급 (권한은 이름만 표시) */}
-                      <td className="px-3 py-3 whitespace-nowrap">
+                      {/* 직급 / 시스템 권한 등급 */}
+                      <TableCell className="whitespace-nowrap">
                         <div className="flex items-center gap-1.5">
-                          <span className="inline-block px-2 py-0.5 rounded text-[11px] font-semibold bg-slate-100 text-slate-700">
+                          <span className="inline-block px-2.5 py-0.5 rounded-md text-xs font-semibold bg-slate-100 text-slate-700">
                             {emp.position}
                           </span>
                           <span
-                            className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold border ${roleBadgeClass}`}
+                            className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold border ${roleBadgeClass}`}
                           >
                             {empRoleLabel}
                           </span>
                         </div>
-                      </td>
+                      </TableCell>
 
-                      {/* 프로젝트명: 수행 중인 프로젝트만 보여주고 투입된 게 없으면 공란 */}
-                      <td className="px-4 py-3">
+                      {/* 프로젝트명 */}
+                      <TableCell>
                         {avail.projects.length > 0 ? (
                           <span className="font-semibold text-slate-800">
                             {avail.projects.join(', ')}
                           </span>
-                        ) : null}
-                      </td>
+                        ) : (
+                          <span className="text-slate-300">—</span>
+                        )}
+                      </TableCell>
 
                       {/* 연락처 / 이메일 통합 표시 */}
-                      <td className="px-4 py-3 whitespace-nowrap">
+                      <TableCell className="whitespace-nowrap">
                         <div className="flex flex-col gap-0.5">
                           <span className="font-mono text-slate-800 text-xs flex items-center gap-1.5">
-                            <Phone className="w-3 h-3 text-slate-400" />
+                            <Phone className="w-3.5 h-3.5 text-slate-400" />
                             {emp.phone || '-'}
                           </span>
                           {emp.email ? (
-                          <a
-                            href={`mailto:${emp.email}`}
-                            className="font-mono text-slate-500 hover:text-indigo-600 hover:underline text-[11px] flex items-center gap-1.5"
-                          >
-                            <Mail className="w-3 h-3 text-slate-400" />
-                            {emp.email || '-'}
-                          </a>
-                          ) : <span className="text-xs text-slate-400">연락처 비공개</span>}
+                            <a
+                              href={`mailto:${emp.email}`}
+                              className="font-mono text-slate-500 hover:text-indigo-600 hover:underline text-xs flex items-center gap-1.5"
+                            >
+                              <Mail className="w-3.5 h-3.5 text-slate-400" />
+                              {emp.email || '-'}
+                            </a>
+                          ) : (
+                            <span className="text-xs text-slate-400">연락처 비공개</span>
+                          )}
                         </div>
-                      </td>
+                      </TableCell>
 
-                      {/* 입사일 (상세 연차/근속은 상세정보 모달에서 확인) */}
-                      <td className="px-3 py-3 whitespace-nowrap text-xs font-mono text-slate-700">
+                      {/* 입사일 */}
+                      <TableCell className="whitespace-nowrap text-xs font-mono text-slate-600">
                         {emp.hire_date || '-'}
-                      </td>
+                      </TableCell>
 
                       {/* 관리 액션 */}
                       {canEdit && (
-                        <td className="sticky right-0 bg-white px-3 py-3 text-center whitespace-nowrap shadow-[-4px_0_8px_-6px_#94a3b8]">
+                        <TableCell align="center" className="sticky right-0 bg-white whitespace-nowrap shadow-[-4px_0_8px_-6px_#94a3b8]">
                           <div className="flex items-center justify-center gap-1">
                             <button
                               onClick={() => openEditModal(emp)}
@@ -897,19 +913,20 @@ export default function EmployeesView({
                               <UserX className="w-3.5 h-3.5" />
                             </button>
                           </div>
-                        </td>
+                        </TableCell>
                       )}
-                    </tr>
+                    </TableRow>
                   );
                 })}
 
                 {filteredEmployees.length === 0 && (
-                  <tr>
-                    <td colSpan={canEdit ? 6 : 5} className="px-4 py-12 text-center text-slate-500"><p>검색 조건에 일치하는 직원이 없습니다.</p><button type="button" onClick={resetFilters} className="mt-3 rounded-lg border border-indigo-200 px-3 py-2 text-sm text-indigo-600">전체 직원 보기</button></td>
-                  </tr>
+                  <TableEmpty
+                    colSpan={canEdit ? 6 : 5}
+                    message="검색 조건에 일치하는 직원이 없습니다."
+                  />
                 )}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           </div>
 
           {/* 페이지네이션 컨트롤 */}
@@ -1080,23 +1097,23 @@ export default function EmployeesView({
                         <span className="text-xs font-black text-indigo-700 bg-white border border-indigo-300 px-2 py-0.5 rounded-lg shadow-2xs">
                           실제 {tenure.actualYearsOrder}년차
                         </span>
-                        <span className="text-[11px] font-semibold text-slate-500">
+                        <span className="text-xs font-semibold text-slate-500">
                           (사내 {tenure.yearsOrder}년차)
                         </span>
                       </div>
                     </div>
 
-                    <div className="pt-2 border-t border-indigo-100/90 grid grid-cols-3 gap-1 text-[11px] text-slate-600">
+                    <div className="pt-2 border-t border-indigo-100/90 grid grid-cols-3 gap-1 text-xs text-slate-600">
                       <div>
-                        <span className="text-slate-400 block text-[10px]">인정 경력</span>
+                        <span className="text-slate-400 block text-xs">인정 경력</span>
                         <strong className="text-slate-800 font-semibold">{tenure.recognizedText}</strong>
                       </div>
                       <div>
-                        <span className="text-slate-400 block text-[10px]">사내 근속</span>
+                        <span className="text-slate-400 block text-xs">사내 근속</span>
                         <strong className="text-slate-800 font-semibold">만 {tenure.tenureText}</strong>
                       </div>
                       <div>
-                        <span className="text-indigo-600 block text-[10px] font-bold">통산 총 경력</span>
+                        <span className="text-indigo-600 block text-xs font-bold">통산 총 경력</span>
                         <strong className="text-indigo-950 font-extrabold">{tenure.totalCareerText}</strong>
                       </div>
                     </div>

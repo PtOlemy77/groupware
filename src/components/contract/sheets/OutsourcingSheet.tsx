@@ -57,7 +57,7 @@ export default function OutsourcingSheet({ items, onChangeItems, readOnly }: Pro
 
         <div className="flex items-center gap-3">
           <div className="text-right">
-            <span className="text-[11px] text-slate-500">외주용역비 합계:</span>
+            <span className="text-xs text-slate-500">외주용역비 합계:</span>
             <span className="ml-2 font-bold text-sm text-indigo-600">
               {totalAmount.toLocaleString()} 천원
             </span>

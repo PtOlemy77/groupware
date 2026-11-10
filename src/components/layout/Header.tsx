@@ -1,6 +1,8 @@
 'use client';
 
 import React from 'react';
+import NotificationBell from '@/components/layout/NotificationBell';
+import type { ProcurementFilter } from '@/types/procurement';
 import {
   AuthUser,
   normalizeUserRole,
@@ -20,6 +22,7 @@ interface Props {
   onOpenCreateModal?: () => void;
   onGoBack?: () => void;
   canGoBack?: boolean;
+  onProcurementOpen?: (filter: ProcurementFilter) => void;
 }
 
 const TAB_TITLES: Partial<Record<TabKey, { label: string; sub: string }>> = {
@@ -29,6 +32,7 @@ const TAB_TITLES: Partial<Record<TabKey, { label: string; sub: string }>> = {
   employees: { label: '직원 관리', sub: '임직원 명부 및 조직도' },
   equipments: { label: 'IT 자산 관리', sub: '모니터 · 데스크탑 · 노트북' },
   evaluations: { label: '인사 평가 관리', sub: 'KPI/역량/다면평가 등급' },
+  procurement: { label: '입찰공고 관리', sub: '나라장터 관심조건 및 공고 알림' },
   master_data: { label: '기준정보 관리', sub: '연도별 SW 기술자 노임단가 및 사내 공통 코드 관리' },
 };
 
@@ -41,6 +45,7 @@ export default function Header({
   onOpenCreateModal,
   onGoBack,
   canGoBack = false,
+  onProcurementOpen,
 }: Props) {
   const currentTabInfo = TAB_TITLES[activeTab] || { label: '그룹웨어', sub: '' };
   const roleCode = getRoleCode(currentUser);
@@ -98,7 +103,7 @@ export default function Header({
               {currentUser.name} {currentUser.position}
             </span>
             <span
-              className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+              className={`text-xs font-bold px-2 py-0.5 rounded-full border ${
                 roleCode === 'ROLE_ADMIN'
                   ? 'bg-rose-50 text-rose-700 border-rose-200'
                   : roleCode === 'ROLE_EXEC'
@@ -117,6 +122,8 @@ export default function Header({
           className="flex items-center justify-center rounded-xl border border-slate-200 px-3 py-1.5 text-slate-600 transition hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/25">
           <Globe className="h-4 w-4" />
         </a>
+
+        {onProcurementOpen && <NotificationBell employeeId={currentUser.id} onOpen={onProcurementOpen} />}
 
         {/* Refresh button */}
         <button

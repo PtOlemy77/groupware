@@ -85,7 +85,7 @@ export function TabGroup({
             <span>{tab.label}</span>
             {tab.count !== undefined && (
               <span
-                className={`font-mono text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                className={`font-mono text-xs px-1.5 py-0.5 rounded-full font-bold ${
                   isActive
                     ? isSegmented
                       ? 'bg-indigo-50 text-indigo-700'
@@ -97,7 +97,7 @@ export function TabGroup({
               </span>
             )}
             {tab.badge && (
-              <span className="text-[10px] px-1.5 py-0.2 rounded-full font-bold bg-amber-100 text-amber-800">
+              <span className="text-xs px-1.5 py-0.5 rounded-full font-bold bg-amber-100 text-amber-800">
                 {tab.badge}
               </span>
             )}

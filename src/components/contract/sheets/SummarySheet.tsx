@@ -254,7 +254,7 @@ export default function SummarySheet({
             <FileText className="w-3.5 h-3.5 text-indigo-600" />
             ■ 계약일반현황
           </span>
-          <span className="text-[11px] text-slate-500">금액 단위: 천원 (VAT 별도)</span>
+          <span className="text-xs text-slate-500">금액 단위: 천원 (VAT 별도)</span>
         </div>
 
         <div className="p-5 space-y-5 text-xs">
@@ -282,7 +282,7 @@ export default function SummarySheet({
             <div className="lg:col-span-5 space-y-1.5">
               <label className="block font-bold text-slate-700 flex items-center justify-between">
                 <span>고객사 (발주처)</span>
-                {!readOnly && <span className="text-[10px] font-normal text-slate-400">클릭 시 자동입력</span>}
+                {!readOnly && <span className="text-xs font-normal text-slate-400">클릭 시 자동입력</span>}
               </label>
               {readOnly ? (
                 <div className="p-2.5 rounded-lg bg-slate-50 font-semibold text-slate-900 border border-slate-200">
@@ -303,7 +303,7 @@ export default function SummarySheet({
                         key={c}
                         type="button"
                         onClick={() => onChangeDoc({ clientName: c })}
-                        className={`px-2 py-0.5 rounded-md text-[10px] font-medium border transition ${
+                        className={`px-2 py-0.5 rounded-md text-xs font-medium border transition ${
                           doc.clientName === c
                             ? 'bg-indigo-600 text-white border-indigo-600'
                             : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
@@ -350,7 +350,7 @@ export default function SummarySheet({
                     <span className="font-bold text-slate-600 shrink-0">천원</span>
                   </div>
                   <div className="flex flex-wrap items-center gap-1">
-                    <span className="text-[10px] text-slate-400 mr-1">빠른 금액:</span>
+                    <span className="text-xs text-slate-400 mr-1">빠른 금액:</span>
                     {[
                       { label: '+1억', delta: 100000 },
                       { label: '+5천만', delta: 50000 },
@@ -366,7 +366,7 @@ export default function SummarySheet({
                             btn.set !== undefined ? btn.set : doc.supplyAmount + (btn.delta || 0)
                           )
                         }
-                        className="px-2 py-1 rounded-lg bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 text-slate-700 font-semibold text-[11px] transition border border-slate-200"
+                        className="px-2 py-1 rounded-lg bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 text-slate-700 font-semibold text-xs transition border border-slate-200"
                       >
                         {btn.label}
                       </button>
@@ -396,7 +396,7 @@ export default function SummarySheet({
                 <div className="space-y-1.5">
                   <div className="grid grid-cols-2 gap-2">
                     <div className="flex items-center gap-1.5 bg-white border border-slate-300 rounded-xl px-2.5 py-1.5">
-                      <span className="text-[10px] text-slate-400 font-semibold">착수:</span>
+                      <span className="text-xs text-slate-400 font-semibold">착수:</span>
                       <input
                         type="date"
                         value={startDate || doc.startDate || ''}
@@ -412,7 +412,7 @@ export default function SummarySheet({
                       />
                     </div>
                     <div className="flex items-center gap-1.5 bg-white border border-slate-300 rounded-xl px-2.5 py-1.5">
-                       <span className="text-[10px] text-slate-400 font-semibold">완료:</span>
+                       <span className="text-xs text-slate-400 font-semibold">완료:</span>
                       <input
                         type="date"
                         value={endDate || doc.endDate || ''}
@@ -429,13 +429,13 @@ export default function SummarySheet({
                     </div>
                   </div>
                   <div className="flex flex-wrap items-center gap-1">
-                    <span className="text-[10px] text-slate-400 mr-1">기간 자동완성:</span>
+                    <span className="text-xs text-slate-400 mr-1">기간 자동완성:</span>
                     {[3, 6, 8, 10, 12].map((m) => (
                       <button
                         key={m}
                         type="button"
                         onClick={() => applyDurationPreset(m)}
-                        className="px-2 py-1 rounded-lg bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 text-slate-700 font-semibold text-[11px] transition border border-slate-200"
+                        className="px-2 py-1 rounded-lg bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 text-slate-700 font-semibold text-xs transition border border-slate-200"
                       >
                         {m}개월
                       </button>
