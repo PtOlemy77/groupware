@@ -2,12 +2,13 @@ package com.nexus.groupware.core.code;
 
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 
 public enum StatusCode {
   STATUS_ACTIVE("STATUS_ACTIVE", "재직", 1),
   STATUS_LEAVE("STATUS_LEAVE", "휴직", 2),
   STATUS_RETIRED("STATUS_RETIRED", "퇴사", 3);
+
+  public record StatusOptionVo(String code, String label, int sortOrder) {}
 
   private final String code;
   private final String label;
@@ -48,13 +49,9 @@ public enum StatusCode {
     throw new IllegalArgumentException("유효하지 않은 사원 상태 코드입니다: " + input);
   }
 
-  public static List<Map<String, Object>> toList() {
+  public static List<StatusOptionVo> toList() {
     return Arrays.stream(values())
-        .map(s -> Map.<String, Object>of(
-            "code", s.code,
-            "label", s.label,
-            "sort_order", s.sortOrder
-        ))
+        .map(s -> new StatusOptionVo(s.code, s.label, s.sortOrder))
         .toList();
   }
 }

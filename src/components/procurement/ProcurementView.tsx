@@ -499,7 +499,8 @@ export default function ProcurementView({ refreshKey }: ProcurementViewProps) {
                 </div>
 
                 {/* 공고 종류 셀렉트 */}
-                <select
+                <Select
+                  size="sm"
                   aria-label="공고 종류"
                   value={selectedKind}
                   onChange={(e) =>
@@ -509,15 +510,15 @@ export default function ProcurementView({ refreshKey }: ProcurementViewProps) {
                       unread: isUnreadOnly,
                     })
                   }
-                  className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-100"
                 >
                   <option value="ALL">전체 공고</option>
                   <option value="BID">입찰공고</option>
                   <option value="SPEC">사전규격</option>
-                </select>
+                </Select>
 
                 {/* 업무 구분 셀렉트 */}
-                <select
+                <Select
+                  size="sm"
                   aria-label="업무 구분"
                   value={selectedBusiness}
                   onChange={(e) =>
@@ -527,17 +528,16 @@ export default function ProcurementView({ refreshKey }: ProcurementViewProps) {
                       unread: isUnreadOnly,
                     })
                   }
-                  className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-100"
                 >
                   {Object.entries(businessLabels).map(([code, label]) => (
                     <option key={code} value={code}>
                       {label}
                     </option>
                   ))}
-                </select>
+                </Select>
 
                 {/* 미읽음 전용 체크박스 */}
-                <label className="flex items-center gap-2 cursor-pointer select-none rounded-xl border border-slate-200 bg-slate-50/80 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition">
+                <label className="h-9 inline-flex items-center gap-2 cursor-pointer select-none rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition">
                   <input
                     type="checkbox"
                     aria-label="미읽음만"
@@ -564,14 +564,14 @@ export default function ProcurementView({ refreshKey }: ProcurementViewProps) {
             {/* 공고 테이블 카드 */}
             <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xs">
               <div className="max-h-[calc(100dvh-22rem)] min-h-60 overflow-auto">
-                <Table aria-label="관심 공고 목록" className="min-w-[960px] table-fixed">
+                <Table aria-label="관심 공고 목록" className="min-w-[1200px] table-fixed">
                   <colgroup>
                     <col className="w-24" />
-                    <col />
+                    <col className="min-w-[340px]" />
+                    <col className="w-56" />
                     <col className="w-48" />
-                    <col className="w-32" />
-                    <col className="w-32" />
-                    <col className="w-36" />
+                    <col className="w-48" />
+                    <col className="w-44" />
                   </colgroup>
                   <TableHead className="sticky top-0 z-10 backdrop-blur-xs">
                     <tr>
@@ -579,6 +579,7 @@ export default function ProcurementView({ refreshKey }: ProcurementViewProps) {
                         <TableHeaderCell
                           key={label}
                           align={label === '사업금액' ? 'right' : 'left'}
+                          className={label === '구분' ? 'px-4' : 'px-6'}
                         >
                           {label}
                         </TableHeaderCell>
@@ -600,7 +601,7 @@ export default function ProcurementView({ refreshKey }: ProcurementViewProps) {
                           className={isUnread ? 'bg-indigo-50/20 font-medium' : ''}
                         >
                           {/* 구분 */}
-                          <TableCell>
+                          <TableCell className="px-4">
                             <span
                               className={`inline-flex items-center whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold border ${
                                 isBid
@@ -613,7 +614,7 @@ export default function ProcurementView({ refreshKey }: ProcurementViewProps) {
                           </TableCell>
 
                           {/* 사업명 (원문 링크 포함) */}
-                          <TableCell>
+                          <TableCell className="px-6">
                             {sourceLink ? (
                               <a
                                 href={sourceLink}
@@ -642,7 +643,7 @@ export default function ProcurementView({ refreshKey }: ProcurementViewProps) {
                           </TableCell>
 
                           {/* 기관 */}
-                          <TableCell className="text-slate-600">
+                          <TableCell className="px-6 text-slate-600">
                             <span
                               className="block truncate"
                               title={item.notice.demand_agency || item.notice.agency}
@@ -652,17 +653,17 @@ export default function ProcurementView({ refreshKey }: ProcurementViewProps) {
                           </TableCell>
 
                           {/* 등록일 */}
-                          <TableCell className="whitespace-nowrap tabular-nums text-slate-500">
+                          <TableCell className="px-6 whitespace-nowrap tabular-nums text-slate-500">
                             {procurementDate(item.notice.published_at)}
                           </TableCell>
 
                           {/* 마감일 */}
-                          <TableCell className="whitespace-nowrap tabular-nums text-slate-600 font-medium">
+                          <TableCell className="px-6 whitespace-nowrap tabular-nums text-slate-600 font-medium">
                             {procurementDate(item.notice.deadline)}
                           </TableCell>
 
                           {/* 사업금액 */}
-                          <TableCell align="right" className="whitespace-nowrap tabular-nums font-bold text-slate-800">
+                          <TableCell align="right" className="px-6 whitespace-nowrap tabular-nums font-bold text-slate-800">
                             {procurementAmount(item.notice.budget)}
                           </TableCell>
                         </TableRow>

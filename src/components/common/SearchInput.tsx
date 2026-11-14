@@ -38,10 +38,10 @@ export const SearchInput = forwardRef<HTMLInputElement, SearchInputProps>(
           value={value}
           onChange={onChange}
           placeholder={placeholder}
-          className={`w-full rounded-xl border border-slate-300/90 bg-white text-slate-800 placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all ${
+          className={`w-full rounded-xl border border-slate-200 hover:border-slate-300 bg-white text-slate-800 placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all font-medium ${
             isSm
-              ? 'py-1.5 pl-8 pr-8 text-xs'
-              : 'py-2 pl-9 pr-8 text-xs sm:text-sm'
+              ? 'h-9 py-1.5 pl-8 pr-8 text-xs'
+              : 'h-10 py-2 pl-9 pr-8 text-sm'
           }`}
           {...rest}
         />

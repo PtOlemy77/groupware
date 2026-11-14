@@ -9,7 +9,7 @@ import {
   BusinessDeal,
   Employee,
   ManpowerPlanItem,
-  STANDARD_UNIT_PRICES,
+  inferTechnicalGrade,
   formatCurrencyManwon,
 } from '@/types/groupware';
 import {
@@ -160,9 +160,8 @@ export default function SummarySheet({
     const newManpowerPlans: ManpowerPlanItem[] = projectEmployees.map((matchedEmp, idx) => {
       const mName = matchedEmp.name;
       const pos = matchedEmp ? matchedEmp.position : idx === 0 ? '부장' : '과장';
-      const priceObj = STANDARD_UNIT_PRICES.find((p) => p.position === pos);
       const unitPrice = configuredPrice(pos, new Date(prj.start_date).getFullYear());
-      const grade = (priceObj ? priceObj.grade : '고급') as '특급' | '고급' | '중급' | '초급';
+      const grade = inferTechnicalGrade(pos);
       const role = matchedEmp
         ? mName === prj.pm_name
           ? '총괄 PM'

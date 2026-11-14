@@ -133,7 +133,7 @@ public class Approval extends VersionedEntity {
     this.title = title;
     this.requester = requester;
     this.requesterPosition = requesterPosition;
-    this.setDepartment(department);
+    applyDepartment(department);
     this.createdAt = createdAt;
     this.status = status;
     this.amount = amount;
@@ -212,6 +212,10 @@ public class Approval extends VersionedEntity {
   }
 
   public void setDepartment(String department) {
+    applyDepartment(department);
+  }
+
+  private void applyDepartment(String department) {
     this.department = department;
     if (department != null && !department.isBlank()) {
       try {

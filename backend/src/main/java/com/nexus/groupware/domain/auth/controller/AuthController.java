@@ -1,51 +1,71 @@
 package com.nexus.groupware.domain.auth.controller;
 
-import com.nexus.groupware.domain.employee.db.Employee;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.nexus.groupware.core.security.AuthService;
+import com.nexus.groupware.domain.employee.db.Employee;
 import jakarta.servlet.http.HttpServletRequest;
-import java.util.Map;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.csrf.CsrfToken;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/auth")
 public class AuthController {
+  public record CsrfResponse(String token) {}
+
+  @JsonIgnoreProperties(ignoreUnknown = true)
+  public record LoginRequest(String identifier, String password) {}
+
+  @JsonIgnoreProperties(ignoreUnknown = true)
+  public record PasswordChangeRequest(String currentPassword, String newPassword) {}
+
+  public record AuthUserResponse(boolean ok, Employee user) {}
+
+  public record CurrentUserResponse(Employee user) {}
+
+  public record OkResponse(boolean ok) {}
+
   private final AuthService auth;
 
-  public AuthController(AuthService a) {
-    auth = a;
+  public AuthController(AuthService auth) {
+    this.auth = auth;
   }
 
   @GetMapping("/csrf")
-  public Map<String, String> csrf(CsrfToken token) {
-    return Map.of("token", token.getToken());
+  public CsrfResponse csrf(CsrfToken token) {
+    return new CsrfResponse(token.getToken());
   }
 
   @PostMapping("/login")
-  public Map<String, Object> login(@RequestBody Map<String, String> p, HttpServletRequest req) {
-    return Map.of("ok", true, "user", auth.login(p.get("identifier"), p.get("password"), req));
+  public AuthUserResponse login(@RequestBody LoginRequest request, HttpServletRequest httpRequest) {
+    return new AuthUserResponse(
+        true, auth.login(request.identifier(), request.password(), httpRequest));
   }
 
   @GetMapping("/me")
-  public Map<String, Employee> me() {
-    return Map.of("user", auth.current());
+  public CurrentUserResponse me() {
+    return new CurrentUserResponse(auth.current());
   }
 
   @PostMapping("/password")
-  public Map<String, Object> password(@RequestBody Map<String, String> p, HttpServletRequest req) {
-    return Map.of(
-        "ok",
+  public AuthUserResponse password(
+      @RequestBody PasswordChangeRequest request, HttpServletRequest httpRequest) {
+    return new AuthUserResponse(
         true,
-        "user",
-        auth.changePassword(p.get("current_password"), p.get("new_password"), req));
+        auth.changePassword(request.currentPassword(), request.newPassword(), httpRequest));
   }
 
   @PostMapping("/logout")
-  public Map<String, Boolean> logout(HttpServletRequest req) {
-    var s = req.getSession(false);
-    if (s != null) s.invalidate();
+  public OkResponse logout(HttpServletRequest httpRequest) {
+    var session = httpRequest.getSession(false);
+    if (session != null) {
+      session.invalidate();
+    }
     SecurityContextHolder.clearContext();
-    return Map.of("ok", true);
+    return new OkResponse(true);
   }
 }

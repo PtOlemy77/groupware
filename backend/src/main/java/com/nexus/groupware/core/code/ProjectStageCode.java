@@ -2,13 +2,14 @@ package com.nexus.groupware.core.code;
 
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 
 public enum ProjectStageCode {
   STAGE_ORDER("STAGE_ORDER", "발주예상", 1),
   STAGE_PROPOSAL("STAGE_PROPOSAL", "제안준비중", 2),
   STAGE_EXEC("STAGE_EXEC", "프로젝트 수행", 3),
   STAGE_DONE("STAGE_DONE", "완료", 4);
+
+  public record ProjectStageOptionVo(String code, String label, int sortOrder) {}
 
   private final String code;
   private final String label;
@@ -48,13 +49,9 @@ public enum ProjectStageCode {
     throw new IllegalArgumentException("유효하지 않은 프로젝트 단계 코드입니다: " + input);
   }
 
-  public static List<Map<String, Object>> toList() {
+  public static List<ProjectStageOptionVo> toList() {
     return Arrays.stream(values())
-        .map(s -> Map.<String, Object>of(
-            "code", s.code,
-            "label", s.label,
-            "sort_order", s.sortOrder
-        ))
+        .map(s -> new ProjectStageOptionVo(s.code, s.label, s.sortOrder))
         .toList();
   }
 }

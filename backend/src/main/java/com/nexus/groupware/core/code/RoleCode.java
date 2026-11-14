@@ -2,13 +2,14 @@ package com.nexus.groupware.core.code;
 
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 
 public enum RoleCode {
   ROLE_ADMIN("ROLE_ADMIN", "시스템 관리자", 4),
   ROLE_EXEC("ROLE_EXEC", "임원 권한", 3),
   ROLE_PM("ROLE_PM", "PM 권한", 2),
   ROLE_STAFF("ROLE_STAFF", "일반직원", 1);
+
+  public record RoleOptionVo(String code, String label, int rank) {}
 
   private final String code;
   private final String label;
@@ -60,13 +61,9 @@ public enum RoleCode {
     return this == ROLE_ADMIN || this == ROLE_EXEC || this == ROLE_PM;
   }
 
-  public static List<Map<String, Object>> toOptions() {
+  public static List<RoleOptionVo> toOptions() {
     return Arrays.stream(values())
-        .map(r -> Map.<String, Object>of(
-            "code", r.getCode(),
-            "label", r.getLabel(),
-            "rank", r.getRank()
-        ))
+        .map(r -> new RoleOptionVo(r.getCode(), r.getLabel(), r.getRank()))
         .toList();
   }
 }

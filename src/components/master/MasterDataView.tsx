@@ -6,7 +6,6 @@ import React, { useState, useMemo, useEffect, useLayoutEffect, useRef } from 're
 import {
   AuthUser,
   CommonCode,
-  STANDARD_UNIT_PRICES,
   formatCurrencyManwon,
 } from '@/types/groupware';
 import {
@@ -94,11 +93,6 @@ export const DEFAULT_TARGET_REVENUES: Record<number, YearlyTargetRevenueItem> = 
 
 export const STORAGE_KEY_TARGET_REVENUES = 'spatialt_master_target_revenues';
 
-// 연도별 기본 노임단가 데이터셋 (2025, 2026, 2027, 2028)
-const DEFAULT_YEARLY_PRICES: Record<number, YearlyUnitPriceItem[]> = {
-  [new Date().getFullYear()]: ['이사','부장','차장','과장','대리','담당'].map((position, i) => ({ id: `price-${i}`, position, grade: (i < 2 ? '특급' : i < 4 ? '고급' : i === 4 ? '중급' : '초급') as YearlyUnitPriceItem['grade'], dailyPrice: 0, monthlyPrice: 0 }))
-};
-
 const STORAGE_KEY_UNIT_PRICES = 'spatialt_master_unit_prices';
 
 export default function MasterDataView({
@@ -131,7 +125,7 @@ export default function MasterDataView({
       const saved = readMaster(STORAGE_KEY_UNIT_PRICES);
       if (saved) return JSON.parse(saved);
     } catch (e) {}
-    return DEFAULT_YEARLY_PRICES;
+    return {};
   });
 
   const [savingPrices, setSavingPrices] = useState(false);
@@ -174,13 +168,13 @@ export default function MasterDataView({
 
   // 현재 연도의 단가 목록
   const currentPrices = useMemo(() => {
-    return yearlyPrices[selectedYear] || DEFAULT_YEARLY_PRICES[new Date().getFullYear()] || [];
+    return yearlyPrices[selectedYear] || [];
   }, [yearlyPrices, selectedYear]);
 
   // 특정 연도의 단가 변경 (월단가 또는 일단가)
   const handlePriceChange = (id: string, field: 'monthlyPrice' | 'dailyPrice', val: any) => {
     setYearlyPrices((prev) => {
-      const list = prev[selectedYear] ? [...prev[selectedYear]] : [...DEFAULT_YEARLY_PRICES[new Date().getFullYear()]];
+      const list = prev[selectedYear] ? [...prev[selectedYear]] : [];
       const updated = list.map((it) => {
         if (it.id === id) {
           if (field === 'monthlyPrice') {
@@ -292,7 +286,7 @@ export default function MasterDataView({
   const handleAddYear = () => {
     const years = Object.keys(yearlyPrices).map(Number).sort((a, b) => b - a);
     const nextYear = (years[0] || new Date().getFullYear()) + 1;
-    const baseList = yearlyPrices[years[0]] || DEFAULT_YEARLY_PRICES[new Date().getFullYear()];
+    const baseList = yearlyPrices[years[0]] || [];
     // 전년도 대비 약 4.5% 인상된 기본값 생성
     const newList: YearlyUnitPriceItem[] = baseList.map((it) => {
       const newM = Math.round(it.monthlyPrice * 1.045);
@@ -818,7 +812,31 @@ export default function MasterDataView({
                         </span>
                       </TableCell>
                       <TableCell className="text-slate-500 text-xs">
-                        {c.extra_value && c.extra_value.length > 160 ? <button type="button" aria-expanded={expandedDescriptions.has(c.id)} aria-controls={`code-description-${c.id}`} onClick={() => setExpandedDescriptions(previous => { const next = new Set(previous); next.has(c.id) ? next.delete(c.id) : next.add(c.id); return next; })} className="rounded-lg border border-indigo-200 bg-indigo-50 px-2.5 py-1.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-100">부가 정보 {expandedDescriptions.has(c.id) ? '접기' : '펼치기'}</button> : <span className="whitespace-pre-wrap break-words text-sm leading-relaxed">{c.extra_value || '-'}</span>}
+                        {c.extra_value && c.extra_value.length > 160 ? (
+                          <button
+                            type="button"
+                            aria-expanded={expandedDescriptions.has(c.id)}
+                            aria-controls={`code-description-${c.id}`}
+                            onClick={() => {
+                              setExpandedDescriptions((previous) => {
+                                const next = new Set(previous);
+                                if (next.has(c.id)) {
+                                  next.delete(c.id);
+                                } else {
+                                  next.add(c.id);
+                                }
+                                return next;
+                              });
+                            }}
+                            className="rounded-lg border border-indigo-200 bg-indigo-50 px-2.5 py-1.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-100"
+                          >
+                            부가 정보 {expandedDescriptions.has(c.id) ? '접기' : '펼치기'}
+                          </button>
+                        ) : (
+                          <span className="whitespace-pre-wrap break-words text-sm leading-relaxed">
+                            {c.extra_value || '-'}
+                          </span>
+                        )}
                       </TableCell>
                       <TableCell align="right" className="sticky right-0 bg-white shadow-[-3px_0_6px_-4px_#94a3b8]">
                         <div className="flex items-center justify-end gap-1">
@@ -843,7 +861,29 @@ export default function MasterDataView({
                 ))}
               </TableBody>
             </Table>
-            {filteredCodes.filter(c => c.extra_value && c.extra_value.length > 160 && expandedDescriptions.has(c.id)).map(c => <div key={c.id} className="min-w-0 border-t border-slate-200 bg-slate-50 p-4"><h4 className="mb-2 break-words text-sm font-semibold text-slate-800">{c.code_name}</h4><div id={`code-description-${c.id}`} className="whitespace-pre-wrap break-all text-sm leading-relaxed text-slate-600">{c.extra_value}</div></div>)}
+            {filteredCodes
+              .filter(
+                (c) =>
+                  c.extra_value &&
+                  c.extra_value.length > 160 &&
+                  expandedDescriptions.has(c.id),
+              )
+              .map((c) => (
+                <div
+                  key={c.id}
+                  className="min-w-0 border-t border-slate-200 bg-slate-50 p-4"
+                >
+                  <h4 className="mb-2 break-words text-sm font-semibold text-slate-800">
+                    {c.code_name}
+                  </h4>
+                  <div
+                    id={`code-description-${c.id}`}
+                    className="whitespace-pre-wrap break-all text-sm leading-relaxed text-slate-600"
+                  >
+                    {c.extra_value}
+                  </div>
+                </div>
+              ))}
           </TableContainer>
         </div>
       )}

@@ -132,28 +132,28 @@ public class Employee extends VersionedEntity {
     this.empNo = empNo;
     this.name = name;
     if (departmentCode != null && !departmentCode.isBlank()) {
-      this.setDepartmentCode(departmentCode);
+      applyDepartmentCode(departmentCode);
     } else if (department != null && !department.isBlank()) {
-      this.setDepartment(department);
+      applyDepartment(department);
     } else {
-      this.setDepartmentCode("DEPT_RND");
+      applyDepartmentCode("DEPT_RND");
     }
     if (positionCode != null && !positionCode.isBlank()) {
-      this.setPositionCode(positionCode);
+      applyPositionCode(positionCode);
     } else if (position != null && !position.isBlank()) {
-      this.setPosition(position);
+      applyPosition(position);
     } else {
-      this.setPositionCode("POS_STAFF");
+      applyPositionCode("POS_STAFF");
     }
     this.email = email;
     this.phone = phone;
     this.hireDate = hireDate;
-    this.setStatus(status != null ? status : "재직");
+    applyStatus(status != null ? status : "재직");
     this.leaveRemaining = leaveRemaining;
     this.leaveTotal = leaveTotal;
     this.skills = skills;
     this.avatarColor = avatarColor;
-    this.setRole(role != null ? role : "일반직원");
+    applyRole(role != null ? role : "일반직원");
     this.password = null;
   }
 
@@ -186,6 +186,10 @@ public class Employee extends VersionedEntity {
   }
 
   public void setDepartmentCode(String departmentCode) {
+    applyDepartmentCode(departmentCode);
+  }
+
+  private void applyDepartmentCode(String departmentCode) {
     this.departmentCode = departmentCode;
     if (departmentCode != null && !departmentCode.isBlank()) {
       try {
@@ -199,6 +203,10 @@ public class Employee extends VersionedEntity {
   }
 
   public void setDepartment(String department) {
+    applyDepartment(department);
+  }
+
+  private void applyDepartment(String department) {
     this.department = department;
     if (department != null && !department.isBlank()) {
       try {
@@ -212,6 +220,10 @@ public class Employee extends VersionedEntity {
   }
 
   public void setPositionCode(String positionCode) {
+    applyPositionCode(positionCode);
+  }
+
+  private void applyPositionCode(String positionCode) {
     this.positionCode = positionCode;
     if (positionCode != null && !positionCode.isBlank()) {
       try {
@@ -225,6 +237,10 @@ public class Employee extends VersionedEntity {
   }
 
   public void setPosition(String position) {
+    applyPosition(position);
+  }
+
+  private void applyPosition(String position) {
     this.position = position;
     if (position != null && !position.isBlank()) {
       try {
@@ -275,6 +291,10 @@ public class Employee extends VersionedEntity {
   }
 
   public void setStatus(String status) {
+    applyStatus(status);
+  }
+
+  private void applyStatus(String status) {
     this.status = status;
     if (status != null && !status.isBlank()) {
       try {
@@ -320,9 +340,13 @@ public class Employee extends VersionedEntity {
   }
 
   public void setRole(String role) {
+    applyRole(role);
+  }
+
+  private void applyRole(String role) {
     this.role = role;
     if (role != null) {
-      this.roleCode = com.nexus.groupware.core.code.RoleCode.fromCodeOrLabel(role).getCode();
+      this.roleCode = RoleCode.fromCodeOrLabel(role).getCode();
     }
   }
 

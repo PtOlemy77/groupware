@@ -1,7 +1,15 @@
 package com.nexus.groupware.domain.procurement.controller;
 
+import com.nexus.groupware.domain.procurement.db.ProcurementRule;
+import com.nexus.groupware.domain.procurement.dto.ProcurementDtos.OkResponse;
+import com.nexus.groupware.domain.procurement.dto.ProcurementDtos.ProcurementAlertPageResponse;
+import com.nexus.groupware.domain.procurement.dto.ProcurementDtos.ProcurementAlertVo;
+import com.nexus.groupware.domain.procurement.dto.ProcurementDtos.ProcurementStatusResponse;
+import com.nexus.groupware.domain.procurement.dto.ProcurementDtos.RuleSaveRequest;
+import com.nexus.groupware.domain.procurement.dto.ProcurementDtos.SyncTriggerResponse;
+import com.nexus.groupware.domain.procurement.dto.ProcurementDtos.VersionRequest;
 import com.nexus.groupware.domain.procurement.service.ProcurementService;
-import java.util.Map;
+import java.util.List;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -27,7 +35,7 @@ public class ProcurementController {
      * 연동 상태 및 미읽음 알림 통계 조회
      */
     @GetMapping("/status")
-    public Map<String, Object> getStatus() {
+    public ProcurementStatusResponse getStatus() {
         return procurementService.status();
     }
 
@@ -35,7 +43,7 @@ public class ProcurementController {
      * 로그인한 임직원의 관심조건 목록 조회
      */
     @GetMapping("/rules")
-    public Object getRules() {
+    public List<ProcurementRule> getRules() {
         return procurementService.rules();
     }
 
@@ -43,38 +51,38 @@ public class ProcurementController {
      * 신규 관심조건 등록
      */
     @PostMapping("/rules")
-    public Object createRule(@RequestBody Map<String, Object> body) {
-        return procurementService.save(null, body);
+    public ProcurementRule createRule(@RequestBody RuleSaveRequest request) {
+        return procurementService.save(null, request);
     }
 
     /**
      * 관심조건 수정
      */
     @PostMapping("/rules/{id}")
-    public Object updateRule(
+    public ProcurementRule updateRule(
             @PathVariable Long id,
-            @RequestBody Map<String, Object> body
+            @RequestBody RuleSaveRequest request
     ) {
-        return procurementService.save(id, body);
+        return procurementService.save(id, request);
     }
 
     /**
      * 관심조건 삭제
      */
     @PostMapping("/rules/{id}/delete")
-    public Object deleteRule(
+    public OkResponse deleteRule(
             @PathVariable Long id,
-            @RequestBody Map<String, Object> body
+            @RequestBody VersionRequest request
     ) {
-        procurementService.delete(id, body);
-        return Map.of("ok", true);
+        procurementService.delete(id, request);
+        return new OkResponse(true);
     }
 
     /**
      * 매칭된 공고 알림 목록 검색 및 페이징 조회
      */
     @GetMapping("/alerts")
-    public Object listAlerts(
+    public ProcurementAlertPageResponse listAlerts(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(defaultValue = "") String q,
@@ -89,7 +97,7 @@ public class ProcurementController {
      * 특정 공고 알림 상세 조회
      */
     @GetMapping("/alerts/{id}")
-    public Object getAlertDetail(@PathVariable Long id) {
+    public ProcurementAlertVo getAlertDetail(@PathVariable Long id) {
         return procurementService.detail(id);
     }
 
@@ -97,18 +105,18 @@ public class ProcurementController {
      * 공고 알림 읽음 처리
      */
     @PostMapping("/alerts/{id}/read")
-    public Object markAlertAsRead(
+    public ProcurementAlertVo markAlertAsRead(
             @PathVariable Long id,
-            @RequestBody Map<String, Object> body
+            @RequestBody VersionRequest request
     ) {
-        return procurementService.read(id, body);
+        return procurementService.read(id, request);
     }
 
     /**
      * 나라장터 공고 수동 동기화 요청
      */
     @PostMapping("/sync")
-    public Object requestManualSync() {
+    public SyncTriggerResponse requestManualSync() {
         return procurementService.requestSync();
     }
 }

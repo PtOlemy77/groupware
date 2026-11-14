@@ -35,6 +35,7 @@ import {
   Button,
   TabGroup,
   PageHeaderBar,
+  Select,
 } from '@/components/common';
 
 interface Props {
@@ -322,17 +323,18 @@ export default function WeeklyMonthlyReportView({
             />
 
             {/* 주차 / 월 선택 셀렉트 */}
-            <select
+            <Select
+              size="sm"
               value={selectedPeriodKey}
               onChange={(e) => setSelectedPeriodKey(e.target.value)}
-              className="px-3 py-1.5 rounded-xl border border-slate-300/90 text-xs font-bold text-slate-800 bg-white focus:ring-2 focus:ring-indigo-500/20 focus:outline-none"
+              className="min-w-[160px]"
             >
               {periods.map((p) => (
                 <option key={p.key} value={p.key}>
                   {p.label}
                 </option>
               ))}
-            </select>
+            </Select>
 
             {/* 뷰 전환: 프로젝트별 PM 작성 vs 이사 취합·사장님 보고 통합뷰 */}
             <TabGroup

@@ -1,10 +1,14 @@
 package com.nexus.groupware.domain.groupware.service;
+
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nexus.groupware.core.base.VersionedEntity;
 import com.nexus.groupware.core.code.DepartmentCode;
 import com.nexus.groupware.core.code.PositionCode;
 import com.nexus.groupware.core.code.ProjectStageCode;
 import com.nexus.groupware.core.code.RoleCode;
 import com.nexus.groupware.core.code.StatusCode;
+import com.nexus.groupware.core.security.AuthService;
 import com.nexus.groupware.domain.approval.db.Approval;
 import com.nexus.groupware.domain.approval.db.ApprovalRepository;
 import com.nexus.groupware.domain.employee.db.Employee;
@@ -12,8 +16,19 @@ import com.nexus.groupware.domain.employee.db.EmployeeRepository;
 import com.nexus.groupware.domain.equipment.db.Equipment;
 import com.nexus.groupware.domain.equipment.db.EquipmentRepository;
 import com.nexus.groupware.domain.evaluation.db.Evaluation;
-import com.nexus.groupware.domain.evaluation.service.EvaluationPlanService;
 import com.nexus.groupware.domain.evaluation.db.EvaluationRepository;
+import com.nexus.groupware.domain.evaluation.service.EvaluationPlanService;
+import com.nexus.groupware.domain.groupware.dto.GroupwareDtos.ApprovalDetailVo;
+import com.nexus.groupware.domain.groupware.dto.GroupwareDtos.CompanyInfoVo;
+import com.nexus.groupware.domain.groupware.dto.GroupwareDtos.ContractApprovalLineVo;
+import com.nexus.groupware.domain.groupware.dto.GroupwareDtos.ContractApproverSlotVo;
+import com.nexus.groupware.domain.groupware.dto.GroupwareDtos.EmployeeDirectoryVo;
+import com.nexus.groupware.domain.groupware.dto.GroupwareDtos.EquipmentViewVo;
+import com.nexus.groupware.domain.groupware.dto.GroupwareDtos.GroupwareDataResponse;
+import com.nexus.groupware.domain.groupware.dto.GroupwareDtos.GroupwareMutationRequest;
+import com.nexus.groupware.domain.groupware.dto.GroupwareDtos.GroupwareMutationResponse;
+import com.nexus.groupware.domain.groupware.dto.GroupwareDtos.ModuleCountsVo;
+import com.nexus.groupware.domain.groupware.dto.GroupwareDtos.ProjectViewVo;
 import com.nexus.groupware.domain.master.db.BusinessDeal;
 import com.nexus.groupware.domain.master.db.BusinessDealRepository;
 import com.nexus.groupware.domain.master.db.CommonCode;
@@ -23,13 +38,27 @@ import com.nexus.groupware.domain.project.db.Project;
 import com.nexus.groupware.domain.project.db.ProjectRepository;
 import com.nexus.groupware.domain.system.db.AuditEvent;
 import com.nexus.groupware.domain.system.db.AuditEventRepository;
-
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.nexus.groupware.core.security.AuthService;
-import java.math.*;
-import java.time.*;
-import java.util.*;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.Year;
+import java.time.YearMonth;
+import java.time.ZoneId;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.UUID;
+import java.util.stream.Collectors;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -44,7 +73,7 @@ public class GroupwareService {
   private final EquipmentRepository equipment;
   private final BusinessDealRepository deals;
   private final EvaluationRepository evaluations;
-  private final com.nexus.groupware.domain.evaluation.service.EvaluationPlanService evaluationPlans;
+  private final EvaluationPlanService evaluationPlans;
   private final ApprovalRepository approvals;
   private final CommonCodeRepository codes;
   private final HolidayRepository holidays;
@@ -52,8 +81,8 @@ public class GroupwareService {
   private final AuthService auth;
   private final PasswordEncoder passwords;
   private final ObjectMapper json;
-  private final Map<String, JpaRepository<VersionedEntity, Long>> repositories;
-  private static final Set<String> ROLES = Set.of("시스템 관리자", "임원 권한", "PM 권한", "일반직원");
+  private final Map<String, JpaRepository<? extends VersionedEntity, Long>> repositories;
+
   private static final Map<String, Set<String>> FIELDS =
       Map.of(
           "employees",
@@ -102,37 +131,29 @@ public class GroupwareService {
       AuthService auth,
       PasswordEncoder pw,
       ObjectMapper mapper,
-      com.nexus.groupware.domain.evaluation.service.EvaluationPlanService evaluationPlans) {
-    employees = e;
-    projects = p;
-    equipment = q;
-    deals = d;
-    evaluations = v;
+      EvaluationPlanService evaluationPlans) {
+    this.employees = e;
+    this.projects = p;
+    this.equipment = q;
+    this.deals = d;
+    this.evaluations = v;
     this.evaluationPlans = evaluationPlans;
-    approvals = a;
-    codes = c;
-    holidays = h;
-    audit = logs;
+    this.approvals = a;
+    this.codes = c;
+    this.holidays = h;
+    this.audit = logs;
     this.auth = auth;
-    passwords = pw;
-    json = mapper;
-    repositories =
-        (Map)
-            Map.of(
-                "employees",
-                e,
-                "projects",
-                p,
-                "equipments",
-                q,
-                "business_deals",
-                d,
-                "evaluations",
-                v,
-                "approvals",
-                a,
-                "common_codes",
-                c);
+    this.passwords = pw;
+    this.json = mapper;
+    this.repositories =
+        Map.of(
+            "employees", e,
+            "projects", p,
+            "equipments", q,
+            "business_deals", d,
+            "evaluations", v,
+            "approvals", a,
+            "common_codes", c);
   }
 
   private ResponseStatusException error(HttpStatus code, String message) {
@@ -158,13 +179,23 @@ public class GroupwareService {
         || (AuthService.pm(actor) && (p.getPmId() == null || Objects.equals(p.getPmId(), actor.getId())));
   }
 
-  private Map<String, Object> map(Object o) {
-    return json.convertValue(o, new TypeReference<>() {});
+  private Map<String, Object> toMap(Object o) {
+    return json.convertValue(o, new TypeReference<LinkedHashMap<String, Object>>() {});
   }
 
-  private <T> T read(String s, Class<T> type) {
+  private Map<String, Object> readMap(String s) {
     try {
-      return json.readValue(s, type);
+      Map<String, Object> parsed =
+          json.readValue(s, new TypeReference<LinkedHashMap<String, Object>>() {});
+      return parsed == null ? new LinkedHashMap<>() : parsed;
+    } catch (Exception e) {
+      throw new IllegalArgumentException("문서 JSON 형식이 올바르지 않습니다.");
+    }
+  }
+
+  private Object readAny(String s) {
+    try {
+      return json.readValue(s, Object.class);
     } catch (Exception e) {
       throw new IllegalArgumentException("문서 JSON 형식이 올바르지 않습니다.");
     }
@@ -172,10 +203,80 @@ public class GroupwareService {
 
   private Map<String, Object> safeDocument(String s) {
     try {
-      return read(s, Map.class);
+      return readMap(s);
     } catch (IllegalArgumentException e) {
-      return new HashMap<>(Map.of("invalid_document", true));
+      Map<String, Object> fallback = new LinkedHashMap<>();
+      fallback.put("invalid_document", true);
+      return fallback;
     }
+  }
+
+  private Map<String, Object> asMap(Object raw, String message) {
+    require(raw instanceof Map<?, ?>, message);
+    Map<String, Object> out = new LinkedHashMap<>();
+    for (var entry : ((Map<?, ?>) raw).entrySet()) {
+      out.put(Objects.toString(entry.getKey(), ""), entry.getValue());
+    }
+    return out;
+  }
+
+  private Map<String, Object> asOptionalMap(Object raw) {
+    if (!(raw instanceof Map<?, ?> map)) {
+      return new LinkedHashMap<>();
+    }
+    Map<String, Object> out = new LinkedHashMap<>();
+    for (var entry : map.entrySet()) {
+      out.put(Objects.toString(entry.getKey(), ""), entry.getValue());
+    }
+    return out;
+  }
+
+  private List<Map<String, Object>> normalizeMapList(
+      Map<String, Object> doc, String key, String message) {
+    Object raw = doc.get(key);
+    require(raw instanceof List<?>, message);
+    List<?> rawList = (List<?>) raw;
+    List<Map<String, Object>> normalized = new ArrayList<>(rawList.size());
+    for (Object item : rawList) {
+      normalized.add(asMap(item, message));
+    }
+    doc.put(key, normalized);
+    return normalized;
+  }
+
+  private List<Map<String, Object>> asOptionalMapList(Object raw) {
+    if (!(raw instanceof List<?> rawList)) {
+      return new ArrayList<>();
+    }
+    List<Map<String, Object>> out = new ArrayList<>(rawList.size());
+    for (Object item : rawList) {
+      if (item instanceof Map<?, ?>) {
+        out.add(asOptionalMap(item));
+      }
+    }
+    return out;
+  }
+
+  private List<Map<String, Object>> asMapList(Object raw, String message) {
+    require(raw instanceof List<?>, message);
+    List<?> rawList = (List<?>) raw;
+    List<Map<String, Object>> out = new ArrayList<>(rawList.size());
+    for (Object item : rawList) {
+      out.add(asMap(item, message));
+    }
+    return out;
+  }
+
+  private List<Object> asObjectList(Object raw, String message) {
+    require(raw instanceof List<?>, message);
+    return new ArrayList<>((List<?>) raw);
+  }
+
+  private List<Object> asOptionalObjectList(Object raw) {
+    if (!(raw instanceof List<?> rawList)) {
+      return new ArrayList<>();
+    }
+    return new ArrayList<>(rawList);
   }
 
   private String encode(Object o) {
@@ -187,52 +288,40 @@ public class GroupwareService {
   }
 
   @Transactional(readOnly = true)
-  public Map<String, Object> getAllData(String scope, int page, int size) {
+  public GroupwareDataResponse getAllData(String scope, int page, int size) {
     require(page >= 0 && size >= 1 && size <= 100, "페이지 범위를 확인하세요.");
     Employee actor = auth.current();
     boolean exec = AuthService.executive(actor);
+
     var visibleProjects =
         projects.findAllByOrderByIdDesc().stream().filter(p -> projectAccess(p, actor)).toList();
     Set<Long> projectIds = new HashSet<>();
     visibleProjects.forEach(p -> projectIds.add(p.getId()));
-    var result = new HashMap<String, Object>();
-    result.put(
-        "employees",
+
+    List<EmployeeDirectoryVo> employeeVos =
         employees.findAllByOrderByIdDesc().stream()
-            .map(e -> {
-              var dto = map(e);
-              dto.remove("password_change_required");
-              dto.remove("account_enabled");
-              if (!exec && !e.getId().equals(actor.getId()))
-                for (String key :
-                    List.of("email", "phone", "hire_date", "leave_remaining", "leave_total"))
-                  dto.remove(key);
-              return dto;
-            })
-            .toList());
-    result.put(
-        "projects",
+            .map(e -> EmployeeDirectoryVo.from(e, exec || e.getId().equals(actor.getId())))
+            .toList();
+
+    List<ProjectViewVo> projectVos =
         visibleProjects.stream()
-            .map(p -> {
-              var dto = map(p);
-              if (p.getPmId() != null) dto.put("pm_name", employee(p.getPmId()).getName());
-              dto.put(
-                  "members",
-                  p.getMemberIds().stream()
-                      .sorted()
-                      .map(id -> employee(id).getName())
-                      .collect(java.util.stream.Collectors.joining(", ")));
-              return dto;
-            })
-            .toList());
+            .map(
+                p -> {
+                  String resolvedPmName =
+                      p.getPmId() != null ? employee(p.getPmId()).getName() : p.getPmName();
+                  String resolvedMembers =
+                      p.getMemberIds().stream()
+                          .sorted()
+                          .map(id -> employee(id).getName())
+                          .collect(Collectors.joining(", "));
+                  return ProjectViewVo.from(p, resolvedPmName, resolvedMembers);
+                })
+            .toList();
+
     var pageable =
-        org.springframework.data.domain.PageRequest.of(
-            page,
-            size,
-            org.springframework.data.domain.Sort.by(
-                org.springframework.data.domain.Sort.Direction.DESC, "id"));
+        PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "id"));
     long pageTotal = 0;
-    var equipmentRows = org.springframework.data.domain.Page.<Equipment>empty(pageable);
+    Page<Equipment> equipmentRows = Page.empty(pageable);
     if ("equipments".equals(scope)) {
       equipmentRows =
           equipment.findAll(
@@ -241,43 +330,46 @@ public class GroupwareService {
               pageable);
       pageTotal = equipmentRows.getTotalElements();
     }
-    result.put(
-        "equipments",
+
+    List<EquipmentViewVo> equipmentVos =
         equipmentRows.getContent().stream()
-            .map(e -> {
-              var dto = map(e);
-              if (e.getEmpId() != null) {
-                var owner = employee(e.getEmpId());
-                dto.put("assigned_to", owner.getName());
-                dto.put("emp_no", owner.getEmpNo());
-                dto.put("department", owner.getDepartment());
-              }
-              return dto;
-            })
-            .toList());
+            .map(
+                e -> {
+                  if (e.getEmpId() != null) {
+                    var owner = employee(e.getEmpId());
+                    return EquipmentViewVo.from(
+                        e, owner.getName(), owner.getEmpNo(), owner.getDepartment());
+                  }
+                  return EquipmentViewVo.from(
+                      e, e.getAssignedTo(), e.getEmpNo(), e.getDepartment());
+                })
+            .toList();
+
+    List<BusinessDeal> dealList;
     if ("business_deals".equals(scope)) {
       var rows =
           deals.findAll(
               (root, query, builder) ->
                   exec ? builder.conjunction() : builder.equal(root.get("ownerId"), actor.getId()),
               pageable);
-      result.put("business_deals", rows.getContent());
+      dealList = rows.getContent();
       pageTotal = rows.getTotalElements();
-    } else
-      result.put(
-          "business_deals",
-          "dashboard".equals(scope)
-              ? deals.findAllByOrderByIdDesc().stream()
-                  .filter(d -> exec || Objects.equals(d.getOwnerId(), actor.getId()))
-                  .toList()
-              : List.of());
+    } else if ("dashboard".equals(scope)) {
+      dealList =
+          deals.findAllByOrderByIdDesc().stream()
+              .filter(d -> exec || Objects.equals(d.getOwnerId(), actor.getId()))
+              .toList();
+    } else {
+      dealList = List.of();
+    }
+
+    List<Evaluation> evaluationList;
     if ("evaluations".equals(scope)) {
       var evaluationPage =
-          org.springframework.data.domain.PageRequest.of(
+          PageRequest.of(
               page,
               size,
-              org.springframework.data.domain.Sort.by(
-                  org.springframework.data.domain.Sort.Direction.DESC, "totalScore", "id"));
+              Sort.by(Sort.Direction.DESC, "totalScore", "id"));
       var rows =
           evaluations.findAll(
               (root, query, builder) ->
@@ -285,107 +377,127 @@ public class GroupwareService {
                       ? builder.conjunction()
                       : builder.equal(root.get("employeeId"), actor.getId()),
               evaluationPage);
-      result.put("evaluations", rows.getContent());
+      evaluationList = rows.getContent();
       pageTotal = rows.getTotalElements();
-    } else result.put("evaluations", List.of());
+    } else {
+      evaluationList = List.of();
+    }
+
     Set<Long> queryProjectIds = projectIds.isEmpty() ? Set.of(-1L) : projectIds;
+    List<?> approvalList;
     // Contracts include confidential costs; staff receive project membership, not contract bodies.
     if ("approvals".equals(scope)) {
       var rows =
           approvals.summaryPage(
               exec, AuthService.pm(actor), actor.getId(), queryProjectIds, pageable);
-      result.put("approvals", rows.getContent());
+      approvalList = rows.getContent();
       pageTotal = rows.getTotalElements();
     } else if (Set.of("reports", "projects", "dashboard", "employees").contains(scope)) {
       boolean reports = "reports".equals(scope);
       var categories = reports ? List.of("주간보고", "월간보고") : List.of("계약품의", "계약품의서");
-      result.put(
-          "approvals",
+      approvalList =
           approvals.findByCategoryInOrderByIdDesc(categories).stream()
-              .filter(a ->
-                  reports
-                      ? (exec
-                          || (AuthService.pm(actor)
-                              && (Objects.equals(a.getRequesterId(), actor.getId())
-                                  || projectIds.contains(a.getProjectId()))))
-                      : (!"반려".equals(a.getStatus())))
-              .map(a -> {
-                var dto = map(a);
-                Map<String, Object> doc = safeDocument(a.getItemsJson());
-                if (reports && !exec)
-                  doc.put(
-                      "items",
-                      ((List<Map<String, Object>>) doc.getOrDefault("items", List.of()))
-                          .stream()
+              .filter(
+                  a ->
+                      reports
+                          ? (exec
+                              || (AuthService.pm(actor)
+                                  && (Objects.equals(a.getRequesterId(), actor.getId())
+                                      || projectIds.contains(a.getProjectId()))))
+                          : (!"반려".equals(a.getStatus())))
+              .map(
+                  a -> {
+                    Map<String, Object> doc = safeDocument(a.getItemsJson());
+                    if (reports && !exec) {
+                      doc.put(
+                          "items",
+                          asOptionalMapList(doc.get("items")).stream()
                               .filter(i -> projectIds.contains(id(i.get("projectId"))))
                               .toList());
-                if (!reports) {
-                  // Only planning data is needed by roster/workload screens. Full financial sheets
-                  // load on open.
-                  var small = new HashMap<String, Object>();
-                  for (String key :
-                      List.of(
-                          "title", "contractPeriod", "startDate", "endDate", "linkedProjectId", "linkedProjectCode"))
-                    if (doc.containsKey(key)) small.put(key, doc.get(key));
-                  small.put(
-                      "manpowerPlans",
-                      ((List<Map<String, Object>>) doc.getOrDefault("manpowerPlans", List.of()))
-                          .stream()
-                              .map(plan -> {
-                                var p = new HashMap<>(plan);
-                                if (!exec) {
-                                  p.remove("unitPrice");
-                                  p.remove("laborCost");
-                                }
-                                if (p.get("employeeId") == null && p.get("name") != null) {
-                                  var matches = employees.findAllByName(p.get("name").toString().trim());
-                                  if (matches.size() == 1)
-                                    p.put("employeeId", matches.getFirst().getId());
-                                }
-                                return p;
-                              })
+                    }
+                    Boolean detailsLoaded = null;
+                    if (!reports) {
+                      // Only planning data is needed by roster/workload screens. Full financial sheets
+                      // load on open.
+                      var small = new LinkedHashMap<String, Object>();
+                      for (String key :
+                          List.of(
+                              "title",
+                              "contractPeriod",
+                              "startDate",
+                              "endDate",
+                              "linkedProjectId",
+                              "linkedProjectCode")) {
+                        if (doc.containsKey(key)) small.put(key, doc.get(key));
+                      }
+                      small.put(
+                          "manpowerPlans",
+                          asOptionalMapList(doc.get("manpowerPlans")).stream()
+                              .map(
+                                  plan -> {
+                                    var p = new LinkedHashMap<>(plan);
+                                    if (!exec) {
+                                      p.remove("unitPrice");
+                                      p.remove("laborCost");
+                                    }
+                                    if (p.get("employeeId") == null && p.get("name") != null) {
+                                      var matches =
+                                          employees.findAllByName(p.get("name").toString().trim());
+                                      if (matches.size() == 1) {
+                                        p.put("employeeId", matches.getFirst().getId());
+                                      }
+                                    }
+                                    return p;
+                                  })
                               .toList());
-                  doc = small;
-                  dto.put("details_loaded", false);
-                }
-                dto.put("items_json", encode(doc));
-                return dto;
-              })
-              .toList());
-    } else result.put("approvals", List.of());
-    result.put("common_codes", codes.findAllByOrderByGroupCodeAscSortOrderAsc());
-    result.put("holidays", holidays.findAllByOrderByHolidayDateAsc());
-    result.put("department_codes", DepartmentCode.toList());
-    result.put("position_codes", PositionCode.toList());
-    result.put(
-        "company_info",
-        Map.of("name_ko", "(주)스패셜티", "name_en", "SpatialT", "domain", "spatialt.co.kr"));
+                      doc = small;
+                      detailsLoaded = Boolean.FALSE;
+                    }
+                    return ApprovalDetailVo.from(a, encode(doc), detailsLoaded);
+                  })
+              .toList();
+    } else {
+      approvalList = List.of();
+    }
+
     long approvalCount =
         approvals.visibleCount(exec, AuthService.pm(actor), actor.getId(), queryProjectIds);
-    result.put(
-        "counts",
-        Map.of(
-            "employees",
+    ModuleCountsVo counts =
+        new ModuleCountsVo(
             employees.count(),
-            "projects",
             visibleProjects.size(),
-            "equipments",
             exec ? equipment.count() : equipment.countByEmpId(actor.getId()),
-            "deals",
             exec ? deals.count() : deals.countByOwnerId(actor.getId()),
-            "evaluations",
-            (exec ? evaluations.count() : evaluations.countByEmployeeId(actor.getId())) + evaluationPlans.visibleCount(actor),
-            "approvals",
-            approvalCount));
-    if (Set.of("equipments", "business_deals", "evaluations", "approvals").contains(scope))
-      result.put("page_total", pageTotal);
-    result.put("loaded_at", Instant.now());
-    return result;
+            (exec ? evaluations.count() : evaluations.countByEmployeeId(actor.getId()))
+                + evaluationPlans.visibleCount(actor),
+            approvalCount);
+
+    Long resolvedPageTotal =
+        Set.of("equipments", "business_deals", "evaluations", "approvals").contains(scope)
+            ? pageTotal
+            : null;
+
+    return new GroupwareDataResponse(
+        employeeVos,
+        projectVos,
+        equipmentVos,
+        dealList,
+        evaluationList,
+        approvalList,
+        codes.findAllByOrderByGroupCodeAscSortOrderAsc(),
+        holidays.findAllByOrderByHolidayDateAsc(),
+        DepartmentCode.toList(),
+        PositionCode.toList(),
+        new CompanyInfoVo("(주)스패셜티", "SpatialT", "spatialt.co.kr"),
+        counts,
+        resolvedPageTotal,
+        Instant.now());
   }
 
   @Transactional(readOnly = true)
-  public Map<String, Object> approvalDetail(Long id) {
-    Approval a = approvals.findById(id).orElseThrow(() -> error(HttpStatus.NOT_FOUND, "문서가 없습니다."));
+  public ApprovalDetailVo approvalDetail(Long id) {
+    Approval a =
+        approvals.findById(id).orElseThrow(() -> error(HttpStatus.NOT_FOUND, "문서가 없습니다."));
     Employee actor = auth.current();
     permit(
         AuthService.executive(actor)
@@ -396,32 +508,61 @@ public class GroupwareService {
                             projects.findById(a.getProjectId()).orElseThrow(), actor)))));
     return Set.of("주간보고", "월간보고").contains(Objects.toString(a.getCategory(), ""))
         ? reportView(a, actor)
-        : map(a);
+        : ApprovalDetailVo.from(a, a.getItemsJson(), null);
   }
 
-  private Map<String, Object> reportView(Approval a, Employee actor) {
-    var dto = map(a);
-    if (AuthService.executive(actor)) return dto;
+  private ApprovalDetailVo reportView(Approval a, Employee actor) {
+    if (AuthService.executive(actor)) {
+      return ApprovalDetailVo.from(a, a.getItemsJson(), null);
+    }
     Map<String, Object> doc = safeDocument(a.getItemsJson());
     doc.put(
         "items",
-        ((List<Map<String, Object>>) doc.getOrDefault("items", List.of()))
-            .stream()
-                .filter(i -> {
+        asOptionalMapList(doc.get("items")).stream()
+            .filter(
+                i -> {
                   var p = projects.findById(id(i.get("projectId")));
                   return p.isPresent() && projectAccess(p.get(), actor);
                 })
-                .toList());
-    dto.put("items_json", encode(doc));
-    return dto;
+            .toList());
+    return ApprovalDetailVo.from(a, encode(doc), null);
   }
 
   private VersionedEntity existing(String module, Long id) {
-    return (VersionedEntity)
-        repositories
-            .get(module)
-            .findById(id)
-            .orElseThrow(() -> error(HttpStatus.NOT_FOUND, "대상이 존재하지 않습니다."));
+    return repositories
+        .get(module)
+        .findById(id)
+        .orElseThrow(() -> error(HttpStatus.NOT_FOUND, "대상이 존재하지 않습니다."));
+  }
+
+  private VersionedEntity saveAndFlushEntity(String module, VersionedEntity entity) {
+    return switch (module) {
+      case "employees" -> employees.saveAndFlush((Employee) entity);
+      case "projects" -> projects.saveAndFlush((Project) entity);
+      case "equipments" -> equipment.saveAndFlush((Equipment) entity);
+      case "business_deals" -> deals.saveAndFlush((BusinessDeal) entity);
+      case "evaluations" -> evaluations.saveAndFlush((Evaluation) entity);
+      case "approvals" -> approvals.saveAndFlush((Approval) entity);
+      case "common_codes" -> codes.saveAndFlush((CommonCode) entity);
+      default -> throw new IllegalArgumentException("지원하지 않는 모듈입니다.");
+    };
+  }
+
+  private void deleteEntity(String module, VersionedEntity entity) {
+    switch (module) {
+      case "employees" -> employees.delete((Employee) entity);
+      case "projects" -> projects.delete((Project) entity);
+      case "equipments" -> equipment.delete((Equipment) entity);
+      case "business_deals" -> deals.delete((BusinessDeal) entity);
+      case "evaluations" -> evaluations.delete((Evaluation) entity);
+      case "approvals" -> approvals.delete((Approval) entity);
+      case "common_codes" -> codes.delete((CommonCode) entity);
+      default -> throw new IllegalArgumentException("지원하지 않는 모듈입니다.");
+    }
+  }
+
+  private void flushModule(String module) {
+    repositories.get(module).flush();
   }
 
   private Long id(Object raw) {
@@ -477,12 +618,13 @@ public class GroupwareService {
   }
 
   @Transactional
-  public Map<String, Object> processMutation(Map<String, Object> payload) {
-    String module = Objects.toString(payload.get("module"), "");
-    String action = Objects.toString(payload.get("action"), "");
-    require(payload.toString().length() <= 2000000, "문서 크기는 2MB 이하여야 합니다.");
+  public GroupwareMutationResponse processMutation(GroupwareMutationRequest request) {
+    require(request != null, "요청 본문이 필요합니다.");
+    String module = Objects.toString(request.module(), "");
+    String action = Objects.toString(request.action(), "");
+    require(encode(request).length() <= 2000000, "문서 크기는 2MB 이하여야 합니다.");
     require(repositories.containsKey(module), "지원하지 않는 모듈입니다.");
-    if ("convert_deal".equals(action)) return convertDeal(payload);
+    if ("convert_deal".equals(action)) return convertDeal(request);
     require(
         Set.of(
                 "create",
@@ -495,36 +637,42 @@ public class GroupwareService {
                 "save_contract")
             .contains(action),
         "지원하지 않는 작업입니다.");
-    if ("save_contract".equals(action)) return saveContract(payload);
+    if ("save_contract".equals(action)) return saveContract(request);
     boolean creating = "create".equals(action);
-    Long recordId = id(payload.get("id"));
+    Long recordId = id(request.id());
     require(creating || recordId != null, "대상 ID가 필요합니다.");
+
     Map<String, Object> data =
-        payload.get("data") instanceof Map<?, ?>
-            ? new HashMap<>((Map<String, Object>) payload.get("data"))
-            : new HashMap<>();
+        request.data() != null ? new LinkedHashMap<>(request.data()) : new LinkedHashMap<>();
     data.keySet().removeIf(key -> key.startsWith("_"));
+
     VersionedEntity entity = creating ? newEntity(module) : existing(module, recordId);
     Employee actor = auth.current();
     authorize(module, entity, actor, creating, "delete".equals(action));
-    if (!creating) version(entity, payload.getOrDefault("version", data.get("version")));
+    if (!creating) {
+      version(entity, request.version() != null ? request.version() : data.get("version"));
+    }
+
     if (Set.of("submit", "approve", "reject", "revise").contains(action)) {
       require("approvals".equals(module), "결재 문서에서만 사용할 수 있습니다.");
       transition((Approval) entity, action, data, actor);
-      repositories.get(module).flush();
+      flushModule(module);
       log(actor, module, action, recordId, entity);
       return response(module, entity);
     }
+
     if ("delete".equals(action)) {
       delete(module, entity, actor);
-      return Map.of("ok", true);
+      return new GroupwareMutationResponse(true, null, null);
     }
+
     require(!data.isEmpty(), "변경 데이터가 필요합니다.");
-    if (entity instanceof Approval a && !creating)
+    if (entity instanceof Approval a && !creating) {
       require(
           Set.of("작성중", "반려", "PM작성중", "이사취합보완중", "사장님보고완료")
               .contains(Objects.toString(a.getStatus(), "")),
           "상신·승인된 문서는 수정할 수 없습니다. 개정본을 먼저 만드세요.");
+    }
     if (entity instanceof Approval a && creating) {
       a.setRequesterId(actor.getId());
       a.setRequester(actor.getName());
@@ -535,28 +683,41 @@ public class GroupwareService {
       a.setApprovedBy("");
       a.setDocNo(number("DOC"));
     }
+
+    Map<String, Object> previousReport = null;
     if (entity instanceof Approval a
         && Set.of("주간보고", "월간보고").contains(Objects.toString(a.getCategory(), ""))
-        && !creating) data.put("_previous_report", read(a.getItemsJson(), Map.class));
+        && !creating) {
+      previousReport = readMap(a.getItemsJson());
+    }
+
     if (entity instanceof Approval a && !creating) {
-      if (data.containsKey("category"))
+      if (data.containsKey("category")) {
         require(Objects.equals(a.getCategory(), data.get("category")), "문서 종류를 변경할 수 없습니다.");
+      }
       if (!AuthService.executive(actor)
-          && Set.of("주간보고", "월간보고").contains(Objects.toString(a.getCategory(), "")))
+          && Set.of("주간보고", "월간보고").contains(Objects.toString(a.getCategory(), ""))) {
         require(
             Objects.equals(a.getApproverId(), id(data.get("approver_id"))),
             "최종 확인자는 임원만 지정할 수 있습니다.");
+      }
     }
-    if (entity instanceof CommonCode cc && !creating)
+
+    if (entity instanceof CommonCode cc && !creating) {
       require(
           !Set.of("DEPARTMENT", "POSITION", "USER_ROLE")
               .contains(Objects.toString(cc.getGroupCode(), "")),
           "시스템 코드는 수정할 수 없습니다.");
+    }
+
     apply(module, entity, data);
-    validate(module, entity, data, actor, creating);
-    repositories.get(module).saveAndFlush(entity);
-    if (entity instanceof Project p) { syncProject(p); evaluationPlans.syncProjectAssignments(p); }
-    repositories.get(module).flush();
+    validate(module, entity, data, actor, creating, previousReport);
+    saveAndFlushEntity(module, entity);
+    if (entity instanceof Project p) {
+      syncProject(p);
+      evaluationPlans.syncProjectAssignments(p);
+    }
+    flushModule(module);
     log(actor, module, action, recordId(entity), entity);
     return response(module, entity);
   }
@@ -582,16 +743,17 @@ public class GroupwareService {
     }
   }
 
-  private Map<String, Object> response(String module, Object e) {
+  private GroupwareMutationResponse response(String module, Object e) {
     Object record = e;
     if (e instanceof Approval a
-        && Set.of("주간보고", "월간보고").contains(Objects.toString(a.getCategory(), "")))
+        && Set.of("주간보고", "월간보고").contains(Objects.toString(a.getCategory(), ""))) {
       record = reportView(a, auth.current());
-    return Map.of("ok", true, "module", module, "record", record);
+    }
+    return new GroupwareMutationResponse(true, module, record);
   }
 
   private void apply(String module, VersionedEntity entity, Map<String, Object> data) {
-    var patch = new HashMap<String, Object>();
+    var patch = new LinkedHashMap<String, Object>();
     for (var entry : data.entrySet())
       if (FIELDS.get(module).contains(entry.getKey())) patch.put(entry.getKey(), entry.getValue());
     // Integer input must never truncate fractions/overflow during Jackson binding.
@@ -649,10 +811,10 @@ public class GroupwareService {
 
   private void period(String start, String end) {
     require(!date(start).isAfter(date(end)), "종료일은 시작일 이후여야 합니다.");
-    require(ChronoUnitMonths(start, end) <= 120, "사업 기간은 120개월 이하여야 합니다.");
+    require(chronoUnitMonths(start, end) <= 120, "사업 기간은 120개월 이하여야 합니다.");
   }
 
-  private long ChronoUnitMonths(String start, String end) {
+  private long chronoUnitMonths(String start, String end) {
     return java.time.temporal.ChronoUnit.MONTHS.between(
             YearMonth.from(date(start)), YearMonth.from(date(end)))
         + 1;
@@ -675,7 +837,8 @@ public class GroupwareService {
       VersionedEntity entity,
       Map<String, Object> input,
       Employee actor,
-      boolean creating) {
+      boolean creating,
+      Map<String, Object> previousReport) {
     switch (module) {
       case "employees" -> {
         Employee e = (Employee) entity;
@@ -844,7 +1007,7 @@ public class GroupwareService {
             members.stream()
                 .sorted()
                 .map(k -> employee(k).getName())
-                .collect(java.util.stream.Collectors.joining(", ")));
+                .collect(Collectors.joining(", ")));
         p.setOurBudget(
             BigDecimal.valueOf(p.getBudget())
                 .multiply(BigDecimal.valueOf(p.getShareRate()))
@@ -932,7 +1095,7 @@ public class GroupwareService {
         e.setGrade(
             total >= 93 ? "S" : total >= 87 ? "A" : total >= 78 ? "B" : total >= 68 ? "C" : "D");
       }
-      case "approvals" -> validateApproval((Approval) entity, input, actor, creating);
+      case "approvals" -> validateApproval((Approval) entity, input, actor, creating, previousReport);
       case "common_codes" -> {
         CommonCode c = (CommonCode) entity;
         required(c.getGroupCode(), "그룹 코드");
@@ -945,16 +1108,15 @@ public class GroupwareService {
             "조직·직급·권한 코드는 시스템에서 관리합니다.");
         range(c.getSortOrder(), 0, 100000, "정렬 순서");
         if (c.getGroupCode().startsWith("MASTER_")) {
-          Object value = read(Objects.toString(c.getExtraValue(), "{}"), Object.class);
-          require(value instanceof Map, "기준정보는 객체여야 합니다.");
-          validateMaster(c.getGroupCode(), (Map<String, Object>) value);
+          Object value = readAny(Objects.toString(c.getExtraValue(), "{}"));
+          validateMaster(c.getGroupCode(), asMap(value, "기준정보는 객체여야 합니다."));
         }
       }
     }
   }
 
   private void validateRevenue(String value, int amount, String start, String end) {
-    Map<String, Object> years = read(value == null ? "{}" : value, Map.class);
+    Map<String, Object> years = readMap(value == null ? "{}" : value);
     if (years.isEmpty()) return;
     BigDecimal sum = BigDecimal.ZERO;
     for (var e : years.entrySet()) {
@@ -984,22 +1146,30 @@ public class GroupwareService {
     for (var e : value.entrySet()) {
       require(e.getKey().matches("20[0-9]{2}"), "기준정보 연도를 확인하세요.");
       if ("MASTER_TARGETS".equals(group)) {
-        Map item = (Map) e.getValue();
-        range((Number) item.get("targetAmount"), 0, Integer.MAX_VALUE, "목표 매출");
+        Map<String, Object> item = asMap(e.getValue(), "목표 매출 항목 형식 오류");
+        Object targetAmount = item.get("targetAmount");
+        require(targetAmount instanceof Number, "목표 매출은 숫자여야 합니다.");
+        range((Number) targetAmount, 0, Integer.MAX_VALUE, "목표 매출");
       } else if ("MASTER_PRICES".equals(group)) {
-        require(e.getValue() instanceof List, "노임단가 목록 형식 오류");
-        for (Object raw : (List) e.getValue()) {
-          Map item = (Map) raw;
+        for (var item : asMapList(e.getValue(), "노임단가 목록 형식 오류")) {
           required(Objects.toString(item.get("position"), ""), "직급");
-          range((Number) item.get("monthlyPrice"), 0, Integer.MAX_VALUE, "월 단가");
-          range((Number) item.get("dailyPrice"), 0, Integer.MAX_VALUE, "일 단가");
+          Object monthly = item.get("monthlyPrice");
+          Object daily = item.get("dailyPrice");
+          require(monthly instanceof Number, "월 단가는 숫자여야 합니다.");
+          require(daily instanceof Number, "일 단가는 숫자여야 합니다.");
+          range((Number) monthly, 0, Integer.MAX_VALUE, "월 단가");
+          range((Number) daily, 0, Integer.MAX_VALUE, "일 단가");
         }
       } else throw new IllegalArgumentException("지원하지 않는 기준정보입니다.");
     }
   }
 
   private void validateApproval(
-      Approval a, Map<String, Object> input, Employee actor, boolean creating) {
+      Approval a,
+      Map<String, Object> input,
+      Employee actor,
+      boolean creating,
+      Map<String, Object> previousReport) {
     required(a.getTitle(), "문서명");
     range(a.getAmount(), 0, Integer.MAX_VALUE, "문서금액");
     var adep = DepartmentCode.fromCodeOrLabel(
@@ -1018,34 +1188,27 @@ public class GroupwareService {
                   .orElseThrow(() -> new IllegalArgumentException("연결 프로젝트가 없습니다.")),
               actor));
     if (a.getCategory().contains("계약품의")) {
-      Map<String, Object> doc = read(a.getItemsJson(), Map.class);
+      Map<String, Object> doc = readMap(a.getItemsJson());
       recalculateContract(doc);
       doc.put("docNo", a.getDocNo());
-      Map<String, Object> line = new HashMap<>();
-      line.put(
-          "drafter",
-          Map.of(
-              "name",
-              a.getRequester(),
-              "position",
-              a.getRequesterPosition(),
-              "dept",
-              a.getDepartment(),
-              "status",
-              "작성중",
-              "date",
-              a.getCreatedAt()));
-      line.put("bizHead", Map.of("name", "", "position", "", "status", ""));
-      line.put(
-          "ceo",
-          Map.of(
-              "name",
-              a.getApproverId() == null ? "" : employee(a.getApproverId()).getName(),
-              "position",
-              "",
-              "status",
-              ""));
-      doc.put("approvalLine", line);
+      var approvalLine =
+          new ContractApprovalLineVo(
+              new ContractApproverSlotVo(
+                  a.getRequester(),
+                  a.getRequesterPosition(),
+                  a.getDepartment(),
+                  "작성중",
+                  a.getCreatedAt(),
+                  null),
+              new ContractApproverSlotVo("", "", null, "", null, null),
+              new ContractApproverSlotVo(
+                  a.getApproverId() == null ? "" : employee(a.getApproverId()).getName(),
+                  "",
+                  null,
+                  "",
+                  null,
+                  null));
+      doc.put("approvalLine", approvalLine);
       if (doc.get("linkedProjectId") != null) {
         Long key = id(doc.get("linkedProjectId"));
         if (a.getProjectId() != null) require(a.getProjectId().equals(key), "연결 프로젝트가 일치하지 않습니다.");
@@ -1061,7 +1224,7 @@ public class GroupwareService {
           decimal(doc.get("supplyAmount")).setScale(0, RoundingMode.HALF_UP).intValueExact());
       a.setProjectName(Objects.toString(doc.get("title"), a.getTitle()));
     } else if (Set.of("주간보고", "월간보고").contains(Objects.toString(a.getCategory(), ""))) {
-      Map<String, Object> doc = read(a.getItemsJson(), Map.class);
+      Map<String, Object> doc = readMap(a.getItemsJson());
       required(Objects.toString(doc.get("periodKey"), ""), "보고 기간");
       require(
           Objects.toString(doc.get("periodKey")).matches("20[0-9]{2}-(0[1-9]|1[0-2])-(W[1-6]|M)"),
@@ -1069,10 +1232,8 @@ public class GroupwareService {
       a.setDocNo("RPT-" + a.getCategory() + "-" + doc.get("periodKey"));
       String stage = Objects.toString(doc.get("overallStage"), "PM작성중");
       require(Set.of("PM작성중", "이사취합보완중", "사장님보고완료", "사장님확인완료").contains(stage), "보고 상태 오류");
-      Map<String, Object> previous =
-          (Map<String, Object>) input.getOrDefault("_previous_report", Map.of());
-      List<Map<String, Object>> requested =
-          (List<Map<String, Object>>) doc.getOrDefault("items", List.of());
+      Map<String, Object> previous = previousReport != null ? previousReport : new LinkedHashMap<>();
+      List<Map<String, Object>> requested = asOptionalMapList(doc.get("items"));
       require(!creating || "PM작성중".equals(stage), "새 보고서는 작성중 상태로 시작해야 합니다.");
       if ("사장님보고완료".equals(previous.get("overallStage"))) {
         require("사장님확인완료".equals(stage), "최종 확인 요청된 보고서는 최종 확인만 가능합니다.");
@@ -1093,8 +1254,9 @@ public class GroupwareService {
                 input.get("approver_id") == null ? null : id(input.get("approver_id"))),
             "결재자 변경 권한이 없습니다.");
         Map<Long, Map<String, Object>> merged = new LinkedHashMap<>();
-        for (var item : (List<Map<String, Object>>) previous.getOrDefault("items", List.of()))
+        for (var item : asOptionalMapList(previous.get("items"))) {
           merged.put(id(item.get("projectId")), item);
+        }
         for (var item : requested) {
           Project p =
               projects
@@ -1106,7 +1268,11 @@ public class GroupwareService {
         }
         doc.put("items", new ArrayList<>(merged.values()));
       }
-      for (var item : requested) range((Number) item.get("progress"), 0, 100, "진행률");
+      for (var item : requested) {
+        Object progressValue = item.get("progress");
+        require(progressValue instanceof Number, "진행률은 숫자여야 합니다.");
+        range((Number) progressValue, 0, 100, "진행률");
+      }
       if ("사장님확인완료".equals(stage)) {
         permit(Objects.equals(a.getApproverId(), actor.getId()));
         doc.put("confirmedByCeoAt", Instant.now().toString());
@@ -1120,14 +1286,12 @@ public class GroupwareService {
       a.setStatus(stage);
       a.setItemsJson(encode(doc));
     } else {
-      read(a.getItemsJson(), Object.class);
+      readAny(a.getItemsJson());
     }
   }
 
   private List<Map<String, Object>> items(Map<String, Object> doc, String key) {
-    Object raw = doc.get(key);
-    require(raw instanceof List, "계약 시트 형식 오류: " + key);
-    return (List<Map<String, Object>>) raw;
+    return normalizeMapList(doc, key, "계약 시트 형식 오류: " + key);
   }
 
   private BigDecimal nonnegative(Object value, String field) {
@@ -1152,21 +1316,27 @@ public class GroupwareService {
     return sum;
   }
 
-  private void recalculateDirectExpenses(Map<String, Object> doc, BigDecimal supply, String start, String end) {
+  private void recalculateDirectExpenses(
+      Map<String, Object> doc, BigDecimal supply, String start, String end) {
     BigDecimal totalMM = BigDecimal.ZERO, ourMM = BigDecimal.ZERO;
     Set<String> people = new HashSet<>();
     for (var plan : items(doc, "manpowerPlans")) {
       BigDecimal mm = decimal(plan.get("totalMM"));
       totalMM = totalMM.add(mm);
       if (!"외주".equals(plan.get("type"))) ourMM = ourMM.add(mm);
-      if (mm.signum() > 0) people.add(plan.get("employeeId") != null ? "employee:" + plan.get("employeeId") : "row:" + plan.get("id"));
+      if (mm.signum() > 0) {
+        people.add(
+            plan.get("employeeId") != null
+                ? "employee:" + plan.get("employeeId")
+                : "row:" + plan.get("id"));
+      }
     }
     for (var row : items(doc, "directExpenses")) {
       if (row.get("calculation") == null) continue;
-      require(row.get("calculation") instanceof Map, "직접경비 산출식 형식 오류");
-      Map<String, Object> calc = (Map<String, Object>) row.get("calculation");
-      require(calc.get("inputs") instanceof Map, "직접경비 입력값 형식 오류");
-      Map<String, Object> inputs = (Map<String, Object>) calc.get("inputs");
+      Map<String, Object> calc = asMap(row.get("calculation"), "직접경비 산출식 형식 오류");
+      Map<String, Object> inputs = asMap(calc.get("inputs"), "직접경비 입력값 형식 오류");
+      calc.put("inputs", inputs);
+      row.put("calculation", calc);
       inputs.forEach((key, value) -> nonnegative(value, "직접경비 " + key));
       String source = Objects.toString(calc.get("source"), "");
       BigDecimal base = switch (source) {
@@ -1174,7 +1344,7 @@ public class GroupwareService {
         case "TOTAL_MM" -> totalMM;
         case "OUR_MM" -> ourMM;
         case "HEADCOUNT" -> BigDecimal.valueOf(people.size());
-        case "MONTHS" -> BigDecimal.valueOf(ChronoUnitMonths(start, end));
+        case "MONTHS" -> BigDecimal.valueOf(chronoUnitMonths(start, end));
         case "SUPPLY" -> supply;
         default -> throw new IllegalArgumentException("직접경비 산출 기준 오류");
       };
@@ -1226,10 +1396,8 @@ public class GroupwareService {
         plan.put("name", e.getName());
         plan.put("position", e.getPosition());
       }
-      Object raw = plan.get("months");
-      require(raw instanceof List, "월별 공수가 필요합니다.");
-      List<Object> months = (List<Object>) raw;
-      require(months.size() == ChronoUnitMonths(start, end), "투입공수의 월 수가 계약기간과 일치해야 합니다.");
+      List<Object> months = asObjectList(plan.get("months"), "월별 공수가 필요합니다.");
+      require(months.size() == chronoUnitMonths(start, end), "투입공수의 월 수가 계약기간과 일치해야 합니다.");
       BigDecimal mm = BigDecimal.ZERO;
       for (Object value : months) {
         BigDecimal n = decimal(value);
@@ -1284,9 +1452,10 @@ public class GroupwareService {
         BigDecimal r = nonnegative(m.get("ratePercent"), "입금 비율");
         sum = sum.add(r);
         BigDecimal s = supply.multiply(r).divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
+        BigDecimal vat = s.multiply(new BigDecimal("0.1")).setScale(2, RoundingMode.HALF_UP);
         m.put("supplyAmount", s);
-        m.put("vatAmount", s.multiply(new BigDecimal("0.1")).setScale(2, RoundingMode.HALF_UP));
-        m.put("totalAmount", s.add((BigDecimal) m.get("vatAmount")));
+        m.put("vatAmount", vat);
+        m.put("totalAmount", s.add(vat));
       }
       require(sum.compareTo(BigDecimal.valueOf(100)) == 0, "입금계획 비율 합계는 100%여야 합니다.");
     }
@@ -1314,7 +1483,7 @@ public class GroupwareService {
       }
       case "revise" -> {
         require("승인완료".equals(a.getStatus()), "승인 문서만 개정할 수 있습니다.");
-        Approval revision = json.convertValue(map(a), Approval.class);
+        Approval revision = json.convertValue(toMap(a), Approval.class);
         revision.setId(null);
         revision.setVersion(null);
         revision.setDocNo(number("REV"));
@@ -1329,23 +1498,19 @@ public class GroupwareService {
       }
     }
     if (a.getCategory().contains("계약품의") && !"revise".equals(action)) {
-      Map<String, Object> doc = read(a.getItemsJson(), Map.class);
-      Map<String, Object> line =
-          (Map<String, Object>) doc.getOrDefault("approvalLine", new HashMap<>());
-      if ("approve".equals(action) || "reject".equals(action))
+      Map<String, Object> doc = readMap(a.getItemsJson());
+      Map<String, Object> line = asOptionalMap(doc.get("approvalLine"));
+      if ("approve".equals(action) || "reject".equals(action)) {
         line.put(
             "ceo",
-            Map.of(
-                "name",
+            new ContractApproverSlotVo(
                 actor.getName(),
-                "position",
                 actor.getPosition(),
-                "status",
+                null,
                 a.getStatus(),
-                "date",
                 a.getApprovedAt(),
-                "comment",
                 a.getReviewerComment()));
+      }
       doc.put("approvalLine", line);
       a.setItemsJson(encode(doc));
       if ("approve".equals(action) && a.getProjectId() != null) {
@@ -1382,7 +1547,7 @@ public class GroupwareService {
                 members.stream()
                     .sorted()
                     .map(id -> employee(id).getName())
-                    .collect(java.util.stream.Collectors.joining(", ")));
+                    .collect(Collectors.joining(", ")));
           }
           projects.saveAndFlush(p);
           evaluationPlans.syncProjectAssignments(p);
@@ -1397,27 +1562,32 @@ public class GroupwareService {
       if (Objects.equals(a.getProjectId(), p.getId())
           && Set.of("작성중", "반려").contains(Objects.toString(a.getStatus(), ""))
           && a.getCategory().contains("계약품의")) {
-        Map<String, Object> doc = read(a.getItemsJson(), Map.class);
+        Map<String, Object> doc = readMap(a.getItemsJson());
+        Object prevStartDate = doc.get("startDate");
         doc.put("title", p.getName());
         doc.put("clientName", p.getClientName());
         doc.put("startDate", p.getStartDate());
         doc.put("endDate", p.getEndDate());
-        doc.put("contractPeriod", p.getStartDate().replace("-", ".") + " ~ " + p.getEndDate().replace("-", ".") + " (" + ChronoUnitMonths(p.getStartDate(), p.getEndDate()) + "개월)");
+        doc.put(
+            "contractPeriod",
+            p.getStartDate().replace("-", ".")
+                + " ~ "
+                + p.getEndDate().replace("-", ".")
+                + " ("
+                + chronoUnitMonths(p.getStartDate(), p.getEndDate())
+                + "개월)");
         doc.put("ourShareRate", p.getShareRate());
         doc.put("supplyAmount", p.getOurBudget() * 10L);
         a.setVendor(p.getClientName());
         // Anchor existing allocations to actual calendar months when the contract period changes.
         YearMonth
             oldStart =
-                YearMonth.from(
-                    date(
-                        Objects.toString(
-                            read(a.getItemsJson(), Map.class).get("startDate"), p.getStartDate()))),
+                YearMonth.from(date(Objects.toString(prevStartDate, p.getStartDate()))),
             nextStart = YearMonth.from(date(p.getStartDate()));
         for (var plan : items(doc, "manpowerPlans")) {
-          List<Object> old = (List<Object>) plan.get("months");
+          List<Object> old = asOptionalObjectList(plan.get("months"));
           List<Object> resized = new ArrayList<>();
-          for (int i = 0; i < ChronoUnitMonths(p.getStartDate(), p.getEndDate()); i++) {
+          for (int i = 0; i < chronoUnitMonths(p.getStartDate(), p.getEndDate()); i++) {
             int index =
                 (int)
                     java.time.temporal.ChronoUnit.MONTHS.between(oldStart, nextStart.plusMonths(i));
@@ -1433,13 +1603,13 @@ public class GroupwareService {
       }
   }
 
-  private Map<String, Object> saveContract(Map<String, Object> payload) {
-    require("approvals".equals(payload.get("module")), "계약 문서 요청 오류");
+  private GroupwareMutationResponse saveContract(GroupwareMutationRequest request) {
+    require("approvals".equals(request.module()), "계약 문서 요청 오류");
     Employee actor = auth.current();
     permit(AuthService.pm(actor));
     Map<String, Object> data =
-        payload.get("data") instanceof Map ? (Map<String, Object>) payload.get("data") : Map.of();
-    Long key = id(payload.get("id"));
+        request.data() != null ? new LinkedHashMap<>(request.data()) : new LinkedHashMap<>();
+    Long key = id(request.id());
     Approval a =
         key == null
             ? new Approval()
@@ -1448,7 +1618,7 @@ public class GroupwareService {
                 .orElseThrow(() -> error(HttpStatus.NOT_FOUND, "계약 문서가 없습니다."));
     if (key != null) {
       authorize("approvals", a, actor, false, false);
-      version(a, payload.get("version"));
+      version(a, request.version());
     } else {
       a.setDocNo(number("CONTRACT"));
       a.setRequesterId(actor.getId());
@@ -1461,9 +1631,9 @@ public class GroupwareService {
     }
     apply("approvals", a, data);
     a.setCategory("계약품의서");
-    validateApproval(a, data, actor, key == null);
-    Map<String, Object> doc = read(a.getItemsJson(), Map.class);
-    if (Boolean.TRUE.equals(payload.get("sync_project"))) {
+    validateApproval(a, data, actor, key == null, null);
+    Map<String, Object> doc = readMap(a.getItemsJson());
+    if (Boolean.TRUE.equals(request.syncProject())) {
       Long projectId = a.getProjectId();
       Project p =
           projectId == null
@@ -1473,7 +1643,7 @@ public class GroupwareService {
                   .orElseThrow(() -> new IllegalArgumentException("연결 프로젝트가 없습니다."));
       if (projectId != null) {
         permit(projectEdit(p, actor));
-        version(p, payload.get("project_version"));
+        version(p, request.projectVersion());
       }
       p.setName(a.getTitle());
       if (a.getVendor() != null && !a.getVendor().isBlank()) {
@@ -1543,7 +1713,7 @@ public class GroupwareService {
           members.stream()
               .sorted()
               .map(id -> employee(id).getName())
-              .collect(java.util.stream.Collectors.joining(", ")));
+              .collect(Collectors.joining(", ")));
       // Preserve custom allocations only when their total and period still match.
       try {
         validateRevenue(p.getYearlyRevenueJson(), total, p.getStartDate(), p.getEndDate());
@@ -1564,15 +1734,15 @@ public class GroupwareService {
     return response("approvals", a);
   }
 
-  private Map<String, Object> convertDeal(Map<String, Object> payload) {
-    require("business_deals".equals(payload.get("module")), "영업 전환 요청 오류");
+  private GroupwareMutationResponse convertDeal(GroupwareMutationRequest request) {
+    require("business_deals".equals(request.module()), "영업 전환 요청 오류");
     BusinessDeal deal =
         deals
-            .findById(id(payload.get("id")))
+            .findById(id(request.id()))
             .orElseThrow(() -> error(HttpStatus.NOT_FOUND, "사업이 없습니다."));
     Employee actor = auth.current();
     authorize("business_deals", deal, actor, false, false);
-    version(deal, payload.get("version"));
+    version(deal, request.version());
     require(deal.getConvertedProjectId() == null, "이미 프로젝트로 전환된 사업입니다.");
     Project p = new Project();
     p.setCode(number("PRJ"));
@@ -1585,7 +1755,9 @@ public class GroupwareService {
     p.setStatus("제안준비중");
     p.setBudget(deal.getAmount());
     p.setYearlyRevenueJson(deal.getYearlyRevenueJson());
-    validate("projects", p, Map.of("pm_id", p.getPmId()), actor, true);
+    Map<String, Object> pmHint = new LinkedHashMap<>();
+    pmHint.put("pm_id", p.getPmId());
+    validate("projects", p, pmHint, actor, true, null);
     projects.saveAndFlush(p);
     evaluationPlans.syncProjectAssignments(p);
     deal.setStage("수주확정");
@@ -1601,27 +1773,30 @@ public class GroupwareService {
       permit(!e.getId().equals(actor.getId()));
       throw error(HttpStatus.CONFLICT, "직원 이력 보존을 위해 삭제 대신 퇴사·계정 비활성 처리를 사용하세요.");
     }
-    if (entity instanceof Project p) evaluationPlans.assertProjectDeletable(p.getId());
-    if (entity instanceof Project p)
+    if (entity instanceof Project p) {
+      evaluationPlans.assertProjectDeletable(p.getId());
       require(
           approvals.findAll().stream().noneMatch(a -> Objects.equals(a.getProjectId(), p.getId())),
           "연결된 문서가 있는 프로젝트는 삭제할 수 없습니다. 완료 처리하세요.");
-    if (entity instanceof Approval a)
+    }
+    if (entity instanceof Approval a) {
       require(
           Set.of("작성중", "반려", "PM작성중").contains(Objects.toString(a.getStatus(), "")),
           "상신·승인 기록은 삭제할 수 없습니다.");
-    if (entity instanceof CommonCode c)
+    }
+    if (entity instanceof CommonCode c) {
       require(
           !Set.of("DEPARTMENT", "POSITION", "USER_ROLE")
               .contains(Objects.toString(c.getGroupCode(), "")),
           "시스템 코드는 삭제할 수 없습니다.");
+    }
     log(actor, module, "delete", recordId(entity), entity);
-    repositories.get(module).delete(entity);
-    repositories.get(module).flush();
+    deleteEntity(module, entity);
+    flushModule(module);
   }
 
   private void log(Employee actor, String module, String action, Long id, Object value) {
-    Map<String, Object> snapshot = map(value);
+    Map<String, Object> snapshot = toMap(value);
     snapshot.remove("password");
     snapshot.remove("session_version");
     audit.save(new AuditEvent(actor.getId(), module, action, id, encode(snapshot)));

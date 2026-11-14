@@ -76,7 +76,7 @@ public class Equipment extends VersionedEntity {
     this.empId = empId;
     this.empNo = empNo;
     this.assignedTo = assignedTo;
-    this.setDepartment(department);
+    applyDepartment(department);
     this.purchaseDate = purchaseDate;
     this.price = price;
     this.notes = notes;
@@ -198,6 +198,10 @@ public class Equipment extends VersionedEntity {
   }
 
   public void setDepartment(String department) {
+    applyDepartment(department);
+  }
+
+  private void applyDepartment(String department) {
     this.department = department;
     if (department != null && !department.isBlank()) {
       try {

@@ -5,7 +5,6 @@ import React, { useState, useMemo } from 'react';
 import {
   ManpowerPlanItem,
   Employee,
-  STANDARD_UNIT_PRICES,
   cleanDeptName,
 } from '@/types/groupware';
 import {

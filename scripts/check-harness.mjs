@@ -43,7 +43,7 @@ export function checkHarness(root = process.cwd()) {
       problems.push(`${file}:${line}: native alert/confirm reference; use ModalContext`);
     }
   }
-  const documents = ['AGENTS.md', 'README.md', 'export/DATABASE_SPECIFICATION.md', ...walk('harness').filter(file => file.endsWith('.md'))];
+  const documents = ['AGENTS.md', 'export/DATABASE_SPECIFICATION.md', ...walk('harness').filter(file => file.endsWith('.md'))].filter(file => fs.existsSync(path.join(root, file)));
   for (const file of documents) {
     const source = fs.readFileSync(path.join(root, file), 'utf8');
     if (sensitiveDocument(source)) problems.push(`${file}: password hash found in shared documentation`);

@@ -10,14 +10,22 @@ import com.nexus.groupware.domain.procurement.db.ProcurementRule;
 import com.nexus.groupware.domain.procurement.db.ProcurementRuleRepository;
 import com.nexus.groupware.domain.procurement.db.ProcurementSyncState;
 import com.nexus.groupware.domain.procurement.db.ProcurementSyncStateRepository;
+import com.nexus.groupware.domain.procurement.dto.ProcurementDtos.ProcurementAlertPageResponse;
+import com.nexus.groupware.domain.procurement.dto.ProcurementDtos.ProcurementAlertVo;
+import com.nexus.groupware.domain.procurement.dto.ProcurementDtos.ProcurementStatusResponse;
+import com.nexus.groupware.domain.procurement.dto.ProcurementDtos.RuleSaveRequest;
+import com.nexus.groupware.domain.procurement.dto.ProcurementDtos.SyncSourceStatusVo;
+import com.nexus.groupware.domain.procurement.dto.ProcurementDtos.SyncTriggerResponse;
+import com.nexus.groupware.domain.procurement.dto.ProcurementDtos.UnreadCategoryCountVo;
+import com.nexus.groupware.domain.procurement.dto.ProcurementDtos.VersionRequest;
 import jakarta.persistence.criteria.Predicate;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -64,21 +72,13 @@ public class ProcurementService {
      * 연동 상태 및 미읽음 알림 통계 정보 조회
      */
     @Transactional(readOnly = true)
-    public Map<String, Object> status() {
+    public ProcurementStatusResponse status() {
         Employee currentActor = authService.current();
-        Map<String, Object> result = new LinkedHashMap<>();
         List<ProcurementSyncState> sourceStates = stateRepository.findAll();
 
         boolean isLockRunning = sourceStates.stream()
                 .anyMatch(s -> "LOCK".equals(s.id) && s.leaseUntil != null && s.leaseUntil.isAfter(Instant.now()));
         boolean isRunning = syncEngine.running() || isLockRunning;
-
-        result.put("configured", settings.configured());
-        result.put("enabled", settings.enabled);
-        result.put("running", isRunning);
-        result.put("can_sync", AuthService.executive(currentActor));
-        result.put("interval_minutes", settings.intervalMs / 60000);
-        result.put("business_types", settings.types());
 
         // 미읽음 알림 카테고리별 집계
         Map<String, Long> categoryCounts = new HashMap<>();
@@ -87,39 +87,40 @@ public class ProcurementService {
             categoryCounts.put(key, ((Number) row[2]).longValue());
         }
 
-        List<Map<String, Object>> categories = new ArrayList<>();
+        List<UnreadCategoryCountVo> categories = new ArrayList<>();
         for (String kind : List.of("BID", "SPEC")) {
             for (String business : List.of("SERVC", "THNG", "CNSTWK", "FRGCPT")) {
                 long count = categoryCounts.getOrDefault(kind + ":" + business, 0L);
-                categories.add(Map.of(
-                        "kind", kind,
-                        "business_type", business,
-                        "count", count
-                ));
+                categories.add(new UnreadCategoryCountVo(kind, business, count));
             }
         }
 
         long totalUnread = categoryCounts.values().stream().mapToLong(Long::longValue).sum();
-        result.put("unread", totalUnread);
-        result.put("unread_categories", categories);
 
         // 소스별 수집 상태
-        List<Map<String, Object>> sources = sourceStates.stream()
+        List<SyncSourceStatusVo> sources = sourceStates.stream()
                 .filter(s -> !"LOCK".equals(s.id) && settings.types().stream().anyMatch(t -> s.id.contains("_" + t + "_")))
-                .map(s -> {
-                    Map<String, Object> m = new LinkedHashMap<>();
-                    m.put("source", s.id);
-                    m.put("last_success", s.lastSuccess);
-                    m.put("last_error", s.lastError);
-                    m.put("last_attempt", s.lastAttempt);
-                    m.put("backlog", s.untilTime != null);
-                    m.put("next_page", s.nextPage);
-                    return m;
-                })
+                .map(s -> new SyncSourceStatusVo(
+                        s.id,
+                        s.lastSuccess,
+                        s.lastError,
+                        s.lastAttempt,
+                        s.untilTime != null,
+                        s.nextPage
+                ))
                 .toList();
-        result.put("sources", sources);
 
-        return result;
+        return new ProcurementStatusResponse(
+                settings.configured(),
+                settings.enabled,
+                isRunning,
+                AuthService.executive(currentActor),
+                settings.intervalMs / 60000,
+                settings.types(),
+                totalUnread,
+                categories,
+                sources
+        );
     }
 
     /**
@@ -133,7 +134,10 @@ public class ProcurementService {
     /**
      * 관심조건 등록 및 수정
      */
-    public ProcurementRule save(Long id, Map<String, Object> body) {
+    public ProcurementRule save(Long id, RuleSaveRequest request) {
+        if (request == null) {
+            throw new IllegalArgumentException("요청 본문이 필요합니다.");
+        }
         Long ownerId = authService.current().getId();
 
         ProcurementRule rule;
@@ -146,31 +150,32 @@ public class ProcurementService {
             rule = ruleRepository.findById(id)
                     .filter(r -> r.employeeId.equals(ownerId))
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "해당 관심조건을 찾을 수 없습니다."));
-            validateVersion(rule.getVersion(), body);
+            validateVersion(rule.getVersion(), request.version());
         }
 
         rule.employeeId = ownerId;
-        rule.name = validateText(body, "name", 100);
+        rule.name = validateText(request.name(), "name", 100);
         if (rule.name.isBlank()) {
             throw new IllegalArgumentException("조건 이름을 입력하세요.");
         }
 
-        rule.keywords = parseTerms(body, "keywords");
-        rule.excludedKeywords = parseTerms(body, "excluded_keywords");
-        rule.institutions = parseTerms(body, "institutions");
+        rule.keywords = parseTerms(request.keywords(), "keywords");
+        rule.excludedKeywords = parseTerms(request.excludedKeywords(), "excluded_keywords");
+        rule.institutions = parseTerms(request.institutions(), "institutions");
 
         if (rule.keywords.isBlank() && rule.institutions.isBlank()) {
             throw new IllegalArgumentException("관심 키워드나 기관을 한 개 이상 입력하세요.");
         }
 
-        rule.matchMode = validateChoice(body, "match_mode", Set.of("AND", "OR"));
-        rule.noticeKind = validateChoice(body, "notice_kind", Set.of("ALL", "BID", "SPEC"));
-        rule.businessType = validateChoice(body, "business_type", Set.of("ALL", "SERVC", "THNG", "CNSTWK", "FRGCPT"));
+        rule.matchMode = validateChoice(request.matchMode(), "match_mode", Set.of("AND", "OR"));
+        rule.noticeKind = validateChoice(request.noticeKind(), "notice_kind", Set.of("ALL", "BID", "SPEC"));
+        rule.businessType = validateChoice(
+                request.businessType(), "business_type", Set.of("ALL", "SERVC", "THNG", "CNSTWK", "FRGCPT"));
 
-        if (!(body.get("enabled") instanceof Boolean enabled)) {
+        if (request.enabled() == null) {
             throw new IllegalArgumentException("사용 여부를 확인하세요.");
         }
-        rule.enabled = enabled;
+        rule.enabled = request.enabled();
 
         return ruleRepository.saveAndFlush(rule);
     }
@@ -178,13 +183,13 @@ public class ProcurementService {
     /**
      * 관심조건 삭제
      */
-    public void delete(Long id, Map<String, Object> body) {
+    public void delete(Long id, VersionRequest request) {
         Long ownerId = authService.current().getId();
         ProcurementRule rule = ruleRepository.findById(id)
                 .filter(r -> r.employeeId.equals(ownerId))
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "해당 관심조건을 찾을 수 없습니다."));
 
-        validateVersion(rule.getVersion(), body);
+        validateVersion(rule.getVersion(), request == null ? null : request.version());
         ruleRepository.delete(rule);
         ruleRepository.flush();
     }
@@ -193,7 +198,7 @@ public class ProcurementService {
      * 매칭된 공고 알림 검색 및 목록 조회
      */
     @Transactional(readOnly = true)
-    public Map<String, Object> list(
+    public ProcurementAlertPageResponse list(
             int page,
             int size,
             String queryText,
@@ -247,34 +252,30 @@ public class ProcurementService {
         Map<Long, ProcurementNotice> noticeMap = new HashMap<>();
         noticeRepository.findAllById(noticeIds).forEach(n -> noticeMap.put(n.id, n));
 
-        List<Map<String, Object>> items = pageResult.stream()
-                .map(alert -> toDto(alert, noticeMap.get(alert.noticeId)))
+        List<ProcurementAlertVo> items = pageResult.stream()
+                .map(alert -> toVo(alert, noticeMap.get(alert.noticeId)))
                 .toList();
 
-        return Map.of(
-                "items", items,
-                "total", pageResult.getTotalElements(),
-                "page", page
-        );
+        return new ProcurementAlertPageResponse(items, pageResult.getTotalElements(), page);
     }
 
     /**
      * 알림 상세 조회
      */
     @Transactional(readOnly = true)
-    public Map<String, Object> detail(Long id) {
+    public ProcurementAlertVo detail(Long id) {
         ProcurementAlert alert = getOwnedAlert(id);
         ProcurementNotice notice = noticeRepository.findById(alert.noticeId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "공고 정보를 찾을 수 없습니다."));
-        return toDto(alert, notice);
+        return toVo(alert, notice);
     }
 
     /**
      * 알림 읽음 처리
      */
-    public Map<String, Object> read(Long id, Map<String, Object> body) {
+    public ProcurementAlertVo read(Long id, VersionRequest request) {
         ProcurementAlert alert = getOwnedAlert(id);
-        validateVersion(alert.getVersion(), body);
+        validateVersion(alert.getVersion(), request == null ? null : request.version());
 
         if (alert.readOn == null) {
             alert.readOn = Instant.now();
@@ -283,13 +284,13 @@ public class ProcurementService {
         alertRepository.saveAndFlush(alert);
         ProcurementNotice notice = noticeRepository.findById(alert.noticeId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "공고 정보를 찾을 수 없습니다."));
-        return toDto(alert, notice);
+        return toVo(alert, notice);
     }
 
     /**
      * 수동 공고 동기화 요청 (관리자/임원 전용)
      */
-    public Map<String, Object> requestSync() {
+    public SyncTriggerResponse requestSync() {
         if (!AuthService.executive(authService.current())) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "수동 조회는 관리자·임원만 실행할 수 있습니다.");
         }
@@ -297,7 +298,7 @@ public class ProcurementService {
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "나라장터 API 인증키 및 연동 설정이 필요합니다.");
         }
 
-        return Map.of("accepted", syncEngine.request());
+        return new SyncTriggerResponse(syncEngine.request());
     }
 
     private ProcurementAlert getOwnedAlert(Long id) {
@@ -307,36 +308,35 @@ public class ProcurementService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "알림을 찾을 수 없습니다."));
     }
 
-    private static Map<String, Object> toDto(ProcurementAlert alert, ProcurementNotice notice) {
-        Map<String, Object> dto = new LinkedHashMap<>();
-        dto.put("id", alert.id);
-        dto.put("version", alert.getVersion());
-        dto.put("read_on", alert.readOn);
-        dto.put("created_on", alert.getCreatedOn());
-        dto.put("matched_rules", alert.matchedRules);
-        dto.put("notice", notice);
-        return dto;
+    private static ProcurementAlertVo toVo(ProcurementAlert alert, ProcurementNotice notice) {
+        return new ProcurementAlertVo(
+                alert.id,
+                alert.getVersion(),
+                alert.readOn,
+                alert.getCreatedOn(),
+                alert.matchedRules,
+                notice
+        );
     }
 
-    private static void validateVersion(Long currentVersion, Map<String, Object> body) {
-        Object versionValue = body.get("version");
-        if (versionValue == null || !versionValue.toString().matches("[0-9]+")) {
+    private static void validateVersion(Long currentVersion, Long requestedVersion) {
+        if (requestedVersion == null) {
             throw new IllegalArgumentException("조회 당시 version이 필요합니다.");
         }
-        if (!currentVersion.toString().equals(versionValue.toString())) {
+        if (!Objects.equals(currentVersion, requestedVersion)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "다른 창에서 변경되었습니다. 새로고침 후 다시 시도하세요.");
         }
     }
 
-    private static String validateText(Map<String, Object> body, String key, int maxLength) {
-        if (!(body.get(key) instanceof String text) || text.length() > maxLength) {
+    private static String validateText(String text, String key, int maxLength) {
+        if (text == null || text.length() > maxLength) {
             throw new IllegalArgumentException("입력값 길이와 형식을 확인하세요: " + key);
         }
         return text.strip();
     }
 
-    private static String parseTerms(Map<String, Object> body, String key) {
-        String text = validateText(body, key, 3000);
+    private static String parseTerms(String rawText, String key) {
+        String text = validateText(rawText, key, 3000);
         List<String> termList = ProcurementMatcher.terms(text);
         if (termList.size() > 30 || termList.stream().anyMatch(t -> t.length() > 100)) {
             throw new IllegalArgumentException("키워드·기관은 각 30개, 항목당 100자까지 입력할 수 있습니다.");
@@ -344,8 +344,8 @@ public class ProcurementService {
         return String.join("\n", termList);
     }
 
-    private static String validateChoice(Map<String, Object> body, String key, Set<String> allowedSet) {
-        String value = validateText(body, key, 10);
+    private static String validateChoice(String rawValue, String key, Set<String> allowedSet) {
+        String value = validateText(rawValue, key, 10);
         if (!allowedSet.contains(value)) {
             throw new IllegalArgumentException("선택값을 확인하세요: " + key);
         }

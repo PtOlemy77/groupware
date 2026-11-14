@@ -14,7 +14,7 @@ import type {
 } from '@/types/evaluation-plans';
 import LegacyEvaluationsView from './LegacyEvaluationsView';
 import { Plus, LockKeyhole, RefreshCw, ClipboardCheck, Award, Clock3, ClipboardList, Trash2 } from 'lucide-react';
-import { PageHeaderBar, TabGroup, Button, Modal, Card, Badge, SearchInput } from '@/components/common';
+import { PageHeaderBar, TabGroup, Button, Modal, Card, Badge, SearchInput, Select } from '@/components/common';
 import {
   Table,
   TableHead,
@@ -673,14 +673,15 @@ function PerformancePlans({ currentUser, onRefresh }: Pick<EvaluationsViewProps,
       <PageHeaderBar
         left={
           <>
-            <select
+            <Select
               aria-label="수행평가 연도"
+              size="md"
               value={year}
               onChange={e => {
                 setYear(Number(e.target.value));
                 setPage(0);
               }}
-              className={inputClass.replace('w-full ', '') + ' w-28'}
+              className="w-28"
             >
               {Array.from({ length: currentYear - 2020 + 5 }, (_, i) => 2020 + i)
                 .reverse()
@@ -689,15 +690,16 @@ function PerformancePlans({ currentUser, onRefresh }: Pick<EvaluationsViewProps,
                     {y}년
                   </option>
                 ))}
-            </select>
-            <select
+            </Select>
+            <Select
               aria-label="수행평가 상태"
+              size="md"
               value={filter}
               onChange={e => {
                 setFilter(e.target.value);
                 setPage(0);
               }}
-              className={inputClass.replace('w-full ', '') + ' w-52'}
+              className="w-52"
             >
               <option value="">전체 상태</option>
               {Object.entries(EVALUATION_STATES).map(([key, label]) => (
@@ -705,7 +707,7 @@ function PerformancePlans({ currentUser, onRefresh }: Pick<EvaluationsViewProps,
                   {label}
                 </option>
               ))}
-            </select>
+            </Select>
           </>
         }
         right={

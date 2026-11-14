@@ -22,9 +22,9 @@ export interface SelectProps
 }
 
 const SIZE_STYLES: Record<SelectSize, string> = {
-  sm: 'h-8 px-2.5 py-1 text-xs rounded-lg pr-7',
-  md: 'h-10 px-3 py-2 text-sm rounded-xl pr-9',
-  lg: 'h-12 px-4 py-2.5 text-base rounded-xl pr-10',
+  sm: 'h-9 px-3 py-1.5 text-xs rounded-xl pr-8',
+  md: 'h-10 px-3.5 py-2 text-sm rounded-xl pr-9',
+  lg: 'h-11 px-4 py-2.5 text-sm rounded-xl pr-10',
 };
 
 export const Select = forwardRef<HTMLSelectElement, SelectProps>(
@@ -40,6 +40,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
       id,
       children,
       disabled,
+      style,
       ...rest
     },
     ref
@@ -62,7 +63,8 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
             ref={ref}
             id={selectId}
             disabled={disabled}
-            className={`w-full appearance-none bg-white border font-medium text-slate-800 transition-all cursor-pointer disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 ${
+            style={{ backgroundImage: 'none', ...style }}
+            className={`w-full [background-image:none] appearance-none bg-white border font-medium text-slate-800 transition-all cursor-pointer disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 ${
               error
                 ? 'border-rose-300 focus:border-rose-500 focus:ring-rose-500/20'
                 : 'border-slate-200 hover:border-slate-300'
@@ -77,8 +79,8 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
                 ))
               : children}
           </select>
-          <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-400">
-            <ChevronDown className="w-4 h-4" />
+          <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2.5 text-slate-400">
+            <ChevronDown className={size === 'sm' ? 'w-3.5 h-3.5' : 'w-4 h-4'} />
           </div>
         </div>
         {error && <p className="mt-1 text-xs text-rose-600 font-medium">{error}</p>}

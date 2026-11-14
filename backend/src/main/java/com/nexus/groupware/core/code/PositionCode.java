@@ -2,7 +2,6 @@ package com.nexus.groupware.core.code;
 
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 
 public enum PositionCode {
   POS_STAFF("POS_STAFF", "담당", 1),
@@ -12,6 +11,8 @@ public enum PositionCode {
   POS_GM("POS_GM", "부장", 5),
   POS_DIR("POS_DIR", "이사", 6),
   POS_CEO("POS_CEO", "사장", 7);
+
+  public record PositionOptionVo(String code, String label, int level) {}
 
   private final String code;
   private final String label;
@@ -52,13 +53,9 @@ public enum PositionCode {
     throw new IllegalArgumentException("유효하지 않은 직급 코드입니다.");
   }
 
-  public static List<Map<String, Object>> toList() {
+  public static List<PositionOptionVo> toList() {
     return Arrays.stream(values())
-        .map(p ->
-            Map.<String, Object>of(
-                "code", p.code,
-                "label", p.label,
-                "level", p.level))
+        .map(p -> new PositionOptionVo(p.code, p.label, p.level))
         .toList();
   }
 }

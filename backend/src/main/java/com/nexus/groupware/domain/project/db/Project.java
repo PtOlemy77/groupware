@@ -157,11 +157,11 @@ public class Project extends VersionedEntity {
       String description) {
     this.code = code;
     this.name = name;
-    this.setDepartment(department);
+    applyDepartment(department);
     this.pmName = pmName;
     this.startDate = startDate;
     this.endDate = endDate;
-    this.setStatus(status);
+    applyStatus(status);
     this.progress = progress;
     this.budget = budget;
     this.shareRate = shareRate != null ? shareRate : 100.0;
@@ -223,6 +223,10 @@ public class Project extends VersionedEntity {
   }
 
   public void setDepartment(String department) {
+    applyDepartment(department);
+  }
+
+  private void applyDepartment(String department) {
     this.department = department;
     if (department != null && !department.isBlank()) {
       try {
@@ -273,6 +277,10 @@ public class Project extends VersionedEntity {
   }
 
   public void setStatus(String status) {
+    applyStatus(status);
+  }
+
+  private void applyStatus(String status) {
     this.status = status;
     if (status != null && !status.isBlank()) {
       try {

@@ -501,14 +501,50 @@ export interface FullContractDocument {
 
   // 결재 & 합의 라인
   approvalLine: {
-    drafter: { name: string; position: string; dept: string; status: string; date: string };
-    bizHead: { name: string; position: string; status: string; date?: string; comment?: string };
-    ceo: { name: string; position: string; status: string; date?: string; comment?: string };
+    drafter: {
+      name: string;
+      position: string;
+      dept: string;
+      status: string;
+      date: string;
+    };
+    bizHead: {
+      name: string;
+      position: string;
+      status: string;
+      date?: string;
+      comment?: string;
+    };
+    ceo: {
+      name: string;
+      position: string;
+      status: string;
+      date?: string;
+      comment?: string;
+    };
   };
   consensusLine: {
-    qm: { name: string; position: string; dept: string; status: string; date?: string };
-    mgmt: { name: string; position: string; dept: string; status: string; date?: string };
-    pm: { name: string; position: string; dept: string; status: string; date?: string };
+    qm: {
+      name: string;
+      position: string;
+      dept: string;
+      status: string;
+      date?: string;
+    };
+    mgmt: {
+      name: string;
+      position: string;
+      dept: string;
+      status: string;
+      date?: string;
+    };
+    pm: {
+      name: string;
+      position: string;
+      dept: string;
+      status: string;
+      date?: string;
+    };
   };
 }
 
@@ -520,14 +556,40 @@ export const COMPANY_CEO = '권우석';
 export const COMPANY_WEBSITE = 'http://www.spatialt.co.kr/';
 export const COMPANY_EMAIL_DOMAIN = '@spatialt.co.kr';
 
-export const STANDARD_UNIT_PRICES = [
-  { position: '이사', grade: '특급', desc: '총괄 PM / 공간정보 정책 및 감리 총괄' },
-  { position: '부장', grade: '특급', desc: '공간정보 PM / GIS 아키텍처 / 수주 총괄' },
-  { position: '차장', grade: '고급', desc: 'GIS 플랫폼 PL / 3D 디지털트윈 설계' },
-  { position: '과장', grade: '고급', desc: '품질총괄 / PostGIS DB 검수 / 백엔드' },
-  { position: '대리', grade: '중급', desc: 'OpenLayers / Cesium WebGIS 프론트엔드' },
-  { position: '담당', grade: '초급', desc: '공간정보 API / 지도 데이터 가공' },
-];
+export type TechnicalGrade = '특급' | '고급' | '중급' | '초급';
+
+const EXPERT_POSITIONS = new Set([
+  '사장',
+  '대표이사',
+  '부사장',
+  '전무',
+  '상무',
+  '이사',
+  '수석',
+  '부장',
+  '차장',
+  '특급',
+]);
+
+const SENIOR_POSITIONS = new Set(['과장', '고급']);
+const INTERMEDIATE_POSITIONS = new Set(['대리', '중급']);
+
+/**
+ * 직급명(또는 기술등급명)으로부터 기본 SW 기술자 등급을 판별한다.
+ */
+export function inferTechnicalGrade(position?: string | null): TechnicalGrade {
+  const normalized = (position || '').trim();
+  if (EXPERT_POSITIONS.has(normalized)) {
+    return '특급';
+  }
+  if (SENIOR_POSITIONS.has(normalized)) {
+    return '고급';
+  }
+  if (INTERMEDIATE_POSITIONS.has(normalized)) {
+    return '중급';
+  }
+  return '초급';
+}
 
 export function cleanDeptName(name?: string): string {
   if (!name) return '';

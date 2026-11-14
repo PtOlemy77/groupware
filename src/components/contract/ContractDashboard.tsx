@@ -9,7 +9,6 @@ import {
   Employee,
   Project,
   BusinessDeal,
-  STANDARD_UNIT_PRICES,
 } from '@/types/groupware';
 import ContractWorkstationModal from './ContractWorkstationModal';
 import {
@@ -21,6 +20,16 @@ import {
   Sparkles,
   ArrowRight,
 } from 'lucide-react';
+import { PageHeaderBar, SearchInput, Button } from '@/components/common';
+import {
+  Table,
+  TableHead,
+  TableBody,
+  TableRow,
+  TableCell,
+  TableHeaderCell,
+  TableEmpty,
+} from '@/components/common/Table';
 
 interface Props {
   currentUser: AuthUser;
@@ -43,23 +52,84 @@ const POSITION_TO_GRADE: Record<
   담당: { grade: '초급', role: 'WebGIS 프론트 / 모듈개발' },
 };
 
-export function buildDefaultFullContractDoc(ap?: Approval, currentUser?: AuthUser, count = 1): FullContractDocument {
+export function buildDefaultFullContractDoc(
+  ap?: Approval,
+  currentUser?: AuthUser,
+  _count = 1,
+): FullContractDocument {
   const today = new Date();
-  const start = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-01`;
+  const month = String(today.getMonth() + 1).padStart(2, '0');
+  const start = `${today.getFullYear()}-${month}-01`;
+
   const blank: FullContractDocument = {
-    docNo: ap?.doc_no || '', version: '1.0', title: ap?.title || '', clientName: ap?.vendor || '',
-    contractPeriod: '', startDate: start, endDate: start, linkedProjectId: ap?.project_id,
-    contractType: '용역구축', paymentTerms: '', warrantyPeriod: '12개월', delayPenaltyRate: 0, ourShareRate: 100,
-    supplyAmount: ap?.amount || 0, vatAmount: 0, productCostTotal: 0, outsourcingTotal: 0, laborCostTotal: 0,
-    directExpenseTotal: 0, estimatedAsTotal: 0, proposalCostTotal: 0, totalBudget: 0, salesProfit: 0,
-    contingencyRate: 0, contingencyCost: 0, projectNetProfit: 0, profitRate: 0,
-    productCosts: [], manpowerPlans: [], outsourcings: [], directExpenses: [], riskEvaluations: [], cashflowMilestones: [],
-    approvalLine: { drafter: { name: currentUser?.name || '', position: currentUser?.position || '', dept: currentUser?.department || '', status: '작성중', date: '' }, bizHead: { name: '', position: '', status: '' }, ceo: { name: '', position: '', status: '' } },
-    consensusLine: { qm: { name: '', position: '', dept: '', status: '' }, mgmt: { name: '', position: '', dept: '', status: '' }, pm: { name: '', position: '', dept: '', status: '' } },
+    docNo: ap?.doc_no || '',
+    version: '1.0',
+    title: ap?.title || '',
+    clientName: ap?.vendor || '',
+    contractPeriod: '',
+    startDate: start,
+    endDate: start,
+    linkedProjectId: ap?.project_id,
+    contractType: '용역구축',
+    paymentTerms: '',
+    warrantyPeriod: '12개월',
+    delayPenaltyRate: 0,
+    ourShareRate: 100,
+    supplyAmount: ap?.amount || 0,
+    vatAmount: 0,
+    productCostTotal: 0,
+    outsourcingTotal: 0,
+    laborCostTotal: 0,
+    directExpenseTotal: 0,
+    estimatedAsTotal: 0,
+    proposalCostTotal: 0,
+    totalBudget: 0,
+    salesProfit: 0,
+    contingencyRate: 0,
+    contingencyCost: 0,
+    projectNetProfit: 0,
+    profitRate: 0,
+    productCosts: [],
+    manpowerPlans: [],
+    outsourcings: [],
+    directExpenses: [],
+    riskEvaluations: [],
+    cashflowMilestones: [],
+    approvalLine: {
+      drafter: {
+        name: currentUser?.name || '',
+        position: currentUser?.position || '',
+        dept: currentUser?.department || '',
+        status: '작성중',
+        date: '',
+      },
+      bizHead: { name: '', position: '', status: '' },
+      ceo: { name: '', position: '', status: '' },
+    },
+    consensusLine: {
+      qm: { name: '', position: '', dept: '', status: '' },
+      mgmt: { name: '', position: '', dept: '', status: '' },
+      pm: { name: '', position: '', dept: '', status: '' },
+    },
   };
-  if (!ap?.items_json) return blank;
-  try { const parsed = JSON.parse(ap.items_json); if (!Array.isArray(parsed.productCosts) || !Array.isArray(parsed.manpowerPlans)) throw new Error(); return { ...blank, ...parsed }; }
-  catch { throw new Error('이 계약은 이전 문서 형식입니다. 원본을 보존한 상태에서 관리자에게 문서 변환을 요청하세요.'); }
+
+  if (!ap?.items_json) {
+    return blank;
+  }
+
+  try {
+    const parsed = JSON.parse(ap.items_json);
+    const isValidStructure =
+      Array.isArray(parsed.productCosts) && Array.isArray(parsed.manpowerPlans);
+    if (!isValidStructure) {
+      throw new Error('Invalid contract document structure');
+    }
+    return { ...blank, ...parsed };
+  } catch {
+    throw new Error(
+      '이 계약은 이전 문서 형식입니다. 원본을 보존한 상태에서 관리자에게 문서 변환을 요청하세요.',
+    );
+  }
 }
 
 export default function ContractDashboard({
@@ -160,7 +230,6 @@ export default function ContractDashboard({
       if (matched.length > 0) {
         doc.manpowerPlans = matched.map((emp, idx) => {
           const meta = POSITION_TO_GRADE[emp.position] || { grade: '중급' as const, role: 'GIS 개발' };
-          const priceObj = STANDARD_UNIT_PRICES.find((p) => p.position === emp.position);
           const unitPrice = configuredPrice(emp.position, new Date(prj.start_date).getFullYear());
           return {
             id: `mp_prj_${emp.id}_${idx}`,
@@ -288,76 +357,73 @@ export default function ContractDashboard({
       </div>
 
       {/* Filter and Search Bar */}
-      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs flex flex-wrap items-center justify-between gap-3">
-        <div className="relative">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
-          <input
-            type="text"
+      <PageHeaderBar
+        left={
+          <SearchInput
             placeholder="계약명, 발주처, 담당자 검색..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9 pr-3 py-1.5 text-xs rounded-lg border border-slate-300 w-80 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+            onClear={() => setSearchQuery('')}
+            size="md"
+            className="w-80"
           />
-        </div>
+        }
+        right={
+          <div className="text-xs text-slate-500 font-medium">
+            접속자: <span className="font-bold text-indigo-600">{currentUser.name} {currentUser.position}</span> ({currentUser.department})
+          </div>
+        }
+      />
 
-        <div className="text-xs text-slate-500">
-          접속자: <span className="font-bold text-indigo-600">{currentUser.name} {currentUser.position}</span> ({currentUser.department})
-        </div>
-      </div>
-
-      {/* Contract Documents Table (문서번호 제거, 전자결재 상태 제거) */}
+      {/* Contract Documents Table */}
       <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-2xs">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs text-slate-700">
-            <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-semibold uppercase tracking-wider">
+          <Table className="min-w-[840px]">
+            <TableHead>
               <tr>
-                <th className="px-5 py-3.5">계약명</th>
-                <th className="px-5 py-3.5">발주처</th>
-                <th className="px-5 py-3.5 text-right">계약금액(공급가)</th>
-                <th className="px-5 py-3.5">작성자 / 부서</th>
-                <th className="px-5 py-3.5">등록일</th>
-                <th className="px-5 py-3.5 text-center">관리</th>
+                <TableHeaderCell>계약명</TableHeaderCell>
+                <TableHeaderCell>발주처</TableHeaderCell>
+                <TableHeaderCell align="right">계약금액(공급가)</TableHeaderCell>
+                <TableHeaderCell>작성자 / 부서</TableHeaderCell>
+                <TableHeaderCell>등록일</TableHeaderCell>
+                <TableHeaderCell align="center">관리</TableHeaderCell>
               </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
+            </TableHead>
+            <TableBody>
               {filteredApprovals.map((ap) => (
-                <tr key={ap.id} className="hover:bg-slate-50/80 transition group">
-                  <td className="px-5 py-4 font-medium text-slate-900 max-w-md">
+                <TableRow key={ap.id}>
+                  <TableCell className="font-medium text-slate-900 max-w-md">
                     <div className="font-semibold line-clamp-1">{ap.title}</div>
-                  </td>
-                  <td className="px-5 py-4 text-slate-600 font-medium">
+                  </TableCell>
+                  <TableCell className="text-slate-600 font-medium">
                     {ap.vendor || '발주처 미지정'}
-                  </td>
-                  <td className="px-5 py-4 font-bold text-slate-900 text-right">
+                  </TableCell>
+                  <TableCell align="right" className="font-bold text-slate-900">
                     {ap.amount.toLocaleString()} 천원
                     <div className="text-xs font-normal text-slate-400">
                       VAT포함 {Math.round(ap.amount * 1.1).toLocaleString()} 천원
                     </div>
-                  </td>
-                  <td className="px-5 py-4">
+                  </TableCell>
+                  <TableCell>
                     <div className="font-semibold text-slate-800">{ap.requester}</div>
                     <div className="text-xs text-slate-500">{ap.department}</div>
-                  </td>
-                  <td className="px-5 py-4 text-slate-500">{ap.created_at}</td>
-                  <td className="px-5 py-4 text-center">
+                  </TableCell>
+                  <TableCell className="text-slate-500 font-mono text-xs">{ap.created_at}</TableCell>
+                  <TableCell align="center">
                     <button
                       onClick={() => handleOpenWorkstation(ap)}
-                      className="px-3.5 py-1.5 rounded-lg text-xs font-bold bg-indigo-50 text-indigo-700 hover:bg-indigo-600 hover:text-white transition shadow-2xs"
+                      className="px-3.5 py-1.5 rounded-lg text-xs font-bold bg-indigo-50 text-indigo-700 hover:bg-indigo-600 hover:text-white transition shadow-2xs cursor-pointer"
                     >
                       품의서 열기
                     </button>
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ))}
               {filteredApprovals.length === 0 && (
-                <tr>
-                  <td colSpan={6} className="text-center py-12 text-slate-400">
-                    등록된 계약품의서가 없습니다.
-                  </td>
-                </tr>
+                <TableEmpty colSpan={6} message="등록된 계약품의서가 없습니다." />
               )}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </div>
       </div>
 

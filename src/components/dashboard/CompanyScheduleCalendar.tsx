@@ -389,22 +389,47 @@ export default function CompanyScheduleCalendar({
     : [];
 
   useEffect(() => {
-    if (!detailGroup) return;
+    if (!detailGroup) {
+      return;
+    }
+
     const trigger = document.activeElement as HTMLElement | null;
     const frame = requestAnimationFrame(() => {
-      const dialogs = document.querySelectorAll<HTMLElement>('[role="dialog"][aria-modal="true"]');
-      dialogs[dialogs.length - 1]?.querySelector<HTMLButtonElement>('button')?.focus();
+      const dialogs = document.querySelectorAll<HTMLElement>(
+        '[role="dialog"][aria-modal="true"]',
+      );
+      const activeDialog = dialogs[dialogs.length - 1];
+      activeDialog?.querySelector<HTMLButtonElement>('button')?.focus();
     });
+
     const trapFocus = (event: KeyboardEvent) => {
-      if (event.key !== 'Tab') return;
-      const dialogs = document.querySelectorAll<HTMLElement>('[role="dialog"][aria-modal="true"]');
-      const dialog = dialogs[dialogs.length - 1];
-      const buttons = dialog?.querySelectorAll<HTMLButtonElement>('button:not([disabled])');
-      if (!buttons?.length) return;
-      const first = buttons[0], last = buttons[buttons.length - 1];
-      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
-      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+      if (event.key !== 'Tab') {
+        return;
+      }
+
+      const dialogs = document.querySelectorAll<HTMLElement>(
+        '[role="dialog"][aria-modal="true"]',
+      );
+      const activeDialog = dialogs[dialogs.length - 1];
+      const buttons = activeDialog?.querySelectorAll<HTMLButtonElement>(
+        'button:not([disabled])',
+      );
+      if (!buttons?.length) {
+        return;
+      }
+
+      const firstButton = buttons[0];
+      const lastButton = buttons[buttons.length - 1];
+
+      if (event.shiftKey && document.activeElement === firstButton) {
+        event.preventDefault();
+        lastButton.focus();
+      } else if (!event.shiftKey && document.activeElement === lastButton) {
+        event.preventDefault();
+        firstButton.focus();
+      }
     };
+
     document.addEventListener('keydown', trapFocus);
     return () => {
       cancelAnimationFrame(frame);
@@ -537,11 +562,48 @@ export default function CompanyScheduleCalendar({
             </button>
             <div className="px-3 font-extrabold text-base md:text-lg text-slate-900 font-mono tracking-tight flex items-center gap-1.5">
               <CalendarIcon className="w-4 h-4 text-indigo-600" />
-              <select aria-label="달력 연도" value={currentYear} onChange={e => { setCurrentYear(Number(e.target.value)); setSelectedDate(`${e.target.value}-${String(currentMonth).padStart(2, '0')}-01`); }} className="max-w-24 text-sm bg-transparent">
-                {Array.from(new Set([currentYear, ...Array.from({ length: 17 }, (_, i) => 2024 + i)])).sort((a,b) => a-b).map(year => <option key={year} value={year}>{year}년</option>)}
+              <select
+                aria-label="달력 연도"
+                value={currentYear}
+                onChange={(e) => {
+                  const nextYear = Number(e.target.value);
+                  setCurrentYear(nextYear);
+                  setSelectedDate(
+                    `${nextYear}-${String(currentMonth).padStart(2, '0')}-01`,
+                  );
+                }}
+                className="max-w-24 text-sm bg-transparent"
+              >
+                {Array.from(
+                  new Set([
+                    currentYear,
+                    ...Array.from({ length: 17 }, (_, i) => 2024 + i),
+                  ]),
+                )
+                  .sort((a, b) => a - b)
+                  .map((year) => (
+                    <option key={year} value={year}>
+                      {year}년
+                    </option>
+                  ))}
               </select>
-              <select aria-label="달력 월" value={currentMonth} onChange={e => { setCurrentMonth(Number(e.target.value)); setSelectedDate(`${currentYear}-${e.target.value.padStart(2, '0')}-01`); }} className="max-w-20 text-sm bg-transparent">
-                {Array.from({ length: 12 }, (_, i) => <option key={i+1} value={i+1}>{i+1}월</option>)}
+              <select
+                aria-label="달력 월"
+                value={currentMonth}
+                onChange={(e) => {
+                  const nextMonth = Number(e.target.value);
+                  setCurrentMonth(nextMonth);
+                  setSelectedDate(
+                    `${currentYear}-${String(nextMonth).padStart(2, '0')}-01`,
+                  );
+                }}
+                className="max-w-20 text-sm bg-transparent"
+              >
+                {Array.from({ length: 12 }, (_, i) => (
+                  <option key={i + 1} value={i + 1}>
+                    {i + 1}월
+                  </option>
+                ))}
               </select>
             </div>
             <button

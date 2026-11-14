@@ -2,7 +2,6 @@ package com.nexus.groupware.core.code;
 
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 
 public enum DepartmentCode {
   DEPT_CEO("DEPT_CEO", "대표이사", "ROOT", 1),
@@ -10,6 +9,8 @@ public enum DepartmentCode {
   DEPT_RND("DEPT_RND", "기술연구소", "DEPT_CEO", 3),
   DEPT_QM("DEPT_QM", "품질경영팀", "DEPT_CEO", 4),
   DEPT_MGMT("DEPT_MGMT", "경영지원팀", "ROOT", 5);
+
+  public record DepartmentOptionVo(String code, String label, String parentCode, int sortOrder) {}
 
   private final String code;
   private final String label;
@@ -56,14 +57,9 @@ public enum DepartmentCode {
     throw new IllegalArgumentException("유효하지 않은 부서 코드입니다.");
   }
 
-  public static List<Map<String, Object>> toList() {
+  public static List<DepartmentOptionVo> toList() {
     return Arrays.stream(values())
-        .map(d ->
-            Map.<String, Object>of(
-                "code", d.code,
-                "label", d.label,
-                "parent_code", d.parentCode,
-                "sort_order", d.sortOrder))
+        .map(d -> new DepartmentOptionVo(d.code, d.label, d.parentCode, d.sortOrder))
         .toList();
   }
 }

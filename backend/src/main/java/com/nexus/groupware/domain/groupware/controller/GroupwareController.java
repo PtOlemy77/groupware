@@ -1,20 +1,29 @@
 package com.nexus.groupware.domain.groupware.controller;
 
+import com.nexus.groupware.domain.groupware.dto.GroupwareDtos.ApprovalDetailVo;
+import com.nexus.groupware.domain.groupware.dto.GroupwareDtos.GroupwareDataResponse;
+import com.nexus.groupware.domain.groupware.dto.GroupwareDtos.GroupwareMutationRequest;
+import com.nexus.groupware.domain.groupware.dto.GroupwareDtos.GroupwareMutationResponse;
 import com.nexus.groupware.domain.groupware.service.GroupwareService;
-import java.util.Map;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/groupware")
 public class GroupwareController {
   private final GroupwareService service;
 
-  public GroupwareController(GroupwareService s) {
-    service = s;
+  public GroupwareController(GroupwareService service) {
+    this.service = service;
   }
 
   @GetMapping
-  public Map<String, Object> all(
+  public GroupwareDataResponse all(
       @RequestParam(defaultValue = "dashboard") String scope,
       @RequestParam(defaultValue = "0") int page,
       @RequestParam(defaultValue = "50") int size) {
@@ -22,12 +31,12 @@ public class GroupwareController {
   }
 
   @GetMapping("/approvals/{id}")
-  public Map<String, Object> detail(@PathVariable Long id) {
+  public ApprovalDetailVo detail(@PathVariable Long id) {
     return service.approvalDetail(id);
   }
 
   @PostMapping
-  public Map<String, Object> mutate(@RequestBody Map<String, Object> payload) {
-    return service.processMutation(payload);
+  public GroupwareMutationResponse mutate(@RequestBody GroupwareMutationRequest request) {
+    return service.processMutation(request);
   }
 }
